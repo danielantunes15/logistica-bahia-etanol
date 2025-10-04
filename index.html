@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard de Logística Canavieira</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <script src="https://unpkg.com/leaflet-editable@1.2.0/src/Leaflet.Editable.js"></script>
+  
+  <link rel="stylesheet" href="style.css"> 
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" 
+      integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" 
+      crossorigin="anonymous" referrerpolicy="no-referrer" />
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="tabs">
+    <div class="tab active" onclick="showTab('painel')">Painel</div>
+    <div class="tab" onclick="showTab('rotas')">Rotas</div>
+    <div class="tab" onclick="showTab('cadastro')">Cadastro</div>
+    <div class="tab" onclick="showTab('config')">Config.</div>
+  </div>
+
+  <div id="painel" class="tab-page active">
+    <h3>Controle de Frota</h3>
+    <label for="selectTruck">Selecione o Caminhão:</label>
+    <select id="selectTruck" onchange="updatePanelStatus()"></select>
+    <label for="selectFarm">Selecione a Fazenda/Destino:</label>
+    <select id="selectFarm"></select>
+    <label for="statusSelect">Status/Ação:</label>
+    <select id="statusSelect">
+      <option value="sentidoCarregamento" selected>Iniciar p/ Carregamento</option>
+      <option value="sentidoUsina">Retornar p/ Usina</option>
+      <option value="carregando">Em Carregamento (Parado)</option>
+      <option value="quebrado">Reportar Quebra</option>
+      <option value="descarregandoUsina">Descarregando na Usina</option> 
+    </select>
+    <button onclick="startSimulation()" id="startSimulationButton" class="btn-primary">Iniciar/Atualizar Trajeto</button>
+    
+    <div style="margin-top: 20px;">
+        <button onclick="toggleGlobalPause()" id="globalPauseButton" class="btn-secondary">Pausar Todas as Rotas</button>
+    </div>
+
+    <h3>Fazendas Cadastradas</h3>
+    <div id="farms"></div>
+    <h3>Frota Ativa</h3>
+    <div id="trucks"></div>
+  </div>
+
+  <div id="rotas" class="tab-page">
+    <h3>Rotas em Movimento</h3>
+    <div id="routes">Nenhuma rota ativa.</div>
+  </div>
+
+  <div id="cadastro" class="tab-page">
+    <h3>Cadastro de Fazendas</h3>
+    <button onclick="startFarmCadastroInteractive()" class="btn-secondary">Adicionar Fazenda (Clique no Mapa)</button>
+    
+    <div id="interactive-farm-cadastro" style="display:none; padding: 10px; border: 1px solid #353b48; border-radius: 4px; margin-top: 10px;">
+        <h4>Nova Fazenda</h4>
+        <label>Nome da Fazenda:</label>
+        <input type="text" id="newFarmName" placeholder="Ex: Fazenda Água Limpa">
+        <label>Código da Fazenda:</label>
+        <input type="text" id="newFarmCode" placeholder="Ex: FAL03">
+        
+        <div id="route-alternatives" style="margin-top: 15px;">
+            <p style="font-size: 0.8em; color: #f9ca24;">*Clique no mapa para posicionar a Fazenda e calcular as rotas alternativas.</p>
+        </div>
+
+        <button onclick="saveNewFarm()" class="btn-primary">Salvar Fazenda e Rota Atual</button>
+        <button onclick="cancelFarmCadastro()" class="btn-tertiary">Cancelar</button>
+    </div>
+    
+    <h3>Cadastro de Caminhões</h3>
+    <label>Placa do Caminhão:</label>
+    <input type="text" id="newTruckPlate" placeholder="Ex: ABC-1234">
+    <button onclick="addTruck()" class="btn-secondary">Adicionar Caminhão</button>
+
+    <h3 style="margin-top: 30px;">Inicialização Rápida</h3>
+    <button onclick="initializeDemoSimulation(40)" class="btn-primary">Iniciar 40 Caminhões em Ciclo</button>
+    <small style="color: #b2bec3;">(Inicia 40 caminhões alternando rotas entre as fazendas cadastradas.)</small>
+  </div>
+
+  <div id="config" class="tab-page">
+    <h3>Configuração de Mapa</h3>
+    <label for="mapLayerSelect">Camada Base do Mapa:</label>
+    <select id="mapLayerSelect" onchange="changeMapLayer(this.value)">
+      <option value="esriSat">ESRI Satélite (Alta Resolução)</option>
+      <option value="sentinel">Sentinel-2 Satélite (ESA)</option> <option value="osm">OpenStreetMap (Ruas)</option>
+      <option value="wikimedia">Wikimedia (Ruas/Global)</option>
+    </select>
+    <small style="color: #b2bec3;">(Selecione a camada de mapa base. As opções de satélite são ESRI e Sentinel.)</small>
+
+    <h3>Parâmetros Globais</h3>
+    <label>Velocidade Média (km/h):</label>
+    <input type="number" id="speedInput" value="45" min="10" max="100">
+    <small style="color: #b2bec3;">(Velocidade rural ajustada para 45 km/h)</small>
+    
+    <label>Tempo Médio de Carregamento (minutos):</label>
+    <input type="number" id="loadingTimeInput" value="30" min="1" max="120">
+    <small style="color: #b2bec3;">(Tempo que o caminhão fica parado na fazenda para carregar)</small>
+
+    <label>Tempo Médio de Descarga (minutos):</label>
+    <input type="number" id="unloadingTimeInput" value="15" min="1" max="60">
+    <small style="color: #b2bec3;">(Tempo que o caminhão fica parado na usina para descarregar)</small>
+
+    <label>Fator de Aceleração da Simulação:</label>
+    <input type="number" id="simulationFactorInput" value="500" min="100" max="5000">
+    <small style="color: #b2bec3;">(Quanto menor, mais rápido o caminhão se move no mapa)</small>
+  </div>
+</div>
+
+<div id="map-container">
+    <div id="map-dashboard">
+        </div>
+    <div id="map"></div>
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>

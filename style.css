@@ -1,0 +1,317 @@
+/* --- Reset e Layout Base --- */
+* { 
+    margin: 0; 
+    padding: 0; 
+    box-sizing: border-box; 
+}
+body { 
+    /* Nova Fonte */
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    height: 100vh; 
+    display: flex; 
+    flex-direction: row; 
+    overflow: hidden; 
+    background-color: #1a1e23; /* Cor de fundo principal */
+}
+
+/* --- Container do Mapa para posicionamento relativo do Dashboard --- */
+#map-container {
+    flex-grow: 1;
+    position: relative;
+    height: 100%;
+}
+
+/* --- Dashboard Flutuante (Painel superior) --- */
+#map-dashboard {
+    position: absolute;
+    top: 15px; /* Mais espaço do topo */
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px; /* Maior espaçamento */
+    background: rgba(30, 39, 46, 0.98); /* Fundo mais opaco */
+    padding: 12px 20px;
+    border-radius: 12px; /* Cantos mais arredondados */
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    z-index: 900; 
+    color: #f0f4f8; /* Cor do texto principal */
+    border: 1px solid rgba(255, 255, 255, 0.05); /* Borda sutil */
+}
+
+.status-box-map {
+    text-align: center;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    min-width: 100px;
+    cursor: default;
+    transition: background 0.2s, transform 0.2s;
+    position: relative;
+}
+.status-box-map:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: translateY(-2px);
+}
+/* Separador sutil */
+.status-box-map:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    right: -8px;
+    top: 10%;
+    height: 80%;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.status-box-map .count {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.6em; /* Aumento do tamanho */
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+/* Cores dos Status operacionais (Manter) */
+.status-box-map[data-status="sentidoCarregamento"] { color: #00a8ff; }
+.status-box-map[data-status="carregando"] { color: #f9ca24; }
+.status-box-map[data-status="sentidoUsina"] { color: #2ecc71; }
+.status-box-map[data-status="quebrado"] { color: #e74c3c; }
+.status-box-map[data-status="descarregandoUsina"] { color: #b2bec3; } 
+.status-box-map[data-status="parado"] { color: #7f8fa6; } 
+
+/* Novas Cores para Métricas Totais (Mais destaque) */
+.status-box-map[data-status="total"] { color: #f0f4f8; } /* Cor branca pura */
+.status-box-map[data-status="moving"] { color: #3498db; } 
+.status-box-map[data-status="paused"] { color: #95a5a6; } 
+.status-box-map[data-status="utilization"] { color: #2ecc71; font-size: 1em; } /* Verde para % */
+.status-box-map[data-status="utilization"] .count { font-size: 1.8em; }
+
+
+/* --- Sidebar --- */
+#sidebar {
+    width: 420px; /* Pouco mais larga */
+    background: #1e272e;
+    color: #f0f4f8;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    overflow-y: auto;
+    height: 100%;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.5);
+    z-index: 1000; 
+}
+
+/* --- Mapa --- */
+#map { 
+    flex-grow: 1; 
+    height: 100%;
+}
+
+/* --- Abas --- */
+#tabs { 
+    display: flex; 
+    border-bottom: 2px solid #2f3640; 
+    margin-bottom: 10px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0; /* Impede que as abas sejam esmagadas pelo conteúdo */
+}
+.tab { 
+    flex: 1; 
+    text-align: center; 
+    padding: 10px; 
+    cursor: pointer; 
+    background: #2f3640; 
+    font-size: 1rem; 
+    font-weight: 600;
+    transition: background 0.3s, color 0.3s; 
+    border-right: 1px solid #1e272e;
+}
+.tab:last-child {
+    border-right: none;
+}
+.tab:hover:not(.active) { 
+    background: #3c444f; 
+}
+.tab.active { 
+    background: #00a8ff; 
+    color: white; 
+    font-weight: 700; 
+}
+.tab-page { 
+    display: none; 
+    padding: 5px 0; 
+    font-size: 0.95rem; 
+    /* CORREÇÃO: Removendo flex-grow para evitar que a página se estique de forma indesejada */
+}
+.tab-page.active { 
+    display: block; 
+}
+
+/* --- Títulos e Formulários --- */
+h3 { 
+    margin-top: 25px; 
+    margin-bottom: 12px; 
+    border-bottom: 1px solid #353b48; 
+    padding-bottom: 5px; 
+    color: #00a8ff; /* Título em destaque */
+    font-weight: 600;
+}
+button, .btn-primary, .btn-secondary, .btn-tertiary { 
+    border: none; 
+    padding: 12px; 
+    margin: 8px 0; 
+    color: white; 
+    cursor: pointer; 
+    width: 100%; 
+    font-size: 1rem; 
+    border-radius: 6px; 
+    transition: background 0.3s, transform 0.1s; 
+    font-weight: 600;
+}
+/* Botão Primário */
+.btn-primary, button { 
+    background: #0097e6; 
+}
+.btn-primary:hover, button:hover { 
+    background: #0087d1; 
+}
+/* Botão Secundário */
+.btn-secondary {
+    background: #353b48;
+}
+.btn-secondary:hover {
+    background: #404653;
+}
+/* Botão Terciário (Cancelar) */
+.btn-tertiary {
+    background: #7f8fa6;
+}
+.btn-tertiary:hover {
+    background: #6c7a89;
+}
+
+
+label { 
+    margin-top: 15px; 
+    display: block; 
+    font-size: 0.9rem; 
+    font-weight: 600; 
+    color: #b2bec3;
+}
+input, select { 
+    width: 100%; 
+    margin-top: 5px; 
+    padding: 10px; 
+    border-radius: 6px; 
+    border: 1px solid #57606f; 
+    background: #2f3640; 
+    color: white; 
+    font-size: 1rem; 
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+input:focus, select:focus {
+    border-color: #00a8ff;
+    box-shadow: 0 0 5px rgba(0, 168, 255, 0.5);
+    outline: none;
+}
+
+/* --- Estilização para as opções de rota --- */
+.route-option {
+    background: #3c444f;
+    padding: 8px;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+    font-size: 0.9em;
+}
+.route-option:hover {
+    background: #4a515e;
+}
+.route-option.selected {
+    border-color: #f9ca24; /* Amarelo para destacar a rota selecionada */
+    box-shadow: 0 0 5px rgba(249, 202, 36, 0.5);
+    font-weight: bold;
+}
+.route-option small {
+    display: block;
+    color: #b2bec3;
+    margin-top: 3px;
+}
+
+/* --- Itens de Lista (Caminhões/Fazendas) --- */
+.item { 
+    background: #2f3640; 
+    margin: 8px 0; 
+    padding: 12px; 
+    border-radius: 6px; 
+    font-size: 0.95rem; 
+    border-left: 4px solid transparent; 
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: background 0.2s;
+}
+.item:hover {
+    background: #3c444f;
+}
+.item.active-route { 
+    border-left-color: #00a8ff; 
+    background: #3c444f;
+} 
+.details { 
+    font-size: 0.8rem; 
+    margin-top: 4px; 
+    color: #95a5a6; 
+}
+
+/* --- Cores dos Status na Sidebar --- */
+.status-sentidoCarregamento { color: #00a8ff; font-weight: 700; }
+.status-carregando { color: #f9ca24; font-weight: 700; }
+.status-sentidoUsina { color: #2ecc71; font-weight: 700; }
+.status-quebrado { color: #e74c3c; font-weight: 700; }
+.status-descarregandoUsina { color: #b2bec3; font-weight: 700; }
+.status-parado { color: #7f8fa6; font-weight: 400; }
+
+/* --- Estilo dos Ícones Customizados (Leaflet) --- */
+.map-icon {
+    text-align: center;
+    line-height: 1; 
+    font-size: 1.1em;
+}
+
+/* Ícone da Usina (Ponto Fixo de Destino) */
+.usina-icon {
+    background-color: #00a8ff; 
+    color: white;
+    border-radius: 50%; 
+    width: 35px;
+    height: 35px;
+    line-height: 35px;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
+    border: 3px solid white;
+}
+
+/* Ícones dos Caminhões (Cor varia com o Status) */
+.truck-icon {
+    background-color: #353b48; 
+    color: white;
+    width: 40px; /* Levemente maior */
+    height: 40px;
+    line-height: 40px;
+    border-radius: 4px;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
+    border: 4px solid; /* Borda mais grossa */
+    transition: border-color 0.3s, background-color 0.3s;
+}
+.truck-icon i {
+    font-size: 1.2em; /* Ícone um pouco maior */
+}
+
+/* Bordas dos Caminhões conforme o Status */
+.truck-icon.status-sentidoCarregamento { border-color: #00a8ff; } 
+.truck-icon.status-carregando { border-color: #f9ca24; } 
+.truck-icon.status-sentidoUsina { border-color: #2ecc71; } 
+.truck-icon.status-quebrado { border-color: #e74c3c; } 
+.truck-icon.status-descarregandoUsina { border-color: #b2bec3; } 
+.truck-icon.status-parado { border-color: #7f8fa6; }
+.truck-icon.status-chegouUsina, .truck-icon.status-chegouFazenda { border-color: #57606f; } /* Cinza neutro ao chegar */
