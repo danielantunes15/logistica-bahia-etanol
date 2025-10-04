@@ -1,6 +1,16 @@
 // ATENÇÃO: SUBSTITUA ESTA CHAVE PELA SUA CHAVE REAL DO OPENROUTESERVICE!
 const apiKey = '5b3ce3597851110001cf62483696e0fcc1fc4afca08cce34650de536'; 
 
+// ----------------------------------------------------------------------
+// --- CONFIGURAÇÃO SUPABASE (Persistência de Dados) ---------------------
+// ----------------------------------------------------------------------
+
+const SUPABASE_URL = 'https://uogorpanshybcuhdekhg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvZ29ycGFuc2h5YmN1aGRla2hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk2MTcxNzYsImV4cCI6MjA3NTE5MzE3Nn0.LSGlAeeLZsPnEw3GtEXzY4D9f3UZhk7SXyBgrGYaKMg';
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Estrutura de dados inicial (usina é o primeiro item fixo)
 const usina = L.latLng(-17.641420744167522, -40.1809160094857); 
 
 const farms = [{ name: 'Usina Principal', code: 'USI', latlng: usina }];
@@ -36,6 +46,136 @@ function getStatusConfig(status) {
     return STATUS_CONFIG[status] || STATUS_CONFIG['parado'];
 }
 
+// ----------------------------------------------------------------------
+// --- FUNÇÕES DE PERSISTÊNCIA SUPABASE ---------------------------------
+// ----------------------------------------------------------------------
+
+/**
+ * Salva os dados de fazendas e caminhões no Supabase.
+ */
+async function saveData() {
+    try {
+        // 1. Salva Fazendas (Exclui a Usina, pois ela é fixa e recriada)
+        const farmsToSave = farms.filter(f => f.code !== 'USI').map(f => ({
+            name: f.name,
+            code: f.code,
+            latlng: { lat: f.latlng.lat, lng: f.latlng.lng },
+            customRoute: f.customRoute // Array [lat, lng]
+        }));
+
+        const { error: farmsError } = await supabaseClient
+            .from('farms_data')
+            .upsert({ id: 1, data: farmsToSave }, { onConflict: 'id' });
+        
+        if (farmsError) throw farmsError;
+
+        // 2. Salva Caminhões
+        const trucksToSave = trucks.map(t => ({
+            name: t.name,
+            plate: t.plate,
+            // Salva a posição atual do marcador
+            currentLatlng: t.marker ? { lat: t.marker.getLatLng().lat, lng: t.marker.getLatLng().lng } : { lat: usina.lat, lng: usina.lng },
+            status: t.status,
+            previousFarmCode: t.previousFarmDestination ? t.previousFarmDestination.code : 'USI',
+        }));
+
+        const { error: trucksError } = await supabaseClient
+            .from('trucks_data')
+            .upsert({ id: 1, data: trucksToSave }, { onConflict: 'id' });
+        
+        if (trucksError) throw trucksError;
+
+
+    } catch (error) {
+        console.error('Erro ao salvar dados no Supabase. Verifique RLS e tabela SQL:', error.message);
+    }
+}
+
+/**
+ * Carrega os dados persistidos do Supabase e reinicializa o mapa.
+ */
+async function loadInitialData() {
+    // 1. Carrega Fazendas
+    const { data: farmsData, error: farmsError } = await supabaseClient
+        .from('farms_data')
+        .select('data')
+        .eq('id', 1)
+        .single();
+        
+    if (farmsError && farmsError.code !== 'PGRST116') { // Ignora "Não encontrou linha"
+        console.error('Erro ao carregar fazendas:', farmsError);
+    }
+    
+    // Limpa fazendas existentes (exceto a Usina) e marcadores de fazenda no mapa
+    farms.splice(1, farms.length - 1); 
+    farmLayerGroup.eachLayer(layer => {
+        // Verifica se a camada não é a usina para evitar remover o marcador fixo
+        const isUsinaMarker = layer.options && layer.options.title === 'Usina Principal';
+        if (!isUsinaMarker && layer.getLatLng) {
+             farmLayerGroup.removeLayer(layer);
+        }
+    });
+
+    if (farmsData && farmsData.data && farmsData.data.length > 0) {
+        farmsData.data.forEach(d => {
+            const latlng = L.latLng(d.latlng.lat, d.latlng.lng);
+            farms.push({ ...d, latlng: latlng });
+            // Adiciona o marcador permanente ao mapa
+            L.marker(latlng, { title: d.name }).addTo(farmLayerGroup).bindPopup(`<b>${d.name}</b> (Código: ${d.code})`).setIcon(createFarmIcon());
+        });
+        
+        console.log(`Dados de ${farms.length - 1} fazendas carregados.`);
+    }
+
+    // 2. Carrega Caminhões
+    const { data: trucksData, error: trucksError } = await supabaseClient
+        .from('trucks_data')
+        .select('data')
+        .eq('id', 1)
+        .single();
+
+    if (trucksError && trucksError.code !== 'PGRST116') {
+        console.error('Erro ao carregar caminhões:', trucksError);
+    }
+    
+    truckLayerGroup.clearLayers(); 
+    trucks.length = 0; 
+
+    if (trucksData && trucksData.data && trucksData.data.length > 0) {
+        trucksData.data.forEach(d => {
+            const currentLatlng = L.latLng(d.currentLatlng.lat, d.currentLatlng.lng);
+            const previousFarm = farms.find(f => f.code === d.previousFarmCode) || farms[0];
+            
+            const truck = {
+                name: d.name,
+                plate: d.plate,
+                status: d.status || 'parado', 
+                marker: L.marker(currentLatlng, { icon: createTruckIcon(d.status || 'parado'), title: d.name }).addTo(truckLayerGroup),
+                distance: 0, 
+                time: '0 min', 
+                coords: [], 
+                index: 0, 
+                polyline: null, 
+                isRunning: false,
+                timeout: null,
+                totalDistKm: 0,
+                destination: farms[0], 
+                pauseEndTimestamp: null,
+                previousFarmDestination: previousFarm 
+            };
+            trucks.push(truck);
+        });
+        
+        // Atualiza o contador de IDs para evitar colisões
+        nextTruckId = trucks.length + 1;
+        console.log(`Dados de ${trucks.length} caminhões carregados.`);
+    }
+}
+
+// ----------------------------------------------------------------------
+// --- CÓDIGO DO MAPA E SIMULAÇÃO ---------------------------------------
+// ----------------------------------------------------------------------
+
 // --- Configuração do Mapa e Camadas ---
 const map = L.map('map', { editable: true }).setView([usina.lat, usina.lng], 12);
 
@@ -46,7 +186,6 @@ const MAP_LAYERS = {
         maxZoom: 18,
         pane: 'tilePane',
     }),
-    // Novo Layer Sentinel-2 (Banda Natural Color)
     sentinel: L.tileLayer('https://tiles.maps.eox.at/wms?service=wmts&request=GetTile&tilematrixset=googlemaps&tilematrix={z}&tilerow={y}&tilecol={x}&layer=s2cloudless&format=image%2Fjpeg', {
         attribution: 'Sentinel-2 cloudless (EUMETSAT/ESA)',
         maxZoom: 18,
@@ -76,7 +215,6 @@ function changeMapLayer(layerKey) {
     if (currentBaseLayer) {
         currentBaseLayer.addTo(map);
         
-        // Camada de contexto de rua deve ser opaca se for um mapa de satélite
         if (layerKey === 'esriSat' || layerKey === 'sentinel') {
             streetContextLayer.setOpacity(0.3);
         } else {
@@ -95,7 +233,7 @@ const streetContextLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{
     maxZoom: 18,
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     opacity: 0.3 
-}).addTo(map);
+});
 
 
 // Marcador Fixo da Usina
@@ -142,7 +280,6 @@ function getStatusLabel(status) {
 /* --- PAINEL DO MAPA (Implementando Métricas) --- */
 function updateMapDashboard() {
     const dashboardElement = document.getElementById('map-dashboard');
-    
     const totalTrucks = trucks.length;
     let trucksInMovement = 0;
     
@@ -462,7 +599,10 @@ function selectRoute(index) {
     interactiveCadastroState.marker.openPopup();
 }
 
-function saveNewFarm() {
+/**
+ * SALVA A NOVA FAZENDA E PERSISTE NO SUPABASE
+ */
+async function saveNewFarm() {
     const name = document.getElementById('newFarmName').value.trim();
     const code = document.getElementById('newFarmCode').value.trim();
     
@@ -489,8 +629,12 @@ function saveNewFarm() {
     };
     farms.push(farm);
     
-    L.marker(farm.latlng, { title: name }).addTo(farmLayerGroup).bindPopup(`<b>${f.name}</b> (Código: ${f.code})`).setIcon(createFarmIcon());
+    // Adiciona o marcador permanente ao mapa
+    L.marker(farm.latlng, { title: name }).addTo(farmLayerGroup).bindPopup(`<b>${farm.name}</b> (Código: ${farm.code})`).setIcon(createFarmIcon());
     
+    // Salva os dados após o cadastro
+    await saveData(); 
+
     cancelFarmCadastro(false);
     alert(`Fazenda ${name} (${code}) cadastrada com sucesso com rota customizada!`);
     updateUI();
@@ -525,7 +669,7 @@ function cancelFarmCadastro(showAlert = true) {
     }
 }
 
-function addTruck(name, plate) {
+async function addTruck(name, plate) {
     plate = plate || document.getElementById('newTruckPlate').value.trim();
     if (!plate) {
         alert('Informe a placa do caminhão!');
@@ -560,11 +704,15 @@ function addTruck(name, plate) {
     if (trucks.length < 5) { 
         alert(`Caminhão ${name} (${plate}) adicionado!`);
     }
+
+    // Salva os dados após o cadastro
+    await saveData();
+
     updateUI();
     return truck;
 }
 
-function startSimulation() {
+async function startSimulation() {
     const ti = +document.getElementById('selectTruck').value;
     const fi = +document.getElementById('selectFarm').value;
     const status = document.getElementById('statusSelect').value;
@@ -623,6 +771,10 @@ function startSimulation() {
         
         truck.isRunning = false;
         truck.distance = 0;
+        
+        // Salva a posição e o status no Supabase
+        await saveData();
+        
         updateUI();
         return;
     }
@@ -646,7 +798,7 @@ function startSimulation() {
 }
 
 // Função de Timer de Pausa (Carregamento/Descarga)
-function updatePauseTimer(truck) {
+async function updatePauseTimer(truck) {
     if (isPaused || !truck.pauseEndTimestamp) {
         if (truck.pauseEndTimestamp) {
             truck.timeout = setTimeout(() => updatePauseTimer(truck), 1000);
@@ -664,6 +816,7 @@ function updatePauseTimer(truck) {
         
         if (currentStatus === 'carregando') {
             truck.status = 'sentidoUsina';
+            await saveData(); // Salva antes de iniciar o movimento
             startAutoRoute(truck, 'sentidoUsina', farms[0]); 
             return;
         } 
@@ -674,6 +827,7 @@ function updatePauseTimer(truck) {
                  alert(`${truck.name} concluiu o ciclo, mas não há destino de fazenda conhecido. Parando.`);
             } else {
                  truck.status = 'sentidoCarregamento';
+                 await saveData(); // Salva antes de iniciar o movimento
                  startAutoRoute(truck, 'sentidoCarregamento', previousFarm); 
                  return;
             }
@@ -684,6 +838,7 @@ function updatePauseTimer(truck) {
         truck.marker.setIcon(createTruckIcon(truck.status));
         alert(`${truck.name} concluiu a ação e está parado!`);
         
+        await saveData(); // Salva o status final
         updateUI();
         return;
     }
@@ -717,7 +872,7 @@ function startAutoRoute(truck, newStatus, target) {
 /**
  * Função para avançar/pular a etapa de pausa (carregamento/descarga) imediatamente.
  */
-function skipPauseStep(index) {
+async function skipPauseStep(index) {
     const truck = trucks[index];
     if (truck.timeout) {
         clearTimeout(truck.timeout);
@@ -725,6 +880,7 @@ function skipPauseStep(index) {
     }
     
     truck.pauseEndTimestamp = Date.now(); 
+    await saveData(); // Salva o status atual antes de avançar
     updatePauseTimer(truck); 
 }
 
@@ -800,7 +956,7 @@ function setupMovement(truck, coords, totalDistKm, color) {
 }
 
 
-function moveTruck(truck) {
+async function moveTruck(truck) {
     if (isPaused || !truck.isRunning) {
         return;
     }
@@ -846,12 +1002,14 @@ function moveTruck(truck) {
             const durationMinutes = +document.getElementById('loadingTimeInput').value || 30;
             truck.status = 'carregando';
             truck.pauseEndTimestamp = Date.now() + (durationMinutes * 60 * 1000);
+            await saveData(); // Salva o status de Carregando
             updatePauseTimer(truck);
         } else if (truck.status === 'chegouUsina') {
             const durationMinutes = +document.getElementById('unloadingTimeInput').value || 15;
             
             truck.status = 'descarregandoUsina';
             truck.pauseEndTimestamp = Date.now() + (durationMinutes * 60 * 1000);
+            await saveData(); // Salva o status de Descarregando
             updatePauseTimer(truck);
         }
         
@@ -875,7 +1033,7 @@ function moveTruck(truck) {
     truck.timeout = setTimeout(() => moveTruck(truck), interval);
 }
 
-function stopSimulation(index, resetMarker = true) {
+async function stopSimulation(index, resetMarker = true) {
     const truck = trucks[index];
     if (truck.timeout) {
         clearTimeout(truck.timeout);
@@ -903,6 +1061,7 @@ function stopSimulation(index, resetMarker = true) {
         }
     }
     
+    await saveData(); // Salva o estado de parada
     updateUI();
 }
 
@@ -926,7 +1085,7 @@ function toggleGlobalPause() {
 /**
  * Função para criar uma frota de demo e iniciar o ciclo de rota
  */
-function initializeDemoSimulation(numTrucks) {
+async function initializeDemoSimulation(numTrucks) {
     trucks.forEach(t => stopSimulation(trucks.indexOf(t)));
     trucks.length = 0; 
     truckLayerGroup.clearLayers();
@@ -956,6 +1115,8 @@ function initializeDemoSimulation(numTrucks) {
         getRouteAndMove(truck, start, end, getStatusConfig(truck.status).routeColor, customRoute);
     }
     
+    await saveData(); // Salva a frota inicial de simulação
+    
     alert(`${numTrucks} caminhões criados e iniciando o ciclo de rota!`);
     showTab('painel');
     updateUI();
@@ -963,31 +1124,42 @@ function initializeDemoSimulation(numTrucks) {
 
 
 // Inicialização
-document.addEventListener('DOMContentLoaded', () => {
-    // Adiciona a camada base ESRI (satélite) por padrão
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Adiciona a camada base ESRI (satélite) por padrão
     currentBaseLayer.addTo(map);
+    streetContextLayer.addTo(map); // Adiciona a camada de contexto de ruas
 
-    // Adiciona fazendas de demonstração para o ciclo de 40 caminhões
-    const farmPrata = { name: 'Fazenda Prata (Demo)', code: 'FP01', latlng: L.latLng(-17.6000, -40.1500), customRoute: null };
-    const farmOeste = { name: 'Fazenda Oeste (Demo)', code: 'FO02', latlng: L.latLng(-17.6800, -40.2300), customRoute: null };
-    const farmNorte = { name: 'Fazenda Norte (Demo)', code: 'FN03', latlng: L.latLng(-17.5800, -40.2000), customRoute: null };
+    // 2. Tenta carregar dados do Supabase
+    await loadInitialData();
     
-    farms.push(farmPrata);
-    farms.push(farmOeste);
-    farms.push(farmNorte);
+    // 3. Se não houver fazendas carregadas (além da Usina), adicionamos as de demonstração
+    if (farms.length === 1) { 
+        console.log("Nenhum dado de fazenda persistido encontrado. Adicionando fazendas de demonstração.");
+        
+        const farmPrata = { name: 'Fazenda Prata (Demo)', code: 'FP01', latlng: L.latLng(-17.6000, -40.1500), customRoute: null };
+        const farmOeste = { name: 'Fazenda Oeste (Demo)', code: 'FO02', latlng: L.latLng(-17.6800, -40.2300), customRoute: null };
+        const farmNorte = { name: 'Fazenda Norte (Demo)', code: 'FN03', latlng: L.latLng(-17.5800, -40.2000), customRoute: null };
+        
+        farms.push(farmPrata);
+        farms.push(farmOeste);
+        farms.push(farmNorte);
 
-    // Cria marcadores estáticos para as fazendas de demonstração
-    farms.filter(f => f.code !== 'USI').forEach(f => {
-        L.marker(f.latlng, { title: f.name }).addTo(farmLayerGroup).bindPopup(`<b>${f.name}</b> (Código: ${f.code})`).setIcon(createFarmIcon());
-    });
+        // Cria marcadores estáticos para as fazendas de demonstração
+        farms.filter(f => f.code !== 'USI').forEach(f => {
+            L.marker(f.latlng, { title: f.name }).addTo(farmLayerGroup).bindPopup(`<b>${f.name}</b> (Código: ${f.code})`).setIcon(createFarmIcon());
+        });
+        
+        // Se também não houver caminhões, cria os demos
+        if (trucks.length === 0) {
+            addTruck('Caminhão 01 (Demo)', 'P-1001');
+            addTruck('Caminhão 02 (Demo)', 'P-1002');
+            addTruck('Caminhão 03 (Demo)', 'P-1003');
+        }
+        
+        // Salva os dados de demonstração (se não for a primeira carga)
+        await saveData();
+    }
     
     updateUI();
     showTab('painel'); 
-    
-    // Cria 3 caminhões de demonstração parados
-    addTruck('Caminhão 01 (Demo)', 'P-1001');
-    addTruck('Caminhão 02 (Demo)', 'P-1002');
-    addTruck('Caminhão 03 (Demo)', 'P-1003');
-    
-    updateUI();
 });

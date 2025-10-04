@@ -5,6 +5,8 @@
   <title>Dashboard de Logística Canavieira</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   
@@ -93,7 +95,8 @@
     <label for="mapLayerSelect">Camada Base do Mapa:</label>
     <select id="mapLayerSelect" onchange="changeMapLayer(this.value)">
       <option value="esriSat">ESRI Satélite (Alta Resolução)</option>
-      <option value="sentinel">Sentinel-2 Satélite (ESA)</option> <option value="osm">OpenStreetMap (Ruas)</option>
+      <option value="sentinel">Sentinel-2 Satélite (ESA)</option>
+      <option value="osm">OpenStreetMap (Ruas)</option>
       <option value="wikimedia">Wikimedia (Ruas/Global)</option>
     </select>
     <small style="color: #b2bec3;">(Selecione a camada de mapa base. As opções de satélite são ESRI e Sentinel.)</small>
