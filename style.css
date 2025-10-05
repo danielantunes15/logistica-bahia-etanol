@@ -1,317 +1,59 @@
-/* --- Reset e Layout Base --- */
-* { 
-    margin: 0; 
-    padding: 0; 
-    box-sizing: border-box; 
+/* ---- RESET E VARIÁVEIS GLOBAIS ---- */
+:root {
+    --bg-dark: #1A202C; --bg-light: #2D3748; --border-color: #4A5568; --text-primary: #F7FAFC;
+    --text-secondary: #A0AEC0; --accent-primary: #38A169; --accent-hover: #2F855A;
+    --accent-danger: #C53030; --font-family: 'Poppins', sans-serif;
 }
-body { 
-    /* Nova Fonte */
-    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-    height: 100vh; 
-    display: flex; 
-    flex-direction: row; 
-    overflow: hidden; 
-    background-color: #1a1e23; /* Cor de fundo principal */
-}
-
-/* --- Container do Mapa para posicionamento relativo do Dashboard --- */
-#map-container {
-    flex-grow: 1;
-    position: relative;
-    height: 100%;
-}
-
-/* --- Dashboard Flutuante (Painel superior) --- */
-#map-dashboard {
-    position: absolute;
-    top: 15px; /* Mais espaço do topo */
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 15px; /* Maior espaçamento */
-    background: rgba(30, 39, 46, 0.98); /* Fundo mais opaco */
-    padding: 12px 20px;
-    border-radius: 12px; /* Cantos mais arredondados */
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-    z-index: 900; 
-    color: #f0f4f8; /* Cor do texto principal */
-    border: 1px solid rgba(255, 255, 255, 0.05); /* Borda sutil */
-}
-
-.status-box-map {
-    text-align: center;
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 0.85em;
-    min-width: 100px;
-    cursor: default;
-    transition: background 0.2s, transform 0.2s;
-    position: relative;
-}
-.status-box-map:hover {
-    background: rgba(255, 255, 255, 0.05);
-    transform: translateY(-2px);
-}
-/* Separador sutil */
-.status-box-map:not(:last-child)::after {
-    content: '';
-    position: absolute;
-    right: -8px;
-    top: 10%;
-    height: 80%;
-    width: 1px;
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.status-box-map .count {
-    font-family: 'Inter', sans-serif;
-    font-size: 1.6em; /* Aumento do tamanho */
-    font-weight: 700;
-    margin-top: 2px;
-}
-
-/* Cores dos Status operacionais (Manter) */
-.status-box-map[data-status="sentidoCarregamento"] { color: #00a8ff; }
-.status-box-map[data-status="carregando"] { color: #f9ca24; }
-.status-box-map[data-status="sentidoUsina"] { color: #2ecc71; }
-.status-box-map[data-status="quebrado"] { color: #e74c3c; }
-.status-box-map[data-status="descarregandoUsina"] { color: #b2bec3; } 
-.status-box-map[data-status="parado"] { color: #7f8fa6; } 
-
-/* Novas Cores para Métricas Totais (Mais destaque) */
-.status-box-map[data-status="total"] { color: #f0f4f8; } /* Cor branca pura */
-.status-box-map[data-status="moving"] { color: #3498db; } 
-.status-box-map[data-status="paused"] { color: #95a5a6; } 
-.status-box-map[data-status="utilization"] { color: #2ecc71; font-size: 1em; } /* Verde para % */
-.status-box-map[data-status="utilization"] .count { font-size: 1.8em; }
-
-
-/* --- Sidebar --- */
-#sidebar {
-    width: 420px; /* Pouco mais larga */
-    background: #1e272e;
-    color: #f0f4f8;
-    display: flex;
-    flex-direction: column;
-    padding: 15px;
-    overflow-y: auto;
-    height: 100%;
-    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.5);
-    z-index: 1000; 
-}
-
-/* --- Mapa --- */
-#map { 
-    flex-grow: 1; 
-    height: 100%;
-}
-
-/* --- Abas --- */
-#tabs { 
-    display: flex; 
-    border-bottom: 2px solid #2f3640; 
-    margin-bottom: 10px;
-    border-radius: 6px;
-    overflow: hidden;
-    flex-shrink: 0; /* Impede que as abas sejam esmagadas pelo conteúdo */
-}
-.tab { 
-    flex: 1; 
-    text-align: center; 
-    padding: 10px; 
-    cursor: pointer; 
-    background: #2f3640; 
-    font-size: 1rem; 
-    font-weight: 600;
-    transition: background 0.3s, color 0.3s; 
-    border-right: 1px solid #1e272e;
-}
-.tab:last-child {
-    border-right: none;
-}
-.tab:hover:not(.active) { 
-    background: #3c444f; 
-}
-.tab.active { 
-    background: #00a8ff; 
-    color: white; 
-    font-weight: 700; 
-}
-.tab-page { 
-    display: none; 
-    padding: 5px 0; 
-    font-size: 0.95rem; 
-    /* CORREÇÃO: Removendo flex-grow para evitar que a página se estique de forma indesejada */
-}
-.tab-page.active { 
-    display: block; 
-}
-
-/* --- Títulos e Formulários --- */
-h3 { 
-    margin-top: 25px; 
-    margin-bottom: 12px; 
-    border-bottom: 1px solid #353b48; 
-    padding-bottom: 5px; 
-    color: #00a8ff; /* Título em destaque */
-    font-weight: 600;
-}
-button, .btn-primary, .btn-secondary, .btn-tertiary { 
-    border: none; 
-    padding: 12px; 
-    margin: 8px 0; 
-    color: white; 
-    cursor: pointer; 
-    width: 100%; 
-    font-size: 1rem; 
-    border-radius: 6px; 
-    transition: background 0.3s, transform 0.1s; 
-    font-weight: 600;
-}
-/* Botão Primário */
-.btn-primary, button { 
-    background: #0097e6; 
-}
-.btn-primary:hover, button:hover { 
-    background: #0087d1; 
-}
-/* Botão Secundário */
-.btn-secondary {
-    background: #353b48;
-}
-.btn-secondary:hover {
-    background: #404653;
-}
-/* Botão Terciário (Cancelar) */
-.btn-tertiary {
-    background: #7f8fa6;
-}
-.btn-tertiary:hover {
-    background: #6c7a89;
-}
-
-
-label { 
-    margin-top: 15px; 
-    display: block; 
-    font-size: 0.9rem; 
-    font-weight: 600; 
-    color: #b2bec3;
-}
-input, select { 
-    width: 100%; 
-    margin-top: 5px; 
-    padding: 10px; 
-    border-radius: 6px; 
-    border: 1px solid #57606f; 
-    background: #2f3640; 
-    color: white; 
-    font-size: 1rem; 
-    transition: border-color 0.3s, box-shadow 0.3s;
-}
-input:focus, select:focus {
-    border-color: #00a8ff;
-    box-shadow: 0 0 5px rgba(0, 168, 255, 0.5);
-    outline: none;
-}
-
-/* --- Estilização para as opções de rota --- */
-.route-option {
-    background: #3c444f;
-    padding: 8px;
-    margin-bottom: 5px;
-    border-radius: 4px;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: all 0.2s;
-    font-size: 0.9em;
-}
-.route-option:hover {
-    background: #4a515e;
-}
-.route-option.selected {
-    border-color: #f9ca24; /* Amarelo para destacar a rota selecionada */
-    box-shadow: 0 0 5px rgba(249, 202, 36, 0.5);
-    font-weight: bold;
-}
-.route-option small {
-    display: block;
-    color: #b2bec3;
-    margin-top: 3px;
-}
-
-/* --- Itens de Lista (Caminhões/Fazendas) --- */
-.item { 
-    background: #2f3640; 
-    margin: 8px 0; 
-    padding: 12px; 
-    border-radius: 6px; 
-    font-size: 0.95rem; 
-    border-left: 4px solid transparent; 
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-    transition: background 0.2s;
-}
-.item:hover {
-    background: #3c444f;
-}
-.item.active-route { 
-    border-left-color: #00a8ff; 
-    background: #3c444f;
-} 
-.details { 
-    font-size: 0.8rem; 
-    margin-top: 4px; 
-    color: #95a5a6; 
-}
-
-/* --- Cores dos Status na Sidebar --- */
-.status-sentidoCarregamento { color: #00a8ff; font-weight: 700; }
-.status-carregando { color: #f9ca24; font-weight: 700; }
-.status-sentidoUsina { color: #2ecc71; font-weight: 700; }
-.status-quebrado { color: #e74c3c; font-weight: 700; }
-.status-descarregandoUsina { color: #b2bec3; font-weight: 700; }
-.status-parado { color: #7f8fa6; font-weight: 400; }
-
-/* --- Estilo dos Ícones Customizados (Leaflet) --- */
-.map-icon {
-    text-align: center;
-    line-height: 1; 
-    font-size: 1.1em;
-}
-
-/* Ícone da Usina (Ponto Fixo de Destino) */
-.usina-icon {
-    background-color: #00a8ff; 
-    color: white;
-    border-radius: 50%; 
-    width: 35px;
-    height: 35px;
-    line-height: 35px;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
-    border: 3px solid white;
-}
-
-/* Ícones dos Caminhões (Cor varia com o Status) */
-.truck-icon {
-    background-color: #353b48; 
-    color: white;
-    width: 40px; /* Levemente maior */
-    height: 40px;
-    line-height: 40px;
-    border-radius: 4px;
-    box-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
-    border: 4px solid; /* Borda mais grossa */
-    transition: border-color 0.3s, background-color 0.3s;
-}
-.truck-icon i {
-    font-size: 1.2em; /* Ícone um pouco maior */
-}
-
-/* Bordas dos Caminhões conforme o Status */
-.truck-icon.status-sentidoCarregamento { border-color: #00a8ff; } 
-.truck-icon.status-carregando { border-color: #f9ca24; } 
-.truck-icon.status-sentidoUsina { border-color: #2ecc71; } 
-.truck-icon.status-quebrado { border-color: #e74c3c; } 
-.truck-icon.status-descarregandoUsina { border-color: #b2bec3; } 
-.truck-icon.status-parado { border-color: #7f8fa6; }
-.truck-icon.status-chegouUsina, .truck-icon.status-chegouFazenda { border-color: #57606f; } /* Cinza neutro ao chegar */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+body { font-family: var(--font-family); background-color: var(--bg-dark); color: var(--text-primary); display: flex; }
+.sidebar { width: 240px; height: 100%; background-color: var(--bg-light); border-right: 1px solid var(--border-color); padding: 24px; display: flex; flex-direction: column; gap: 40px; flex-shrink: 0; }
+.sidebar-header { display: flex; align-items: center; gap: 12px; color: var(--text-primary); }
+.sidebar-header i { font-size: 32px; color: var(--accent-primary); }
+.sidebar nav { display: flex; flex-direction: column; gap: 8px; }
+.nav-button { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 6px; background-color: transparent; border: none; color: var(--text-secondary); font-family: var(--font-family); font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; text-align: left; }
+.nav-button:hover { background-color: rgba(74, 85, 104, 0.4); color: var(--text-primary); }
+.nav-button.active { background-color: var(--accent-primary); color: white; }
+.nav-button i { font-size: 20px; }
+.main-content { flex-grow: 1; height: 100%; position: relative; }
+.view { display: none; width: 100%; height: 100%; animation: fadeIn 0.5s ease; position: absolute; top: 0; left: 0; }
+.view.active-view { display: block; z-index: 1; }
+#dashboard-view { width: 100%; height: 100%; }
+#map { width: 100%; height: 100%; background-color: #333; }
+.dashboard-overlay { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 12px 20px; background-color: rgba(45, 55, 72, 0.7); backdrop-filter: blur(10px); border-radius: 12px; border: 1px solid var(--border-color); z-index: 1000; }
+.kpi-card { text-align: center; }
+.kpi-card h2 { font-size: 2.5rem; color: var(--accent-primary); line-height: 1.1; }
+.kpi-card p { font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 500; }
+.leaflet-marker-icon.icon-fazenda-inativa { filter: grayscale(1) opacity(0.6); }
+.leaflet-marker-icon.icon-fazenda-colhendo { filter: drop-shadow(0 0 8px #38A169); }
+.leaflet-marker-icon.icon-caminhao-inativo { filter: grayscale(1) opacity(0.5); }
+.leaflet-marker-icon.icon-caminhao-ativo { filter: hue-rotate(190deg) saturate(3); }
+.leaflet-marker-icon.icon-caminhao-viagem { filter: hue-rotate(20deg) saturate(5); }
+.admin-container { padding: 32px; height: 100%; overflow-y: auto; }
+.admin-container h1 { font-size: 28px; margin-bottom: 24px; color: var(--text-primary); }
+.admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; }
+.form-section { background-color: var(--bg-light); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-direction: column; }
+.form-section.full-width { grid-column: 1 / -1; }
+.form-section h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-weight: 600; }
+.form-section h3 i { color: var(--accent-primary); }
+#map-cadastro { height: 150px; width: 100%; border-radius: 6px; margin-bottom: 12px; background-color: var(--bg-dark); }
+input, select { width: 100%; padding: 10px; margin-bottom: 12px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--bg-dark); color: var(--text-primary); font-family: var(--font-family); font-size: 14px; }
+.coords { display: flex; gap: 12px; }
+button { width: 100%; padding: 12px; border: none; border-radius: 6px; background-color: var(--accent-primary); color: white; font-weight: 600; font-family: var(--font-family); cursor: pointer; transition: background-color 0.2s ease; }
+button:hover { background-color: var(--accent-hover); }
+.logistica-controls { display: flex; flex-direction: column; gap: 16px; }
+.control-group { display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: 12px; align-items: center; }
+.control-group label { font-weight: 500; color: var(--text-secondary); white-space: nowrap; }
+.control-group button { width: 120px; }
+.list-container { margin-top: 24px; overflow-x: auto; flex-grow: 1; }
+.list-container table { width: 100%; border-collapse: collapse; }
+.list-container th, .list-container td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 14px; }
+.list-container th { color: var(--text-secondary); font-weight: 600; }
+.list-container td { color: var(--text-primary); }
+.delete-btn { background: none; border: none; color: var(--accent-danger); cursor: pointer; padding: 5px; font-size: 18px; line-height: 1; width: auto; }
+.delete-btn:hover { color: #F56565; }
+#toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; }
+.toast { padding: 12px 20px; border-radius: 6px; color: white; font-weight: 500; opacity: 0; transform: translateX(100%); animation: slideIn 0.5s forwards; }
+.toast.success { background-color: #38A169; }
+.toast.error { background-color: #E53E3E; }
+@keyframes slideIn { to { opacity: 1; transform: translateX(0); } }
