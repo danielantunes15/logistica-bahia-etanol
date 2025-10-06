@@ -3,6 +3,8 @@ import * as api from './api.js';
 import { initCadastroFazendaMap, initEditFazendaMap } from './maps.js';
 import { renderReports } from './reports.js';
 
+let cachedData = {};
+
 const tableConfig = {
     'fazendas': { name: 'Fazenda', columns: ['nome', 'cod_fazenda', 'status', 'fornecedores(nome)'] },
     'caminhoes': { name: 'Caminhão', columns: ['cod_equipamento', 'status', 'motorista_atual', 'proprietarios(nome)', 'terceiros'] },
@@ -89,7 +91,25 @@ export function injectHTMLContent() {
         const viewId = `cadastro-${key.replace('_servico', '')}-view`;
         const viewElement = document.getElementById(viewId);
         if (viewElement) {
-            viewElement.innerHTML = `<div class="admin-container"><h1>Cadastro de ${tableConfig[key].name}s</h1><div class="form-section" id="form-section-${key}"></div><div class="list-container"><h2>Lista de ${tableConfig[key].name}s Cadastrados</h2><table id="table-${key}"><thead></thead><tbody></tbody></table></div></div>`;
+             let filterHTML = '';
+            if (key === 'terceiros') {
+                filterHTML = `
+                    <div class="filter-container form-section">
+                        <h3>Filtrar Terceiros</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <label for="filter-terceiros-nome">Nome</label>
+                                <input type="text" id="filter-terceiros-nome" placeholder="Filtrar por nome...">
+                            </div>
+                            <div>
+                                <label for="filter-terceiros-atividade">Atividade</label>
+                                <select id="filter-terceiros-atividade"></select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            viewElement.innerHTML = `<div class="admin-container"><h1>Cadastro de ${tableConfig[key].name}s</h1>${filterHTML}<div class="form-section" id="form-section-${key}"></div><div class="list-container"><h2>Lista de ${tableConfig[key].name}s Cadastrados</h2><table id="table-${key}"><thead></thead><tbody></tbody></table></div></div>`;
         }
     }
 }
@@ -134,33 +154,56 @@ export function addEventListeners() {
             }
         }
     });
+    mainContent.addEventListener('input', e => {
+        if (e.target.id === 'filter-terceiros-nome') filterTerceirosList();
+    });
+    mainContent.addEventListener('change', e => {
+        if (e.target.id === 'filter-terceiros-atividade') filterTerceirosList();
+    });
 }
 
 async function handleAddFormSubmit(form) {
     const table = form.dataset.table;
     const formData = new FormData(form);
-    
     const terceiros = formData.getAll('terceiros');
     const dataToInsert = Object.fromEntries(formData.entries());
     dataToInsert.terceiros = terceiros;
-
     (formFields[table] || []).forEach(field => {
         if (field.type === 'number' && dataToInsert[field.name]) {
             dataToInsert[field.name] = parseFloat(dataToInsert[field.name]);
         }
     });
-
     let error;
-    if (table === 'equipamentos') {
-        ({ error } = await api.insertEquipment(dataToInsert));
-    } else if (table === 'caminhoes') {
-        ({ error } = await api.insertCaminhao(dataToInsert));
-    } else {
-        ({ error } = await api.insertItem(table, dataToInsert));
-    }
-    
+    if (table === 'equipamentos') ({ error } = await api.insertEquipment(dataToInsert));
+    else if (table === 'caminhoes') ({ error } = await api.insertCaminhao(dataToInsert));
+    else ({ error } = await api.insertItem(table, dataToInsert));
     handleOperation(error, `${tableConfig[table].name} cadastrado com sucesso!`);
     if (!error) form.reset();
+}
+
+function filterTerceirosList() {
+    const nomeFilter = document.getElementById('filter-terceiros-nome').value.toLowerCase();
+    const atividadeFilter = document.getElementById('filter-terceiros-atividade').value;
+    const filteredData = cachedData.terceiros.filter(terceiro => {
+        const nomeMatch = terceiro.nome.toLowerCase().includes(nomeFilter);
+        const atividadeMatch = !atividadeFilter || terceiro.descricao_atividade === atividadeFilter;
+        return nomeMatch && atividadeMatch;
+    });
+    renderTable('table-terceiros', tableConfig.terceiros.columns, filteredData, 'terceiros');
+}
+
+function renderTable(tableId, columns, data, tableKey) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    table.querySelector('thead').innerHTML = `<tr>${columns.map(col => `<th>${col.split('(')[0].replace(/_/g, ' ').toUpperCase()}</th>`).join('')}<th>AÇÕES</th></tr>`;
+    table.querySelector('tbody').innerHTML = (data || []).map(item => `
+        <tr>
+            ${columns.map(col => `<td>${getNestedProperty(item, col) ?? ''}</td>`).join('')}
+            <td class="action-buttons">
+                <button class="edit-btn" data-table="${tableKey}" data-id="${item.id}"><i class="ph-fill ph-pencil-simple"></i></button>
+                <button class="delete-btn" data-table="${tableKey}" data-id="${item.id}"><i class="ph-fill ph-trash"></i></button>
+            </td>
+        </tr>`).join('');
 }
 
 export function renderDashboard(fazendas, caminhoes, equipamentos) {
@@ -175,24 +218,16 @@ export function renderDashboard(fazendas, caminhoes, equipamentos) {
 export function renderControle(fazendas, caminhoes, equipamentos, frentes) {}
 
 export function renderCadastros(allData) {
-    const renderTable = (tableId, columns, data, tableKey) => {
-        const table = document.getElementById(tableId);
-        if (!table) return;
-        table.querySelector('thead').innerHTML = `<tr>${columns.map(col => `<th>${col.split('(')[0].replace(/_/g, ' ').toUpperCase()}</th>`).join('')}<th>AÇÕES</th></tr>`;
-        table.querySelector('tbody').innerHTML = (data || []).map(item => `
-            <tr>
-                ${columns.map(col => `<td>${getNestedProperty(item, col) ?? ''}</td>`).join('')}
-                <td class="action-buttons">
-                    <button class="edit-btn" data-table="${tableKey}" data-id="${item.id}"><i class="ph-fill ph-pencil-simple"></i></button>
-                    <button class="delete-btn" data-table="${tableKey}" data-id="${item.id}"><i class="ph-fill ph-trash"></i></button>
-                </td>
-            </tr>`).join('');
-    };
-
+    cachedData = allData;
+    const atividadeSelect = document.getElementById('filter-terceiros-atividade');
+    if (atividadeSelect && atividadeSelect.options.length <= 1) {
+        const atividades = [...new Set((allData.terceiros || []).map(t => t.descricao_atividade))];
+        atividadeSelect.innerHTML = `<option value="">Todas as Atividades</option>`;
+        atividades.forEach(atividade => { if(atividade) atividadeSelect.innerHTML += `<option value="${atividade}">${atividade}</option>`; });
+    }
     for (const key in tableConfig) {
         const config = tableConfig[key];
         const data = allData[key.replace('_servico', '')] || [];
-        
         if (key === 'equipamentos') {
             const formContainer = document.getElementById(`form-section-${key}`);
             if (formContainer) formContainer.innerHTML = generateAddFormHTML(key, allData);
@@ -202,7 +237,6 @@ export function renderCadastros(allData) {
             renderTable('table-equipamentos-trator-transbordo', config.columns, data.filter(e => e.finalidade === 'Trator Transbordo'), key);
             continue;
         }
-
         const formContainer = document.getElementById(`form-section-${key}`);
         if(formContainer) formContainer.innerHTML = generateAddFormHTML(key, allData);
         renderTable(`table-${key}`, config.columns, data, key);
@@ -215,9 +249,7 @@ function getNestedProperty(obj, path) {
     }
     if (path.includes('(')) {
         const parts = path.replace(')', '').split('(');
-        const parent = parts[0];
-        const child = parts[1];
-        return obj[parent] ? obj[parent][child] : 'N/A';
+        return obj[parts[0]] ? obj[parts[0]][parts[1]] : 'N/A';
     }
     return obj[path];
 }
@@ -234,7 +266,7 @@ function generateAddFormHTML(tableKey, allData) {
             inputHtml += `<select name="${field.name}" id="${field.name}" ${multipleAttr} ${requiredAttr}>`;
             if (!multipleAttr) inputHtml += `<option value="">Selecione...</option>`;
             if (field.source) {
-                let sourceData = allData[field.source];
+                let sourceData = allData[field.source.replace('_servico', '')];
                 if (field.filterActive && sourceData) {
                     sourceData = sourceData.filter(item => item.status === 'ativa');
                 }
@@ -282,22 +314,15 @@ export async function saveModalChanges(table, id, form) {
     const terceiros = formData.getAll('terceiros');
     const dataToUpdate = Object.fromEntries(formData.entries());
     dataToUpdate.terceiros = terceiros;
-
     (formFields[table] || []).forEach(field => {
         if (field.type === 'number' && dataToUpdate[field.name]) {
             dataToUpdate[field.name] = parseFloat(dataToUpdate[field.name]);
         }
     });
-
     let error;
-    if (table === 'equipamentos') {
-        ({ error } = await api.updateEquipment(id, dataToUpdate));
-    } else if (table === 'caminhoes') {
-        ({ error } = await api.updateCaminhao(id, dataToUpdate));
-    } else {
-        ({ error } = await api.updateItem(table, id, dataToUpdate));
-    }
-    
+    if (table === 'equipamentos') ({ error } = await api.updateEquipment(id, dataToUpdate));
+    else if (table === 'caminhoes') ({ error } = await api.updateCaminhao(id, dataToUpdate));
+    else ({ error } = await api.updateItem(table, id, dataToUpdate));
     handleOperation(error, 'Item atualizado com sucesso!');
     if (!error) closeEditModal();
 }
@@ -311,25 +336,20 @@ export function closeEditModal() {
 export function generateEditFormHTML(tableKey, data, allData) {
     const fields = formFields[tableKey];
     if (!fields) return '<p>Formulário de edição não configurado.</p>';
-    
     const formInputs = fields.map(field => {
         const requiredAttr = field.required ? 'required' : '';
-        let value = data[field.name] || '';
+        let value = data[field.name] ?? '';
         let inputHtml = `<label for="edit-${field.name}">${field.label}</label>`;
-
         if (field.type === 'select' || field.type === 'select-multiple') {
             const multipleAttr = field.type === 'select-multiple' ? 'multiple' : '';
             inputHtml += `<select name="${field.name}" id="edit-${field.name}" ${multipleAttr} ${requiredAttr}>`;
             if (!multipleAttr) inputHtml += `<option value="">Selecione...</option>`;
-            
+            const selectedValues = field.type === 'select-multiple' ? (data.terceiros || []).map(t => t.id) : [value];
             if (field.source) {
-                let sourceData = allData[field.source];
+                let sourceData = allData[field.source.replace('_servico','')];
                 if (field.filterActive && sourceData) {
-                     sourceData = sourceData.filter(item => item.status === 'ativa' || item.id === value);
+                     sourceData = sourceData.filter(item => item.status === 'ativa' || selectedValues.includes(item.id));
                 }
-                
-                const selectedValues = field.type === 'select-multiple' ? (data.terceiros || []).map(t => t.id) : [value];
-
                 if (sourceData) {
                     sourceData.forEach(item => {
                         const selected = selectedValues.includes(item.id) ? 'selected' : '';
@@ -338,7 +358,7 @@ export function generateEditFormHTML(tableKey, data, allData) {
                 }
             } else if (field.options) {
                 field.options.forEach(option => {
-                    const selected = option === value ? 'selected' : '';
+                    const selected = selectedValues.includes(option) ? 'selected' : '';
                     inputHtml += `<option value="${option}" ${selected}>${option.charAt(0).toUpperCase() + option.slice(1)}</option>`;
                 });
             }
@@ -348,7 +368,6 @@ export function generateEditFormHTML(tableKey, data, allData) {
         }
         return inputHtml;
     }).join('');
-
     const farmMapHTML = tableKey === 'fazendas' ? '<div id="map-edit-medio"></div>' : '';
     return `<form id="form-edit-${tableKey}" data-table="${tableKey}">${formInputs}${farmMapHTML}<button type="submit">Salvar Alterações</button></form>`;
 }
