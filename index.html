@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -16,11 +17,13 @@
         <nav>
             <button class="nav-button active" data-view="dashboard"><i class="ph-fill ph-chart-pie-slice"></i><span>Dashboard</span></button>
             <button class="nav-button" data-view="controle"><i class="ph-fill ph-arrows-clockwise"></i><span>Painel de Controle</span></button>
+            <button class="nav-button" data-view="relatorios"><i class="ph-fill ph-chart-bar"></i><span>Relatórios</span></button>
             <div class="nav-group">
                 <button class="nav-button-group"><i class="ph-fill ph-database"></i><span>Cadastros</span><i class="ph ph-caret-down caret"></i></button>
                 <div class="submenu">
                     <button class="nav-button" data-view="cadastro-fazendas"><i class="ph-fill ph-tree-evergreen"></i><span>Fazendas</span></button>
                     <button class="nav-button" data-view="cadastro-caminhoes"><i class="ph-fill ph-truck"></i><span>Caminhões</span></button>
+                    <button class="nav-button" data-view="cadastro-equipamentos"><i class="ph-fill ph-tractor"></i><span>Equipamentos</span></button>
                     <button class="nav-button" data-view="cadastro-frentes"><i class="ph-fill ph-users-three"></i><span>Frentes</span></button>
                     <button class="nav-button" data-view="cadastro-fornecedores"><i class="ph-fill ph-user-list"></i><span>Fornecedores</span></button>
                     <button class="nav-button" data-view="cadastro-proprietarios"><i class="ph-fill ph-user-circle"></i><span>Proprietários</span></button>
@@ -30,113 +33,15 @@
     </aside>
 
     <main class="main-content">
-        <div id="dashboard-view" class="view active-view">
-            <div class="dashboard-overlay">
-                <div class="kpi-card"><h2 id="kpi-caminhoes-ativos">0</h2><p>Caminhões Ativos</p></div>
-                <div class="kpi-card"><h2 id="kpi-caminhoes-inativos">0</h2><p>Caminhões Inativos</p></div>
-                <div class="kpi-card"><h2 id="kpi-fazendas-colhendo">0</h2><p>Fazendas em Colheita</p></div>
-                <div class="kpi-card"><h2 id="kpi-frentes-ativas">0</h2><p>Frentes Ativas</p></div>
-            </div>
-            <div id="map"></div>
-        </div>
-
-        <div id="controle-view" class="view">
-            <div class="admin-container">
-                <h1>Painel de Controle de Operações</h1>
-                <div class="form-section">
-                    <h3><i class="ph ph-game-controller"></i> Ações em Tempo Real</h3>
-                    <div class="logistica-controls">
-                        <div class="control-group"><label>Atualizar Status da Fazenda</label><select id="select-fazenda-status"></select><select id="fazenda-novo-status"><option value="colhendo">Colhendo</option><option value="inativa">Inativa</option></select><button id="btn-update-fazenda">Atualizar</button></div>
-                        <div class="control-group"><label>Atualizar Status do Caminhão</label><select id="select-caminhao-status"></select><select id="caminhao-novo-status"><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="em_viagem">Em Viagem</option></select><button id="btn-update-caminhao">Atualizar</button></div>
-                        <div class="control-group"><label>Designar Frente para Fazenda</label><select id="select-frente-designar"></select><select id="select-fazenda-designar"></select><button id="btn-designar-frente">Designar</button></div>
-                        <div class="control-group"><label>Posicionar Caminhão na Fazenda</label><select id="select-caminhao-posicionar"></select><select id="select-fazenda-posicionar"></select><button id="btn-posicionar-caminhao">Posicionar</button></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="cadastro-fazendas-view" class="view">
-            <div class="cadastro-mapa-container">
-                <div class="form-panel">
-                    <h1>Cadastro de Fazendas</h1>
-                    <form id="form-fazendas" data-table="fazendas">
-                        <label>Cód. Fazenda</label><input type="text" name="cod_fazenda">
-                        <label>Nome da Fazenda</label><input type="text" name="nome" required>
-                        <label>Fornecedor</label><select name="fornecedor_id" id="fazenda-fornecedor-select"></select>
-                        <div class="coords">
-                            <input type="text" id="fazenda-lat" name="latitude" placeholder="Latitude" readonly required>
-                            <input type="text" id="fazenda-lon" name="longitude" placeholder="Longitude" readonly required>
-                        </div>
-                        <button type="submit">Salvar Fazenda</button>
-                    </form>
-                    <div class="list-container" id="lista-fazendas"></div>
-                </div>
-                <div class="map-container-grande">
-                    <div id="map-cadastro-grande"></div>
-                </div>
-            </div>
-        </div>
-        
-        <div id="cadastro-caminhoes-view" class="view">
-            <div class="admin-container">
-                <h1>Cadastro de Caminhões</h1>
-                <div class="form-section">
-                    <form id="form-caminhoes" data-table="caminhoes">
-                        <label>Cód. Equipamento</label><input type="text" name="cod_equipamento" required>
-                        <label>Descrição (Modelo/Placa)</label><input type="text" name="descricao" required>
-                        <label>Motorista Atual</label><input type="text" name="motorista_atual">
-                        <label>Proprietário</label><select name="proprietario_id" id="caminhao-proprietario-select"></select>
-                        <button type="submit">Salvar Caminhão</button>
-                    </form>
-                    <div class="list-container" id="lista-caminhoes"></div>
-                </div>
-            </div>
-        </div>
-
-        <div id="cadastro-frentes-view" class="view">
-            <div class="admin-container">
-                <h1>Cadastro de Frentes de Serviço</h1>
-                <div class="form-section">
-                    <form id="form-frentes_servico" data-table="frentes_servico">
-                        <label>Cód. Frente</label><input type="text" name="cod_frente">
-                        <label>Nome da Frente</label><input type="text" name="nome" required>
-                        <button type="submit">Salvar Frente</button>
-                    </form>
-                    <div class="list-container" id="lista-frentes"></div>
-                </div>
-            </div>
-        </div>
-
-        <div id="cadastro-fornecedores-view" class="view">
-            <div class="admin-container">
-                <h1>Cadastro de Fornecedores</h1>
-                <div class="form-section">
-                    <form id="form-fornecedores" data-table="fornecedores">
-                        <label>Cód. Fornecedor</label><input type="text" name="cod_fornecedor">
-                        <label>Nome</label><input type="text" name="nome" required>
-                        <label>CPF/CNPJ</label><input type="text" name="cpf_cnpj">
-                        <button type="submit">Salvar Fornecedor</button>
-                    </form>
-                    <div class="list-container" id="lista-fornecedores"></div>
-                </div>
-            </div>
-        </div>
-
-        <div id="cadastro-proprietarios-view" class="view">
-            <div class="admin-container">
-                <h1>Cadastro de Proprietários</h1>
-                <div class="form-section">
-                    <form id="form-proprietarios" data-table="proprietarios">
-                        <label>Nome</label><input type="text" name="nome" required>
-                        <label>Nome da Empresa</label><input type="text" name="nome_empresa">
-                        <label>CPF/CNPJ</label><input type="text" name="cpf_cnpj">
-                        <label>Telefone</label><input type="text" name="telefone">
-                        <button type="submit">Salvar Proprietário</button>
-                    </form>
-                    <div class="list-container" id="lista-proprietarios"></div>
-                </div>
-            </div>
-        </div>
+        <div id="dashboard-view" class="view active-view"></div>
+        <div id="controle-view" class="view"></div>
+        <div id="relatorios-view" class="view"></div>
+        <div id="cadastro-fazendas-view" class="view"></div>
+        <div id="cadastro-caminhoes-view" class="view"></div>
+        <div id="cadastro-equipamentos-view" class="view"></div>
+        <div id="cadastro-frentes-view" class="view"></div>
+        <div id="cadastro-fornecedores-view" class="view"></div>
+        <div id="cadastro-proprietarios-view" class="view"></div>
     </main>
 
     <div id="toast-container"></div>
@@ -150,8 +55,7 @@
             <div id="modal-body" class="modal-body"></div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="main.js"></script>
+    
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
