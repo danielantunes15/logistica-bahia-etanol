@@ -1,6 +1,6 @@
 // Este arquivo controla toda a manipulação da interface: menus, tabelas, modais, etc.
 import { handleOperation, showToast, populateSelect } from './helpers.js';
-import { fetchAllData, deleteItem, updateItem, insertItem } from './api.js';
+import { deleteItem, updateItem, insertItem } from './api.js';
 import { initCadastroFazendaMap } from './maps.js';
 import { renderReports } from './reports.js';
 
@@ -15,7 +15,6 @@ const tableConfig = {
 
 // --- INJEÇÃO DE HTML INICIAL ---
 export function injectHTMLContent() {
-    // Injeta a estrutura do Dashboard
     document.getElementById('dashboard-view').innerHTML = `
         <div id="map"></div>
         <div class="dashboard-overlay">
@@ -38,10 +37,8 @@ export function injectHTMLContent() {
         </div>
     `;
 
-    // Injeta a estrutura do Painel de Controle
-    document.getElementById('controle-view').innerHTML = `<div class="admin-container"><h1>Painel de Controle</h1></div>`;
+    document.getElementById('controle-view').innerHTML = `<div class="admin-container"><h1>Painel de Controle</h1><p>Esta área será implementada com os controles de status dos equipamentos.</p></div>`;
 
-    // Injeta a estrutura de Relatórios
     document.getElementById('relatorios-view').innerHTML = `
         <div class="report-container">
             <div class="report-header">
@@ -53,7 +50,6 @@ export function injectHTMLContent() {
         </div>
     `;
 
-    // Injeta a estrutura das telas de Cadastro
     for (const key in tableConfig) {
         const viewId = `cadastro-${key.replace('_servico', '')}-view`;
         const viewElement = document.getElementById(viewId);
@@ -75,45 +71,48 @@ export function injectHTMLContent() {
     }
 }
 
-
 // --- EVENT LISTENERS ---
 export function addEventListeners() {
     const navButtons = document.querySelectorAll('.nav-button');
     const navGroupButton = document.querySelector('.nav-button-group');
 
-    // Navegação principal
+    const switchView = (viewId) => {
+        document.querySelector('.view.active-view')?.classList.remove('active-view');
+        const nextView = document.getElementById(`${viewId}-view`);
+        if(nextView) {
+            nextView.classList.add('active-view');
+        }
+        
+        // Lógica específica ao abrir uma view
+        if (viewId === 'relatorios') {
+            renderReports();
+        } else if (viewId === 'cadastro-fazendas') {
+            initCadastroFazendaMap();
+        }
+    };
+    
     navButtons.forEach(button => {
         button.addEventListener('click', () => {
-            if (button.closest('.nav-group')) return;
-
             document.querySelector('.nav-button.active')?.classList.remove('active');
             button.classList.add('active');
+            
+            // Fecha o submenu se um item principal for clicado
+            navGroupButton.parentElement.classList.remove('open');
 
             const viewId = button.getAttribute('data-view');
-            document.querySelector('.view.active-view')?.classList.remove('active-view');
-            document.getElementById(`${viewId}-view`).classList.add('active-view');
-            
-            // Lógica específica ao abrir uma view
-            if (viewId === 'relatorios') {
-                renderReports();
-            } else if (viewId === 'cadastro-fazendas') {
-                initCadastroFazendaMap();
-            }
+            switchView(viewId);
         });
     });
 
-    // Submenu de cadastros
     navGroupButton.addEventListener('click', () => {
         navGroupButton.parentElement.classList.toggle('open');
     });
 
-    // Fechar modal
     document.getElementById('modal-close-btn').addEventListener('click', closeEditModal);
     document.getElementById('edit-modal').addEventListener('click', (e) => {
         if (e.target === e.currentTarget) closeEditModal();
     });
 }
-
 
 // --- LÓGICA DE RENDERIZAÇÃO ---
 export function renderDashboard(fazendas, caminhoes, equipamentos) {
@@ -124,7 +123,6 @@ export function renderDashboard(fazendas, caminhoes, equipamentos) {
     document.getElementById('kpi-caminhoes-ativos').textContent = activeTrucks;
     document.getElementById('kpi-equipamentos-ativos').textContent = activeEquip;
     document.getElementById('kpi-fazendas-colhendo').textContent = harvestingFarms;
-    // KPI de frentes ativas precisaria da respectiva fonte de dados
 }
 
 export function renderControle(fazendas, caminhoes, equipamentos, frentes) {
@@ -134,19 +132,17 @@ export function renderControle(fazendas, caminhoes, equipamentos, frentes) {
 export function renderCadastros(allData) {
     for (const key in tableConfig) {
         const config = tableConfig[key];
-        const data = allData[key.replace('_servico', '')]; // Ajusta a chave para corresponder a `fetchAllData`
+        const data = allData[key.replace('_servico', '')];
         const table = document.getElementById(`table-${key}`);
         if (!table || !data) continue;
 
-        // Cabeçalho
         table.querySelector('thead').innerHTML = `
             <tr>
-                ${config.columns.map(col => `<th>${col.split('(')[0].replace('_', ' ').toUpperCase()}</th>`).join('')}
+                ${config.columns.map(col => `<th>${col.split('(')[0].replace(/_/g, ' ').toUpperCase()}</th>`).join('')}
                 <th>AÇÕES</th>
             </tr>
         `;
         
-        // Corpo da tabela
         table.querySelector('tbody').innerHTML = data.map(item => `
             <tr>
                 ${config.columns.map(col => `<td>${getNestedProperty(item, col) ?? ''}</td>`).join('')}
@@ -159,7 +155,6 @@ export function renderCadastros(allData) {
     }
 }
 
-// Helper para acessar propriedades aninhadas (ex: 'proprietarios(nome)')
 function getNestedProperty(obj, path) {
     if (path.includes('(')) {
         const parts = path.replace(')', '').split('(');
@@ -170,20 +165,16 @@ function getNestedProperty(obj, path) {
     return obj[path];
 }
 
-
 // --- LÓGICA DO MODAL ---
 export function openEditModal(table, id) { 
-    // Implementação do modal de edição
+    console.log(`Abrir modal para editar ${table} com id ${id}`);
+    document.getElementById('edit-modal').classList.add('active');
 }
 
-export function saveModalChanges(table, id, form) { 
-    // Implementação para salvar alterações
-}
+export function saveModalChanges(table, id, form) { /* ... */ }
 
 export function closeEditModal() { 
     document.getElementById('edit-modal').classList.remove('active'); 
 }
 
-export function generateEditFormHTML(table, data) { 
-    // Implementação para gerar o formulário de edição
-}
+export function generateEditFormHTML(table, data) { /* ... */ }

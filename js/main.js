@@ -33,22 +33,21 @@ async function refreshAllData() {
         // Cadastros
         ui.renderCadastros(allData);
 
-        // Relatórios
-        // O renderReports busca seus próprios dados, pois pode ter filtros futuros
+        // Relatórios - Renderiza apenas se a view de relatórios estiver ativa
         if (document.querySelector('#relatorios-view.active-view')) {
             reports.renderReports();
         }
 
     } catch (error) {
         console.error("Erro ao buscar dados:", error);
-        showToast('Erro ao carregar dados.', 'error');
+        showToast('Erro ao carregar dados. Verifique a conexão e as permissões do banco de dados.', 'error');
     }
 }
 
 // --- TEMPO REAL ---
 function setupRealtime() {
     supabase.channel('public:tables').on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
-        console.log('Mudança detectada!', payload);
+        console.log('Mudança detectada no banco de dados!', payload);
         refreshAllData();
     }).subscribe();
 }

@@ -12,7 +12,10 @@ export function showToast(message, type = 'success') {
     toast.className = `toast ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.5s forwards';
+        toast.addEventListener('animationend', () => toast.remove());
+    }, 4000);
 }
 
 /**
@@ -40,16 +43,12 @@ export function populateSelect(selectId, data, valueField, textField) {
     const select = document.getElementById(selectId);
     if (!select) return;
 
-    // Guarda a opção atualmente selecionada para tentar mantê-la
     const currentlySelected = select.value;
-
     select.innerHTML = `<option value="">Selecione...</option>`;
     if (data) {
         data.forEach(item => {
             select.innerHTML += `<option value="${item[valueField]}">${item[textField]}</option>`;
         });
     }
-
-    // Tenta restaurar a seleção anterior
     select.value = currentlySelected;
 }

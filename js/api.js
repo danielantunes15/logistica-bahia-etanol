@@ -55,4 +55,3 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus) {
 
     return await updateItem('caminhoes', caminhaoId, { status: novoStatus });
 }
-// (Aqui entrariam funções similares para equipamentos, fazendas, etc.)

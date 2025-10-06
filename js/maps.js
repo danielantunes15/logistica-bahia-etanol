@@ -11,16 +11,15 @@ const TILE_LAYER = {
     } 
 };
 
-let map = null; // Instância do mapa do Dashboard
-let mapCadastroGrande = null; // Instância do mapa de Cadastro
+let map = null;
+let mapCadastroGrande = null;
 
 export function initDashboardMap() {
     if (map || !document.getElementById('map')) return;
     try {
         map = L.map('map').setView(USINA_COORDS, INITIAL_ZOOM);
         L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(map);
-        // Adicionar marcador da usina se desejado
-        L.marker(USINA_COORDS, { /* icon: usinaIcon */ }).addTo(map).bindPopup('Usina');
+        L.marker(USINA_COORDS).addTo(map).bindPopup('Usina');
     } catch (e) { 
         console.error("ERRO ao inicializar o mapa do dashboard:", e); 
     }
@@ -31,17 +30,13 @@ export function initCadastroFazendaMap() {
     try {
         mapCadastroGrande = L.map('map-cadastro-grande').setView(USINA_COORDS, INITIAL_ZOOM);
         L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(mapCadastroGrande);
-        // ... lógica de clique para pegar coordenadas
     } catch (e) { 
         console.error("ERRO ao inicializar o mapa de cadastro:", e); 
     }
 }
 
-// As funções de atualização de marcadores (exemplo)
-// Elas precisam ser implementadas com a lógica de ícones e dados
 export function updateFazendaMarkers(fazendas) {
     if (!map) return;
-    // Lógica para limpar marcadores antigos e adicionar novos
     console.log("Atualizando marcadores de fazendas...", fazendas);
 }
 export function updateCaminhaoMarkers(caminhoes) { 

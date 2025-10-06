@@ -23,10 +23,9 @@ function calculateWorkHours(history) {
     const workLogs = {};
     const productiveStatus = ['ativo', 'em_viagem'];
 
-    // 1. Organiza o histórico por ID de caminhão
     history.forEach(log => {
         const id = log.caminhao_id;
-        if (!id || !log.caminhoes) return; // Pula registros sem caminhão associado
+        if (!id || !log.caminhoes) return;
         if (!workLogs[id]) {
             workLogs[id] = { cod_equipamento: log.caminhoes.cod_equipamento, sessions: [] };
         }
@@ -36,9 +35,8 @@ function calculateWorkHours(history) {
     const results = [];
     for (const id in workLogs) {
         let totalMillis = 0;
-        const sessions = workLogs[id].sessions.sort((a, b) => a.time - b.time); // Garante a ordem cronológica
+        const sessions = workLogs[id].sessions.sort((a, b) => a.time - b.time);
         
-        // 2. Calcula a duração de sessões produtivas que já terminaram
         for(let i = 0; i < sessions.length - 1; i++) {
             if (productiveStatus.includes(sessions[i].status)) {
                 const startTime = sessions[i].time;
@@ -47,18 +45,17 @@ function calculateWorkHours(history) {
             }
         }
         
-        // 3. (CORREÇÃO) Verifica a última sessão. Se for produtiva, calcula o tempo dela até agora.
         const lastSession = sessions[sessions.length - 1];
         if (lastSession && productiveStatus.includes(lastSession.status)) {
             const startTime = lastSession.time;
-            const endTime = new Date(); // Tempo atual
+            const endTime = new Date();
             totalMillis += endTime - startTime;
         }
 
         results.push({
             caminhao_id: id,
             cod_equipamento: workLogs[id].cod_equipamento,
-            totalHours: totalMillis / (1000 * 60 * 60) // Converte milissegundos para horas
+            totalHours: totalMillis / (1000 * 60 * 60)
         });
     }
     return results;

@@ -62,7 +62,10 @@ button:hover { background-color: var(--accent-hover); }
 .toast { padding: 12px 20px; border-radius: 6px; color: white; font-weight: 500; animation: slideIn 0.5s forwards; margin-bottom: 10px; }
 .toast.success { background-color: #38A169; }
 .toast.error { background-color: #E53E3E; }
+@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 @keyframes slideIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+@keyframes slideOut { to { opacity: 0; transform: translateX(100%); } }
+
 /* ESTILOS PARA RELATÓRIOS */
 .report-container { padding: 32px; }
 .chart-wrapper { position: relative; height: 60vh; background-color: var(--bg-light); padding: 24px; border-radius: 8px; border: 1px solid var(--border-color); }
