@@ -12,7 +12,7 @@ const tableConfig = {
     'frentes_servico': { name: 'Frente', columns: ['nome', 'status'] },
     'fornecedores': { name: 'Fornecedor', columns: ['nome', 'cpf_cnpj'] },
     'proprietarios': { name: 'Proprietário', columns: ['nome', 'cpf_cnpj', 'telefone'] },
-    'terceiros': { name: 'Terceiro', columns: ['cod_terceiro', 'nome', 'cpf', 'proprietarios(nome)', 'descricao_atividade'] }
+    'terceiros': { name: 'Terceiro', columns: ['cod_terceiro', 'nome', 'cpf', 'empresa_id:proprietarios(nome)', 'descricao_atividade'] }
 };
 
 const formFields = {
@@ -63,28 +63,7 @@ export function injectHTMLContent() {
     document.getElementById('relatorios-view').innerHTML = `<div class="report-container"><div class="report-header"><h2>Relatório de Produtividade</h2></div><div class="chart-wrapper"><canvas id="workHoursChart"></canvas></div></div>`;
     document.getElementById('cadastro-fazendas-view').innerHTML = `<div class="admin-container"><h1>Cadastro de Fazendas</h1><div class="form-section" id="form-section-fazendas"></div><div id="map-container-medio"><div id="map-cadastro-medio"></div></div><div class="list-container"><h2>Fazendas Cadastradas</h2><table id="table-fazendas"><thead></thead><tbody></tbody></table></div></div>`;
     
-    document.getElementById('cadastro-equipamentos-view').innerHTML = `
-        <div class="admin-container">
-            <h1>Cadastro de Equipamentos</h1>
-            <div class="form-section" id="form-section-equipamentos"></div>
-            <div class="list-container" id="list-container-carregadeira">
-                <h2>Carregadeiras</h2>
-                <table id="table-equipamentos-carregadeira"><thead></thead><tbody></tbody></table>
-            </div>
-            <div class="list-container" id="list-container-trator-reboque">
-                <h2>Tratores Reboque</h2>
-                <table id="table-equipamentos-trator-reboque"><thead></thead><tbody></tbody></table>
-            </div>
-            <div class="list-container" id="list-container-colhedora">
-                <h2>Colhedoras</h2>
-                <table id="table-equipamentos-colhedora"><thead></thead><tbody></tbody></table>
-            </div>
-            <div class="list-container" id="list-container-trator-transbordo">
-                <h2>Tratores Transbordo</h2>
-                <table id="table-equipamentos-trator-transbordo"><thead></thead><tbody></tbody></table>
-            </div>
-        </div>
-    `;
+    document.getElementById('cadastro-equipamentos-view').innerHTML = `<div class="admin-container"><h1>Cadastro de Equipamentos</h1><div class="form-section" id="form-section-equipamentos"></div><div class="list-container" id="list-container-carregadeira"><h2>Carregadeiras</h2><table id="table-equipamentos-carregadeira"><thead></thead><tbody></tbody></table></div><div class="list-container" id="list-container-trator-reboque"><h2>Tratores Reboque</h2><table id="table-equipamentos-trator-reboque"><thead></thead><tbody></tbody></table></div><div class="list-container" id="list-container-colhedora"><h2>Colhedoras</h2><table id="table-equipamentos-colhedora"><thead></thead><tbody></tbody></table></div><div class="list-container" id="list-container-trator-transbordo"><h2>Tratores Transbordo</h2><table id="table-equipamentos-trator-transbordo"><thead></thead><tbody></tbody></table></div></div>`;
 
     for (const key in tableConfig) {
         if (key === 'fazendas' || key === 'equipamentos') continue;
@@ -93,21 +72,7 @@ export function injectHTMLContent() {
         if (viewElement) {
              let filterHTML = '';
             if (key === 'terceiros') {
-                filterHTML = `
-                    <div class="filter-container form-section">
-                        <h3>Filtrar Terceiros</h3>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                            <div>
-                                <label for="filter-terceiros-nome">Nome</label>
-                                <input type="text" id="filter-terceiros-nome" placeholder="Filtrar por nome...">
-                            </div>
-                            <div>
-                                <label for="filter-terceiros-atividade">Atividade</label>
-                                <select id="filter-terceiros-atividade"></select>
-                            </div>
-                        </div>
-                    </div>
-                `;
+                filterHTML = `<div class="filter-container form-section"><h3>Filtrar Terceiros</h3><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;"><div><label for="filter-terceiros-nome">Nome</label><input type="text" id="filter-terceiros-nome" placeholder="Filtrar por nome..."></div><div><label for="filter-terceiros-atividade">Atividade</label><select id="filter-terceiros-atividade"></select></div></div></div>`;
             }
             viewElement.innerHTML = `<div class="admin-container"><h1>Cadastro de ${tableConfig[key].name}s</h1>${filterHTML}<div class="form-section" id="form-section-${key}"></div><div class="list-container"><h2>Lista de ${tableConfig[key].name}s Cadastrados</h2><table id="table-${key}"><thead></thead><tbody></tbody></table></div></div>`;
         }
@@ -154,12 +119,8 @@ export function addEventListeners() {
             }
         }
     });
-    mainContent.addEventListener('input', e => {
-        if (e.target.id === 'filter-terceiros-nome') filterTerceirosList();
-    });
-    mainContent.addEventListener('change', e => {
-        if (e.target.id === 'filter-terceiros-atividade') filterTerceirosList();
-    });
+    mainContent.addEventListener('input', e => { if (e.target.id === 'filter-terceiros-nome') filterTerceirosList(); });
+    mainContent.addEventListener('change', e => { if (e.target.id === 'filter-terceiros-atividade') filterTerceirosList(); });
 }
 
 async function handleAddFormSubmit(form) {
@@ -169,9 +130,7 @@ async function handleAddFormSubmit(form) {
     const dataToInsert = Object.fromEntries(formData.entries());
     dataToInsert.terceiros = terceiros;
     (formFields[table] || []).forEach(field => {
-        if (field.type === 'number' && dataToInsert[field.name]) {
-            dataToInsert[field.name] = parseFloat(dataToInsert[field.name]);
-        }
+        if (field.type === 'number' && dataToInsert[field.name]) dataToInsert[field.name] = parseFloat(dataToInsert[field.name]);
     });
     let error;
     if (table === 'equipamentos') ({ error } = await api.insertEquipment(dataToInsert));
@@ -182,6 +141,7 @@ async function handleAddFormSubmit(form) {
 }
 
 function filterTerceirosList() {
+    if (!cachedData.terceiros) return;
     const nomeFilter = document.getElementById('filter-terceiros-nome').value.toLowerCase();
     const atividadeFilter = document.getElementById('filter-terceiros-atividade').value;
     const filteredData = cachedData.terceiros.filter(terceiro => {
@@ -195,7 +155,7 @@ function filterTerceirosList() {
 function renderTable(tableId, columns, data, tableKey) {
     const table = document.getElementById(tableId);
     if (!table) return;
-    table.querySelector('thead').innerHTML = `<tr>${columns.map(col => `<th>${col.split('(')[0].replace(/_/g, ' ').toUpperCase()}</th>`).join('')}<th>AÇÕES</th></tr>`;
+    table.querySelector('thead').innerHTML = `<tr>${columns.map(col => `<th>${col.split('(')[0].split(':')[0].replace(/_/g, ' ').toUpperCase()}</th>`).join('')}<th>AÇÕES</th></tr>`;
     table.querySelector('tbody').innerHTML = (data || []).map(item => `
         <tr>
             ${columns.map(col => `<td>${getNestedProperty(item, col) ?? ''}</td>`).join('')}
@@ -239,7 +199,11 @@ export function renderCadastros(allData) {
         }
         const formContainer = document.getElementById(`form-section-${key}`);
         if(formContainer) formContainer.innerHTML = generateAddFormHTML(key, allData);
-        renderTable(`table-${key}`, config.columns, data, key);
+        if (key === 'terceiros') {
+            filterTerceirosList();
+        } else {
+            renderTable(`table-${key}`, config.columns, data, key);
+        }
     }
 }
 
@@ -248,8 +212,12 @@ function getNestedProperty(obj, path) {
         return obj.terceiros.map(t => t.nome).join(', ') || 'Nenhum';
     }
     if (path.includes('(')) {
-        const parts = path.replace(')', '').split('(');
-        return obj[parts[0]] ? obj[parts[0]][parts[1]] : 'N/A';
+        const relationMatch = path.match(/(?:(\w+):)?(\w+)\((\w+)\)/);
+        if (relationMatch) {
+            const [, , relationName, relationField] = relationMatch;
+            const relatedObj = obj[relationName];
+            return relatedObj ? relatedObj[relationField] : 'N/A';
+        }
     }
     return obj[path];
 }
@@ -291,8 +259,14 @@ export async function openEditModal(table, id) {
     modalBody.innerHTML = '<p>Carregando dados...</p>';
     modalOverlay.classList.add('active');
     try {
-        const { data: itemData, error: itemError } = await api.fetchItemById(table, id);
+        let selectQuery = '*';
+        if (table === 'equipamentos' || table === 'caminhoes') selectQuery = '*, terceiros(*)';
+        else if (table === 'terceiros') selectQuery = '*, empresa_id:proprietarios(id, nome)';
+        else if (table === 'fazendas') selectQuery = '*, fornecedores(id, nome)';
+        
+        const { data: itemData, error: itemError } = await api.fetchItemById(table, id, selectQuery);
         if (itemError) throw itemError;
+
         const allDataForDropdowns = await api.fetchAllData();
         modalBody.innerHTML = generateEditFormHTML(table, itemData, allDataForDropdowns);
         if (table === 'fazendas') {
@@ -338,7 +312,7 @@ export function generateEditFormHTML(tableKey, data, allData) {
     if (!fields) return '<p>Formulário de edição não configurado.</p>';
     const formInputs = fields.map(field => {
         const requiredAttr = field.required ? 'required' : '';
-        let value = data[field.name] ?? '';
+        let value = data[field.name] ?? (field.name === 'empresa_id' ? data.empresa_id : '');
         let inputHtml = `<label for="edit-${field.name}">${field.label}</label>`;
         if (field.type === 'select' || field.type === 'select-multiple') {
             const multipleAttr = field.type === 'select-multiple' ? 'multiple' : '';
