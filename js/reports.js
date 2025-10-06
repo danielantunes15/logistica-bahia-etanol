@@ -21,7 +21,6 @@ export async function renderReports() {
 function calculateWorkHours(history) {
     const workLogs = {};
     const productiveStatus = ['ativo', 'em_viagem'];
-
     history.forEach(log => {
         const id = log.caminhao_id;
         if (!id || !log.caminhoes) return;
@@ -38,17 +37,13 @@ function calculateWorkHours(history) {
         
         for(let i = 0; i < sessions.length - 1; i++) {
             if (productiveStatus.includes(sessions[i].status)) {
-                const startTime = sessions[i].time;
-                const endTime = sessions[i+1].time;
-                totalMillis += endTime - startTime;
+                totalMillis += sessions[i+1].time - sessions[i].time;
             }
         }
         
         const lastSession = sessions[sessions.length - 1];
         if (lastSession && productiveStatus.includes(lastSession.status)) {
-            const startTime = lastSession.time;
-            const endTime = new Date();
-            totalMillis += endTime - startTime;
+            totalMillis += new Date() - lastSession.time;
         }
 
         results.push({

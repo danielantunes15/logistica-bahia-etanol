@@ -1,13 +1,8 @@
 const USINA_COORDS = [-17.642301, -40.181525];
 const INITIAL_ZOOM = 14;
-
 const TILE_LAYER = { 
     url: 'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', 
-    options: { 
-        maxZoom: 20, 
-        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], 
-        attribution: '&copy; Google' 
-    } 
+    options: { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '&copy; Google' } 
 };
 
 let map = null;
@@ -16,23 +11,18 @@ let cadastroMarker = null;
 let mapEditForm = null;
 let editMarker = null;
 
-// FUNÇÃO ATUALIZADA: Adicionado o setTimeout para garantir a renderização correta
 export function initDashboardMap() {
-    if (map) return; // Se o mapa já existe, não faz nada.
-
-    // Atrasar a criação do mapa para garantir que a view esteja 100% renderizada
+    if (map) return;
     setTimeout(() => {
         const mapContainer = document.getElementById('map');
-        if (mapContainer && !map) { // Dupla verificação para segurança
+        if (mapContainer && !map) {
             try {
                 map = L.map('map').setView(USINA_COORDS, INITIAL_ZOOM);
                 L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(map);
                 L.marker(USINA_COORDS).addTo(map).bindPopup('Usina');
-            } catch (e) { 
-                console.error("ERRO ao inicializar o mapa do dashboard:", e);
-            }
+            } catch (e) { console.error("ERRO ao inicializar o mapa do dashboard:", e); }
         }
-    }, 150); // Atraso de 150ms
+    }, 150);
 }
 
 export function initCadastroFazendaMap() {
@@ -40,7 +30,6 @@ export function initCadastroFazendaMap() {
         setTimeout(() => mapCadastroForm.invalidateSize(), 150);
         return;
     }
-    
     setTimeout(() => {
         const mapContainer = document.getElementById('map-cadastro-medio');
         if (mapContainer && !mapCadastroForm) { 
@@ -49,12 +38,8 @@ export function initCadastroFazendaMap() {
                 L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(mapCadastroForm);
                 mapCadastroForm.on('click', function(e) {
                     const { lat, lng } = e.latlng;
-                    const latInput = document.getElementById('latitude');
-                    const lngInput = document.getElementById('longitude');
-                    if (latInput && lngInput) {
-                        latInput.value = lat.toFixed(6);
-                        lngInput.value = lng.toFixed(6);
-                    }
+                    document.getElementById('latitude').value = lat.toFixed(6);
+                    document.getElementById('longitude').value = lng.toFixed(6);
                     if (cadastroMarker) {
                         cadastroMarker.setLatLng(e.latlng);
                     } else {
@@ -62,9 +47,7 @@ export function initCadastroFazendaMap() {
                     }
                     cadastroMarker.bindPopup(`<b>Coordenadas:</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`).openPopup();
                 });
-            } catch (e) {
-                console.error("ERRO ao inicializar o mapa de cadastro:", e);
-            }
+            } catch (e) { console.error("ERRO ao inicializar o mapa de cadastro:", e); }
         }
     }, 200);
 }
@@ -75,10 +58,7 @@ export function initEditFazendaMap(latitude, longitude) {
         mapEditForm = null;
     }
     const mapContainer = document.getElementById('map-edit-medio');
-    if (!mapContainer) {
-        console.error("Contêiner do mapa de edição ('map-edit-medio') não encontrado.");
-        return;
-    }
+    if (!mapContainer) return;
     setTimeout(() => {
         try {
             const initialCoords = [latitude, longitude];
@@ -87,19 +67,11 @@ export function initEditFazendaMap(latitude, longitude) {
             editMarker = L.marker(initialCoords).addTo(mapEditForm);
             mapEditForm.on('click', function(e) {
                 const { lat, lng } = e.latlng;
-                const latInput = document.getElementById('edit-latitude');
-                const lngInput = document.getElementById('edit-longitude');
-                if (latInput && lngInput) {
-                    latInput.value = lat.toFixed(6);
-                    lngInput.value = lng.toFixed(6);
-                }
-                if (editMarker) {
-                    editMarker.setLatLng(e.latlng);
-                }
+                document.getElementById('edit-latitude').value = lat.toFixed(6);
+                document.getElementById('edit-longitude').value = lng.toFixed(6);
+                if (editMarker) editMarker.setLatLng(e.latlng);
             });
-        } catch (e) {
-            console.error("ERRO ao inicializar o mapa de edição:", e);
-        }
+        } catch (e) { console.error("ERRO ao inicializar o mapa de edição:", e); }
     }, 200);
 }
 
