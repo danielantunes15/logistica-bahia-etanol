@@ -1,5 +1,3 @@
-// js/helpers.js
-
 /**
  * Exibe uma notificação "toast" no canto da tela.
  * @param {string} message - A mensagem a ser exibida.
@@ -12,10 +10,7 @@ export function showToast(message, type = 'success') {
     toast.className = `toast ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-    setTimeout(() => {
-        toast.style.animation = 'slideOut 0.5s forwards';
-        toast.addEventListener('animationend', () => toast.remove());
-    }, 4000);
+    setTimeout(() => toast.remove(), 4000);
 }
 
 /**

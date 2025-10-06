@@ -1,4 +1,3 @@
-// Este arquivo cuida da lógica da tela de relatórios.
 import { fetchTable } from './api.js';
 import { showToast } from './helpers.js';
 

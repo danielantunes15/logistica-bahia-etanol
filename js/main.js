@@ -1,4 +1,3 @@
-// O maestro da aplicação. Importa e organiza as chamadas para os outros módulos.
 import { supabase } from './supabase.js';
 import * as api from './api.js';
 import * as ui from './ui.js';
@@ -6,7 +5,6 @@ import * as maps from './maps.js';
 import * as reports from './reports.js';
 import { showToast } from './helpers.js';
 
-// --- INICIALIZAÇÃO ---
 function initializeApp() {
     ui.injectHTMLContent();
     ui.addEventListeners();
@@ -16,35 +14,24 @@ function initializeApp() {
     console.log('Aplicação modularizada inicializada.');
 }
 
-// --- FUNÇÃO DE ATUALIZAÇÃO GERAL ---
 async function refreshAllData() {
     try {
         const allData = await api.fetchAllData();
-        
-        // Dashboard
         ui.renderDashboard(allData.fazendas, allData.caminhoes, allData.equipamentos);
         maps.updateFazendaMarkers(allData.fazendas);
         maps.updateCaminhaoMarkers(allData.caminhoes);
         maps.updateEquipamentoMarkers(allData.equipamentos);
-
-        // Painel de Controle
         ui.renderControle(allData.fazendas, allData.caminhoes, allData.equipamentos, allData.frentes);
-
-        // Cadastros
         ui.renderCadastros(allData);
-
-        // Relatórios - Renderiza apenas se a view de relatórios estiver ativa
         if (document.querySelector('#relatorios-view.active-view')) {
             reports.renderReports();
         }
-
     } catch (error) {
         console.error("Erro ao buscar dados:", error);
-        showToast('Erro ao carregar dados. Verifique a conexão e as permissões do banco de dados.', 'error');
+        showToast('Erro ao carregar dados.', 'error');
     }
 }
 
-// --- TEMPO REAL ---
 function setupRealtime() {
     supabase.channel('public:tables').on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
         console.log('Mudança detectada no banco de dados!', payload);
@@ -52,5 +39,4 @@ function setupRealtime() {
     }).subscribe();
 }
 
-// --- PONTO DE ENTRADA ---
 document.addEventListener('DOMContentLoaded', initializeApp);

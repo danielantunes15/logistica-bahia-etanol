@@ -1,7 +1,6 @@
-// Este arquivo contém toda a lógica relacionada aos mapas Leaflet.
-
 const USINA_COORDS = [-17.642301, -40.181525];
 const INITIAL_ZOOM = 14;
+
 const TILE_LAYER = { 
     url: 'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', 
     options: { 
@@ -12,38 +11,98 @@ const TILE_LAYER = {
 };
 
 let map = null;
-let mapCadastroGrande = null;
+let mapCadastroForm = null; 
+let cadastroMarker = null;
+let mapEditForm = null;
+let editMarker = null;
 
+// FUNÇÃO ATUALIZADA: Adicionado o setTimeout para garantir a renderização correta
 export function initDashboardMap() {
-    if (map || !document.getElementById('map')) return;
-    try {
-        map = L.map('map').setView(USINA_COORDS, INITIAL_ZOOM);
-        L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(map);
-        L.marker(USINA_COORDS).addTo(map).bindPopup('Usina');
-    } catch (e) { 
-        console.error("ERRO ao inicializar o mapa do dashboard:", e); 
-    }
+    if (map) return; // Se o mapa já existe, não faz nada.
+
+    // Atrasar a criação do mapa para garantir que a view esteja 100% renderizada
+    setTimeout(() => {
+        const mapContainer = document.getElementById('map');
+        if (mapContainer && !map) { // Dupla verificação para segurança
+            try {
+                map = L.map('map').setView(USINA_COORDS, INITIAL_ZOOM);
+                L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(map);
+                L.marker(USINA_COORDS).addTo(map).bindPopup('Usina');
+            } catch (e) { 
+                console.error("ERRO ao inicializar o mapa do dashboard:", e);
+            }
+        }
+    }, 150); // Atraso de 150ms
 }
 
 export function initCadastroFazendaMap() {
-    if (mapCadastroGrande || !document.getElementById('map-cadastro-grande')) return;
-    try {
-        mapCadastroGrande = L.map('map-cadastro-grande').setView(USINA_COORDS, INITIAL_ZOOM);
-        L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(mapCadastroGrande);
-    } catch (e) { 
-        console.error("ERRO ao inicializar o mapa de cadastro:", e); 
+    if (mapCadastroForm) {
+        setTimeout(() => mapCadastroForm.invalidateSize(), 150);
+        return;
     }
+    
+    setTimeout(() => {
+        const mapContainer = document.getElementById('map-cadastro-medio');
+        if (mapContainer && !mapCadastroForm) { 
+            try {
+                mapCadastroForm = L.map(mapContainer).setView(USINA_COORDS, INITIAL_ZOOM);
+                L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(mapCadastroForm);
+                mapCadastroForm.on('click', function(e) {
+                    const { lat, lng } = e.latlng;
+                    const latInput = document.getElementById('latitude');
+                    const lngInput = document.getElementById('longitude');
+                    if (latInput && lngInput) {
+                        latInput.value = lat.toFixed(6);
+                        lngInput.value = lng.toFixed(6);
+                    }
+                    if (cadastroMarker) {
+                        cadastroMarker.setLatLng(e.latlng);
+                    } else {
+                        cadastroMarker = L.marker(e.latlng).addTo(mapCadastroForm);
+                    }
+                    cadastroMarker.bindPopup(`<b>Coordenadas:</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`).openPopup();
+                });
+            } catch (e) {
+                console.error("ERRO ao inicializar o mapa de cadastro:", e);
+            }
+        }
+    }, 200);
 }
 
-export function updateFazendaMarkers(fazendas) {
-    if (!map) return;
-    console.log("Atualizando marcadores de fazendas...", fazendas);
+export function initEditFazendaMap(latitude, longitude) {
+    if (mapEditForm) {
+        mapEditForm.remove();
+        mapEditForm = null;
+    }
+    const mapContainer = document.getElementById('map-edit-medio');
+    if (!mapContainer) {
+        console.error("Contêiner do mapa de edição ('map-edit-medio') não encontrado.");
+        return;
+    }
+    setTimeout(() => {
+        try {
+            const initialCoords = [latitude, longitude];
+            mapEditForm = L.map(mapContainer).setView(initialCoords, INITIAL_ZOOM);
+            L.tileLayer(TILE_LAYER.url, TILE_LAYER.options).addTo(mapEditForm);
+            editMarker = L.marker(initialCoords).addTo(mapEditForm);
+            mapEditForm.on('click', function(e) {
+                const { lat, lng } = e.latlng;
+                const latInput = document.getElementById('edit-latitude');
+                const lngInput = document.getElementById('edit-longitude');
+                if (latInput && lngInput) {
+                    latInput.value = lat.toFixed(6);
+                    lngInput.value = lng.toFixed(6);
+                }
+                if (editMarker) {
+                    editMarker.setLatLng(e.latlng);
+                }
+            });
+        } catch (e) {
+            console.error("ERRO ao inicializar o mapa de edição:", e);
+        }
+    }, 200);
 }
-export function updateCaminhaoMarkers(caminhoes) { 
-    if (!map) return;
-    console.log("Atualizando marcadores de caminhões...", caminhoes);
-}
-export function updateEquipamentoMarkers(equipamentos) { 
-    if (!map) return;
-    console.log("Atualizando marcadores de equipamentos...", equipamentos);
-}
+
+export function updateFazendaMarkers(fazendas) {}
+export function updateCaminhaoMarkers(caminhoes) {}
+export function updateEquipamentoMarkers(equipamentos) {}
