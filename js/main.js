@@ -4,6 +4,7 @@ import * as api from './api.js';
 import * as ui from './ui.js';
 import * as maps from './maps.js';
 import * as reports from './reports.js';
+import { showToast } from './helpers.js';
 
 // --- INICIALIZAÇÃO ---
 function initializeApp() {
@@ -19,19 +20,37 @@ function initializeApp() {
 async function refreshAllData() {
     try {
         const allData = await api.fetchAllData();
-        ui.renderDashboard(allData);
-        ui.renderControle(allData);
+        
+        // Dashboard
+        ui.renderDashboard(allData.fazendas, allData.caminhoes, allData.equipamentos);
+        maps.updateFazendaMarkers(allData.fazendas);
+        maps.updateCaminhaoMarkers(allData.caminhoes);
+        maps.updateEquipamentoMarkers(allData.equipamentos);
+
+        // Painel de Controle
+        ui.renderControle(allData.fazendas, allData.caminhoes, allData.equipamentos, allData.frentes);
+
+        // Cadastros
         ui.renderCadastros(allData);
-        // (As funções de renderização de mapa são chamadas dentro do renderDashboard)
+
+        // Relatórios
+        // O renderReports busca seus próprios dados, pois pode ter filtros futuros
+        if (document.querySelector('#relatorios-view.active-view')) {
+            reports.renderReports();
+        }
+
     } catch (error) {
         console.error("Erro ao buscar dados:", error);
-        ui.showToast('Erro ao carregar dados.', 'error');
+        showToast('Erro ao carregar dados.', 'error');
     }
 }
 
 // --- TEMPO REAL ---
 function setupRealtime() {
-    supabase.channel('public:tables').on('postgres_changes', { event: '*', schema: 'public' }, refreshAllData).subscribe();
+    supabase.channel('public:tables').on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+        console.log('Mudança detectada!', payload);
+        refreshAllData();
+    }).subscribe();
 }
 
 // --- PONTO DE ENTRADA ---
