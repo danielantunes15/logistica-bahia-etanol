@@ -45,8 +45,8 @@ export async function updateCaminhao(id, data) {
 export async function fetchAllData() {
     const [fazendas, caminhoes, equipamentos, frentes, fornecedores, proprietarios, terceiros] = await Promise.all([
         fetchTable('fazendas', '*, fornecedores(id, nome)'),
-        fetchTable('caminhoes', '*, proprietarios(id, nome), terceiros(*)'),
-        fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome), terceiros(*)'),
+        fetchTable('caminhoes', '*, proprietarios(id, nome), caminhao_terceiros(terceiros(*))'),
+        fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome), equipamento_terceiros(terceiros(*))'),
         fetchTable('frentes_servico'),
         fetchTable('fornecedores'),
         fetchTable('proprietarios'),

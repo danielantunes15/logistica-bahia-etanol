@@ -46,8 +46,15 @@ const formFields = {
         { name: 'nome', label: 'Nome da Frente', type: 'text', required: true },
         { name: 'status', label: 'Status', type: 'select', options: ['inativa', 'ativa'], required: true },
     ],
-    fornecedores: [ { name: 'nome', label: 'Nome', type: 'text', required: true }, { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text' }, ],
-    proprietarios: [ { name: 'nome', label: 'Nome', type: 'text', required: true }, { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text' }, { name: 'telefone', label: 'Telefone', type: 'text' }, ],
+    fornecedores: [
+        { name: 'nome', label: 'Nome', type: 'text', required: true },
+        { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text' },
+    ],
+    proprietarios: [
+        { name: 'nome', label: 'Nome', type: 'text', required: true },
+        { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text' },
+        { name: 'telefone', label: 'Telefone', type: 'text' },
+    ],
     terceiros: [
         { name: 'cod_terceiro', label: 'Cód. do Terceiro', type: 'text' },
         { name: 'nome', label: 'Nome', type: 'text', required: true },
@@ -126,17 +133,36 @@ export function addEventListeners() {
 async function handleAddFormSubmit(form) {
     const table = form.dataset.table;
     const formData = new FormData(form);
-    const terceiros = formData.getAll('terceiros');
+
+    // Cria o objeto base com todos os dados do formulário
     const dataToInsert = Object.fromEntries(formData.entries());
-    dataToInsert.terceiros = terceiros;
+
+    // Só adiciona "terceiros" se o formulário tiver esse campo
+    if (formData.has('terceiros')) {
+        dataToInsert.terceiros = formData.getAll('terceiros');
+    }
+
+    // Converte campos numéricos corretamente
     (formFields[table] || []).forEach(field => {
-        if (field.type === 'number' && dataToInsert[field.name]) dataToInsert[field.name] = parseFloat(dataToInsert[field.name]);
+        if (field.type === 'number' && dataToInsert[field.name]) {
+            dataToInsert[field.name] = parseFloat(dataToInsert[field.name]);
+        }
     });
+
+    // Envia para o Supabase conforme o tipo de cadastro
     let error;
-    if (table === 'equipamentos') ({ error } = await api.insertEquipment(dataToInsert));
-    else if (table === 'caminhoes') ({ error } = await api.insertCaminhao(dataToInsert));
-    else ({ error } = await api.insertItem(table, dataToInsert));
+    if (table === 'equipamentos') {
+        ({ error } = await api.insertEquipment(dataToInsert));
+    } else if (table === 'caminhoes') {
+        ({ error } = await api.insertCaminhao(dataToInsert));
+    } else {
+        ({ error } = await api.insertItem(table, dataToInsert));
+    }
+
+    // Mostra mensagem de sucesso ou erro
     handleOperation(error, `${tableConfig[table].name} cadastrado com sucesso!`);
+
+    // Reseta o formulário se não houver erro
     if (!error) form.reset();
 }
 
@@ -208,8 +234,12 @@ export function renderCadastros(allData) {
 }
 
 function getNestedProperty(obj, path) {
-    if (path === 'terceiros' && Array.isArray(obj.terceiros)) {
-        return obj.terceiros.map(t => t.nome).join(', ') || 'Nenhum';
+    if (path === 'terceiros') {
+        const joinData = obj.caminhao_terceiros || obj.equipamento_terceiros;
+        if (Array.isArray(joinData) && joinData.length > 0) {
+            return joinData.map(joinEntry => joinEntry.terceiros.nome).join(', ');
+        }
+        return 'Nenhum';
     }
     if (path.includes('(')) {
         const relationMatch = path.match(/(?:(\w+):)?(\w+)\((\w+)\)/);
@@ -260,7 +290,7 @@ export async function openEditModal(table, id) {
     modalOverlay.classList.add('active');
     try {
         let selectQuery = '*';
-        if (table === 'equipamentos' || table === 'caminhoes') selectQuery = '*, terceiros(*)';
+        if (table === 'equipamentos' || table === 'caminhoes') selectQuery = '*, caminhao_terceiros(terceiros(*)), equipamento_terceiros(terceiros(*))';
         else if (table === 'terceiros') selectQuery = '*, empresa_id:proprietarios(id, nome)';
         else if (table === 'fazendas') selectQuery = '*, fornecedores(id, nome)';
         
@@ -318,7 +348,15 @@ export function generateEditFormHTML(tableKey, data, allData) {
             const multipleAttr = field.type === 'select-multiple' ? 'multiple' : '';
             inputHtml += `<select name="${field.name}" id="edit-${field.name}" ${multipleAttr} ${requiredAttr}>`;
             if (!multipleAttr) inputHtml += `<option value="">Selecione...</option>`;
-            const selectedValues = field.type === 'select-multiple' ? (data.terceiros || []).map(t => t.id) : [value];
+            
+            let selectedValues = [];
+            if(field.type === 'select-multiple') {
+                const joinData = data.caminhao_terceiros || data.equipamento_terceiros;
+                selectedValues = (joinData || []).map(j => j.terceiros.id);
+            } else {
+                selectedValues = [value];
+            }
+
             if (field.source) {
                 let sourceData = allData[field.source.replace('_servico','')];
                 if (field.filterActive && sourceData) {
