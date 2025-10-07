@@ -1,13 +1,34 @@
 // js/helpers.js
+
+/**
+ * Exibe uma notificação toast moderna com ícone e cores.
+ * @param {string} message - A mensagem a ser exibida.
+ * @param {string} type - O tipo de toast ('success', 'error', ou 'info').
+ */
 export function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     if (!container) return;
     
+    const icons = {
+        success: 'ph-fill ph-check-circle',
+        error: 'ph-fill ph-x-circle',
+        info: 'ph-fill ph-info'
+    };
+    
+    const icon = icons[type] || icons['info'];
+
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.textContent = message;
+    
+    // Nova estrutura HTML do toast
+    toast.innerHTML = `
+        <i class="${icon}"></i>
+        <span>${message}</span>
+    `;
+    
     container.appendChild(toast);
     
+    // Remove o toast do DOM após a animação de fadeOut terminar (4 segundos)
     setTimeout(() => {
         if (toast.parentNode === container) {
             container.removeChild(toast);
@@ -15,11 +36,18 @@ export function showToast(message, type = 'success') {
     }, 4000);
 }
 
+/**
+ * Lida com o resultado de uma operação, mostrando um toast de sucesso ou erro.
+ * @param {Error|null} error - O objeto de erro, se houver.
+ * @param {string} successMessage - A mensagem a ser exibida em caso de sucesso.
+ */
 export function handleOperation(error, successMessage) {
     if (error) {
+        // Usa o showToast para exibir a mensagem de erro.
         showToast(`Erro: ${error.message}`, 'error');
         console.error(error);
     } else if (successMessage) {
+        // Usa o showToast para exibir a mensagem de sucesso.
         showToast(successMessage, 'success');
     }
 }
@@ -33,7 +61,6 @@ export function hideLoading() {
     const overlay = document.getElementById('loading-overlay');
     if (overlay) overlay.style.display = 'none';
 }
-
 
 export function formatDate(date) {
     return new Date(date).toLocaleDateString('pt-BR');
