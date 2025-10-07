@@ -141,7 +141,20 @@ export class CadastrosView {
             terceiros: [
                 { name: 'nome', label: 'Nome', type: 'text', required: true },
                 { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true },
-                { name: 'descricao_atividade', label: 'Atividade', type: 'text', required: true },
+                // NOVO: Campo Atividade como Select com opções fixas
+                { 
+                    name: 'descricao_atividade', 
+                    label: 'Atividade', 
+                    type: 'select', 
+                    options: [
+                        'Motorista', 
+                        'Operador de Colhedora', 
+                        'Operador de Trator Reboque', 
+                        'Operador de Trator Transbordo', 
+                        'Operador de Carregadeira'
+                    ], 
+                    required: true 
+                },
                 { name: 'empresa_id', label: 'Empresa (Proprietário)', type: 'select', source: 'proprietarios', displayField: 'nome', required: true }
             ]
         };
