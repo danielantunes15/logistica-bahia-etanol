@@ -98,8 +98,6 @@ function switchView(viewName) {
     const clickedButton = document.querySelector(`[data-view="${viewName}"]`);
     if (clickedButton) {
         clickedButton.classList.add('active');
-        
-        // Se o botão estiver dentro de um submenu, abre o submenu
         const parentGroup = clickedButton.closest('.nav-group');
         if (parentGroup) {
             parentGroup.classList.add('open');

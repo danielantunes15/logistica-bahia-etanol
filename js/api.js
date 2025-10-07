@@ -43,16 +43,13 @@ export async function updateCaminhao(id, data) {
     return { error: null };
 }
 
-/**
- * Busca todos os dados principais da aplicação.
- */
 export async function fetchAllData() {
     try {
         const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico] = await Promise.all([
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
             fetchTable('caminhoes', '*, proprietarios(id, nome)'),
-            fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome), equipamento_terceiros(terceiros(*))'),
-            fetchTable('frentes_servico', '*, fazendas(cod_equipamento, nome)'), // ATUALIZADO: Busca a fazenda associada
+            fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome)'),
+            fetchTable('frentes_servico', '*, fazendas(cod_equipamento, nome)'),
             fetchTable('fornecedores'),
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
@@ -66,9 +63,6 @@ export async function fetchAllData() {
     }
 }
 
-/**
- * Função genérica para buscar dados de uma tabela.
- */
 export async function fetchTable(tableName, select = '*') {
     const { data, error } = await supabase.from(tableName).select(select).order('created_at', { ascending: false });
     if (error) throw error;
@@ -76,8 +70,38 @@ export async function fetchTable(tableName, select = '*') {
 }
 
 /**
- * Função para atualizar o status de um caminhão e registrar no histórico.
+ * NOVA FUNÇÃO: Designa um caminhão para uma frente com status e horário.
  */
+export async function assignCaminhaoToFrente(caminhaoId, frenteId, statusInicial, horaSaida) {
+     // 1. Atualiza o caminhão com o novo status e frente
+    const { data: updatedCaminhao, error: updateError } = await supabase
+        .from('caminhoes')
+        .update({
+            status: statusInicial,
+            frente_id: frenteId
+        })
+        .eq('id', caminhaoId)
+        .select()
+        .single();
+    
+    if (updateError) throw updateError;
+
+    // 2. Cria o primeiro registro no histórico com a hora de saída informada
+    const { error: historyError } = await supabase
+        .from('caminhao_historico')
+        .insert({
+            caminhao_id: caminhaoId,
+            status_anterior: 'disponivel',
+            status_novo: statusInicial,
+            timestamp_mudanca: horaSaida // Usa a hora informada pelo usuário
+        });
+
+    if (historyError) throw historyError;
+
+    return { data: updatedCaminhao };
+}
+
+
 export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = null) {
     const { data: caminhaoAtual, error: fetchError } = await supabase
         .from('caminhoes')
@@ -102,10 +126,7 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
 
     const { data, error } = await supabase
         .from('caminhoes')
-        .update({
-            status: novoStatus,
-            frente_id: frenteId
-        })
+        .update({ status: novoStatus, frente_id: frenteId })
         .eq('id', caminhaoId)
         .select()
         .single();
@@ -114,21 +135,15 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
     return { data };
 }
 
-
-/**
- * NOVA FUNÇÃO: Associa uma fazenda a uma frente de serviço.
- */
 export async function updateFrenteComFazenda(frenteId, fazendaId) {
     const { data, error } = await supabase
         .from('frentes_servico')
         .update({ fazenda_id: fazendaId })
         .eq('id', frenteId)
         .select();
-    
     if (error) throw error;
     return { data };
 }
-
 
 export async function insertItem(tableName, dataToInsert) {
     if (tableName === 'equipamentos') return await insertEquipment(dataToInsert);

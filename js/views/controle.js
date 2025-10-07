@@ -1,5 +1,5 @@
 // js/views/controle.js
-import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda } from '../api.js';
+import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
 
@@ -7,37 +7,33 @@ export class ControleView {
     constructor() {
         this.container = null;
         this.data = {};
+        // --- ORDEM DO CICLO CORRIGIDA ---
         this.statusCiclo = [
             'indo_carregar', 
             'carregando', 
             'retornando', 
-            'patio', 
-            'descarregando'
+            'patio_carregado',
+            'descarregando',
+            'patio_vazio' 
         ];
         this.statusLabels = {
             disponivel: 'Disponível',
             indo_carregar: 'Sentido Carreg.',
             carregando: 'Carregando',
             retornando: 'Sentido Usina',
-            patio: 'Pátio Externo',
+            patio_carregado: 'Pátio Carregado',
             descarregando: 'Descarregando',
+            patio_vazio: 'Pátio Vazio',
             quebrado: 'Quebrado'
         };
     }
 
     async show() {
-        await this.loadHTML();
         await this.loadData();
         this.addEventListeners();
     }
 
     async hide() {}
-
-    async loadHTML() {
-        const container = document.getElementById('views-container');
-        container.innerHTML = `<div id="controle-view" class="view controle-view active-view"></div>`;
-        this.container = container.querySelector('#controle-view');
-    }
 
     async loadData() {
         showLoading();
@@ -52,51 +48,55 @@ export class ControleView {
     }
     
     render() {
-        this.container.innerHTML = `
-            <div class="controle-header">
-                <h1>Painel de Controle de Frota</h1>
-                <button class="btn-primary" id="refresh-controle">
-                    <i class="ph-fill ph-arrows-clockwise"></i>
-                    Atualizar
-                </button>
-            </div>
-
-            ${this.renderDashboardSummary()}
-
-            <div class="controle-grid" id="main-grid">
-                ${this.renderDisponiveisCard()}
-                ${this.renderFrentes()}
-            </div>
-
-            <div class="historico-container">
-                <div class="historico-header">
-                    <h2>Histórico de Movimentação da Frota</h2>
+        const container = document.getElementById('views-container');
+        container.innerHTML = `
+            <div id="controle-view" class="view controle-view active-view">
+                <div class="controle-header">
+                    <h1>Painel de Controle de Frota</h1>
+                    <button class="btn-primary" id="btn-fazer-acao">
+                        <i class="ph-fill ph-plus-circle"></i>
+                        Fazer Ação
+                    </button>
                 </div>
-                <div class="table-wrapper">
-                    <table class="data-table-modern" id="historico-table">
-                        <thead>
-                            <tr>
-                                <th>Horário</th>
-                                <th>Caminhão</th>
-                                <th>Status Anterior</th>
-                                <th>Status Novo</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${this.renderHistorico()}
-                        </tbody>
-                    </table>
+
+                ${this.renderDashboardSummary()}
+
+                <div class="controle-grid" id="main-grid">
+                    ${this.renderFrentes()}
+                </div>
+
+                <div class="historico-container">
+                    <div class="historico-header">
+                        <h2>Histórico de Movimentação da Frota</h2>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table-modern" id="historico-table">
+                            <thead>
+                                <tr>
+                                    <th>Horário</th>
+                                    <th>Caminhão</th>
+                                    <th>Status Anterior</th>
+                                    <th>Status Novo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${this.renderHistorico()}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         `;
+        this.container = container.querySelector('#controle-view');
     }
 
     renderDashboardSummary() {
         const { caminhoes = [] } = this.data;
         const statusCounts = {};
-        [...this.statusCiclo, 'quebrado'].forEach(status => {
-            statusCounts[status] = 0;
-        });
+        const statusesToCount = [...this.statusCiclo, 'quebrado'];
+        
+        statusesToCount.forEach(status => { statusCounts[status] = 0; });
+
         caminhoes.forEach(caminhao => {
             if (statusCounts.hasOwnProperty(caminhao.status)) {
                 statusCounts[caminhao.status]++;
@@ -105,65 +105,20 @@ export class ControleView {
 
         return `
             <div class="controle-dashboard-summary">
-                ${Object.entries(statusCounts).map(([status, count]) => `
+                ${statusesToCount.map(status => `
                     <div class="summary-card summary-${status}">
-                        <div class="summary-card-value">${count}</div>
+                        <div class="summary-card-value">${statusCounts[status]}</div>
                         <div class="summary-card-label">${this.statusLabels[status]}</div>
                     </div>
                 `).join('')}
             </div>
         `;
     }
-    
-    renderDisponiveisCard() {
-        const { caminhoes = [], frentes_servico = [] } = this.data;
-        const caminhoesDisponiveis = caminhoes.filter(c => c.status === 'disponivel');
-        const caminhoesQuebrados = caminhoes.filter(c => c.status === 'quebrado');
-
-        return `
-            <div class="disponiveis-card">
-                <div class="disponiveis-header">
-                    <i class="ph-fill ph-garage"></i>
-                    <h3>Caminhões Não-Operacionais</h3>
-                </div>
-                <div class="disponiveis-body">
-                    <div class="disponiveis-coluna">
-                        <h4><i class="ph-fill ph-check-circle" style="color: var(--accent-primary);"></i> Disponíveis</h4>
-                        <div class="disponiveis-list">
-                            ${caminhoesDisponiveis.map(c => `
-                                <div class="caminhao-disponivel-item">
-                                    <span>${c.cod_equipamento}</span>
-                                    <select class="form-select form-select-sm btn-designar" data-caminhao-id="${c.id}">
-                                        <option value="">Designar para...</option>
-                                        ${frentes_servico.map(f => `<option value="${f.id}" ${!f.fazenda_id ? 'disabled' : ''}>${f.nome} ${!f.fazenda_id ? ' (Precisa designar fazenda)' : ''}</option>`).join('')}
-                                    </select>
-                                </div>
-                            `).join('') || '<p>Nenhum</p>'}
-                        </div>
-                    </div>
-                    <div class="disponiveis-coluna">
-                        <h4><i class="ph-fill ph-x-circle" style="color: var(--accent-danger);"></i> Quebrados</h4>
-                        <div class="disponiveis-list">
-                             ${caminhoesQuebrados.map(c => `
-                                <div class="caminhao-quebrado-item">
-                                    <span>${c.cod_equipamento}</span>
-                                    <button class="btn-status-change" data-caminhao-id="${c.id}" data-novo-status="disponivel">
-                                        <i class="ph-fill ph-wrench"></i> Marcar como Disponível
-                                    </button>
-                                </div>
-                            `).join('') || '<p>Nenhum</p>'}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
 
     renderFrentes() {
         const { frentes_servico = [], caminhoes = [] } = this.data;
         return frentes_servico.map(frente => {
-            const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel' && c.status !== 'quebrado');
+            const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel');
             const fazendaAtual = frente.fazendas;
 
             return `
@@ -176,7 +131,7 @@ export class ControleView {
                             <div class="fazenda-display">
                                 <i class="ph-fill ph-tree-evergreen"></i>
                                 <div>
-                                    <span class="fazenda-nome">${fazendaAtual?.nome || 'Nenhuma Fazenda Designada'}</span>
+                                    <span class="fazenda-nome">${fazendaAtual?.nome || 'Nenhuma Fazenda'}</span>
                                     ${fazendaAtual ? `<span class="fazenda-codigo">${fazendaAtual.cod_equipamento}</span>` : ''}
                                 </div>
                             </div>
@@ -184,38 +139,29 @@ export class ControleView {
                         </div>
                     </div>
                     <div class="frente-body">
-                        <div class="caminhoes-coluna" style="grid-column: 1 / -1;">
-                            <h4>Em Operação na Frente</h4>
-                            <div class="caminhoes-em-operacao-list">
-                                ${caminhoesEmOperacao.map(c => this.renderCaminhaoEmOperacao(c)).join('') || '<p>Nenhum</p>'}
-                            </div>
-                        </div>
+                        <h4>Caminhões em Operação</h4>
+                        <table class="caminhoes-em-operacao-table">
+                            <thead>
+                                <tr>
+                                    <th>Cód. Caminhão</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${caminhoesEmOperacao.length > 0 ? caminhoesEmOperacao.map(c => `
+                                    <tr>
+                                        <td><strong>${c.cod_equipamento}</strong></td>
+                                        <td><span class="caminhao-status-badge status-${c.status}">${this.statusLabels[c.status]}</span></td>
+                                        <td><button class="btn-primary" style="font-size: 0.8rem; padding: 6px 10px;" data-caminhao-id="${c.id}">Alterar Status</button></td>
+                                    </tr>
+                                `).join('') : '<tr><td colspan="3">Nenhum caminhão em operação.</td></tr>'}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             `;
         }).join('');
-    }
-    
-    renderCaminhaoEmOperacao(caminhao) {
-        const currentStatus = caminhao.status || 'disponivel';
-        const currentIndex = this.statusCiclo.indexOf(currentStatus);
-        const nextStatus = (currentIndex > -1 && currentIndex < this.statusCiclo.length - 1) ? this.statusCiclo[currentIndex + 1] : null;
-        const prevStatus = (currentIndex > 0) ? this.statusCiclo[currentIndex - 1] : null;
-
-        return `
-            <div class="caminhao-operacao-item">
-                <div class="caminhao-operacao-header">
-                    <strong>${caminhao.cod_equipamento}</strong>
-                    <span class="caminhao-status-badge status-${currentStatus}">${this.statusLabels[currentStatus]}</span>
-                </div>
-                <div class="status-actions">
-                    ${prevStatus ? `<button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-frente-id="${caminhao.frente_id}" data-novo-status="${prevStatus}">&lt; Voltar</button>` : `<div></div>`}
-                    ${nextStatus ? `<button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-frente-id="${caminhao.frente_id}" data-novo-status="${nextStatus}">Avançar &gt;</button>` : `<div></div>`}
-                    <button class="btn-status-change full-width" data-caminhao-id="${caminhao.id}" data-novo-status="disponivel">Finalizar Ciclo</button>
-                    <button class="btn-status-change full-width btn-danger" data-caminhao-id="${caminhao.id}" data-novo-status="quebrado">Registrar Quebra</button>
-                </div>
-            </div>
-        `;
     }
 
     renderHistorico() {
@@ -235,32 +181,118 @@ export class ControleView {
             const btn = e.target.closest('button');
             if (!btn) return;
 
-            if (btn.id === 'refresh-controle') this.loadData();
+            if (btn.id === 'btn-fazer-acao') this.showAssignmentModal();
             if (btn.classList.contains('btn-alterar-fazenda')) this.showFazendaSelector(btn.dataset.frenteId);
-            if (btn.classList.contains('btn-status-change')) {
-                const caminhaoId = btn.dataset.caminhaoId;
-                const novoStatus = btn.dataset.novoStatus;
-                const frenteId = (novoStatus === 'disponivel' || novoStatus === 'quebrado') ? null : btn.dataset.frenteId;
-                this.handleStatusUpdate(caminhaoId, novoStatus, frenteId, 'Status atualizado!');
-            }
-        });
-        
-        this.container.addEventListener('change', (e) => {
-            const select = e.target.closest('select.btn-designar');
-            if(select && select.value) {
-                const caminhaoId = select.dataset.caminhaoId;
-                const frenteId = select.value;
-                this.handleStatusUpdate(caminhaoId, 'indo_carregar', frenteId, 'Caminhão enviado com sucesso!');
-                select.value = ""; // Reseta o select
+            
+            if (btn.dataset.caminhaoId && !btn.closest('#action-modal-form')) {
+                this.showStatusUpdateModal(btn.dataset.caminhaoId);
             }
         });
     }
 
+    showAssignmentModal() {
+        const { caminhoes = [], frentes_servico = [] } = this.data;
+        // --- CORREÇÃO AQUI: Mostra caminhões 'disponivel' OU sem status definido (null) ---
+        const caminhoesDisponiveis = caminhoes.filter(c => c.status === 'disponivel' || !c.status);
+        
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        const nowString = now.toISOString().slice(0,16);
+
+        const modalContent = `
+            <form id="action-modal-form" class="action-modal-form">
+                <div class="form-group">
+                    <label>1. Escolha o Caminhão</label>
+                    <select name="caminhao" class="form-select" required>
+                        <option value="">Selecione...</option>
+                        ${caminhoesDisponiveis.map(c => `<option value="${c.id}">${c.cod_equipamento}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>2. Escolha a Frente de Destino (Apenas frentes com fazenda)</label>
+                    <select name="frente" class="form-select" required>
+                        <option value="">Selecione...</option>
+                        ${frentes_servico.filter(f => f.fazenda_id).map(f => `<option value="${f.id}">${f.nome}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>3. Selecione a Etapa Inicial</label>
+                    <select name="status" class="form-select" required>
+                        ${this.statusCiclo.map(s => `<option value="${s}">${this.statusLabels[s]}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>4. Hora de Saída para Roça</label>
+                    <input type="datetime-local" name="hora" class="form-input" value="${nowString}" required>
+                </div>
+                <button type="submit" class="btn-primary">Confirmar Ação</button>
+            </form>
+        `;
+        openModal('Designar Caminhão para Frente', modalContent);
+
+        document.getElementById('action-modal-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = e.target;
+            const caminhaoId = formData.caminhao.value;
+            const frenteId = formData.frente.value;
+            const status = formData.status.value;
+            const hora = formData.hora.value;
+
+            if (!caminhaoId || !frenteId || !status || !hora) {
+                showToast('Por favor, preencha todos os campos.', 'error');
+                return;
+            }
+
+            showLoading();
+            try {
+                await assignCaminhaoToFrente(caminhaoId, frenteId, status, new Date(hora).toISOString());
+                showToast('Caminhão designado com sucesso!', 'success');
+                closeModal();
+                await this.loadData();
+            } catch (error) {
+                handleOperation(error);
+            } finally {
+                hideLoading();
+            }
+        });
+    }
+
+    showStatusUpdateModal(caminhaoId) {
+        const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
+        if (!caminhao) return;
+
+        const modalContent = `
+            <p>Alterando status de: <strong>${caminhao.cod_equipamento}</strong></p>
+            <form id="status-update-form" class="action-modal-form">
+                <div class="form-group">
+                    <label>Selecione o Novo Status</label>
+                    <select name="status" class="form-select" required>
+                        ${[...this.statusCiclo, 'quebrado'].map(s => `<option value="${s}" ${caminhao.status === s ? 'selected' : ''}>${this.statusLabels[s]}</option>`).join('')}
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Atualizar Status</button>
+                <button type="button" id="btn-finalizar-ciclo" class="btn-secondary">Finalizar Ciclo (Tornar Disponível)</button>
+            </form>
+        `;
+        openModal('Alterar Status do Caminhão', modalContent);
+
+        const form = document.getElementById('status-update-form');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            this.handleStatusUpdate(caminhao.id, e.target.status.value, caminhao.frente_id, 'Status atualizado!');
+        });
+
+        document.getElementById('btn-finalizar-ciclo').addEventListener('click', () => {
+             this.handleStatusUpdate(caminhao.id, 'disponivel', null, 'Ciclo finalizado, caminhão disponível!');
+        });
+    }
+    
     async handleStatusUpdate(caminhaoId, novoStatus, frenteId, successMessage) {
         showLoading();
         try {
             await updateCaminhaoStatus(caminhaoId, novoStatus, frenteId);
             showToast(successMessage, 'success');
+            closeModal();
             await this.loadData();
         } catch (error) {
             handleOperation(error);
@@ -268,17 +300,14 @@ export class ControleView {
             hideLoading();
         }
     }
-    
+
     showFazendaSelector(frenteId) {
         const { fazendas = [] } = this.data;
         const optionsHTML = fazendas.map(f => `<option value="${f.id}">${f.cod_equipamento} - ${f.nome}</option>`).join('');
         const modalContent = `
             <form id="fazenda-select-form" class="fazenda-select-form">
                 <p>Selecione a nova fazenda para esta frente de serviço.</p>
-                <select name="fazenda" class="form-select">
-                    <option value="">Nenhuma / Limpar</option>
-                    ${optionsHTML}
-                </select>
+                <select name="fazenda" class="form-select"><option value="">Nenhuma / Limpar</option>${optionsHTML}</select>
                 <button type="submit" class="btn-primary">Salvar Alteração</button>
             </form>
         `;

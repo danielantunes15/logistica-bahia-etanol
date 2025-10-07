@@ -11,8 +11,9 @@ export class FrotaView {
             indo_carregar: 'Sentido Carreg.',
             carregando: 'Carregando',
             retornando: 'Sentido Usina',
-            patio: 'Pátio Externo',
+            patio_carregado: 'Pátio Carregado',
             descarregando: 'Descarregando',
+            patio_vazio: 'Pátio Vazio',
             quebrado: 'Quebrado'
         };
     }
@@ -42,13 +43,12 @@ export class FrotaView {
                             <tr>
                                 <th>Caminhão</th>
                                 <th>Status</th>
-                                <th>Frente de Serviço</th>
+                                <th>Frente de Serviço Atual</th>
                                 <th>Proprietário</th>
-                                <th>Ações</th>
+                                <th style="text-align: center;">Ações</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            </tbody>
+                        <tbody></tbody>
                     </table>
                 </div>
             </div>
@@ -70,20 +70,23 @@ export class FrotaView {
 
     renderTable() {
         const tbody = this.container.querySelector('#frota-table tbody');
-        const { caminhoes = [] } = this.data;
+        const { caminhoes = [], frentes_servico = [] } = this.data;
+
+        // Mapeia as frentes por ID para fácil acesso
+        const frentesMap = new Map(frentes_servico.map(f => [f.id, f]));
 
         tbody.innerHTML = caminhoes.map(caminhao => {
             const status = caminhao.status || 'disponivel';
-            const frente = caminhao.frentes_servico;
+            const frente = caminhao.frente_id ? frentesMap.get(caminhao.frente_id) : null;
             const fazenda = frente?.fazendas;
 
             return `
                 <tr>
                     <td><strong>${caminhao.cod_equipamento}</strong></td>
-                    <td><span class="caminhao-status-badge status-${status}">${this.statusLabels[status]}</span></td>
+                    <td><span class="caminhao-status-badge status-${status}">${this.statusLabels[status] || 'Disponível'}</span></td>
                     <td>${frente ? `${frente.nome} ${fazenda ? `(${fazenda.nome})` : ''}` : '---'}</td>
                     <td>${caminhao.proprietarios?.nome || 'N/A'}</td>
-                    <td>${this.renderActionMenu(caminhao)}</td>
+                    <td style="text-align: center;">${this.renderActionMenu(caminhao)}</td>
                 </tr>
             `;
         }).join('');
@@ -93,7 +96,7 @@ export class FrotaView {
         const status = caminhao.status;
         let actions = '';
 
-        if (status !== 'disponivel' && status !== 'quebrado') {
+        if (status && status !== 'disponivel' && status !== 'quebrado') {
             actions += `
                 <button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-novo-status="disponivel">
                     <i class="ph-fill ph-check-circle"></i> Finalizar Ciclo
@@ -118,7 +121,7 @@ export class FrotaView {
             <div class="action-menu">
                 <button class="action-menu-button">Ações</button>
                 <div class="action-menu-content">
-                    ${actions}
+                    ${actions || '<span style="padding: 12px; font-size: 0.8rem; color: var(--text-secondary);">Nenhuma ação</span>'}
                 </div>
             </div>
         `;
@@ -128,25 +131,25 @@ export class FrotaView {
         this.container.addEventListener('click', async (e) => {
             const target = e.target;
             
-            // Lógica para abrir/fechar o menu de ações
             const actionMenuButton = target.closest('.action-menu-button');
             if (actionMenuButton) {
                 const menu = actionMenuButton.closest('.action-menu');
+                // Fecha outros menus antes de abrir o novo
+                document.querySelectorAll('.action-menu.show').forEach(m => {
+                    if (m !== menu) m.classList.remove('show');
+                });
                 menu.classList.toggle('show');
-                return; // Impede que outros listeners sejam acionados
+                return;
             }
 
-            // Fecha menus abertos se clicar fora
             if (!target.closest('.action-menu')) {
                 document.querySelectorAll('.action-menu.show').forEach(menu => menu.classList.remove('show'));
             }
             
-            // Botão de atualizar
             if (target.closest('#refresh-frota')) {
                 this.loadData();
             }
 
-            // Botão de mudança de status
             const statusChangeBtn = target.closest('.btn-status-change');
             if (statusChangeBtn) {
                 const caminhaoId = statusChangeBtn.dataset.caminhaoId;
@@ -154,10 +157,9 @@ export class FrotaView {
                 
                 showLoading();
                 try {
-                    // Ao mudar status aqui, a frente é sempre desassociada
-                    await updateCaminhaoStatus(caminhaoId, novoStatus, null);
+                    await updateCaminhaoStatus(caminhaoId, novoStatus, null); // Sempre desassocia a frente aqui
                     showToast('Status do caminhão atualizado!', 'success');
-                    await this.loadData(); // Recarrega os dados da tabela
+                    await this.loadData();
                 } catch (error) {
                     handleOperation(error);
                 } finally {

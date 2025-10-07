@@ -48,78 +48,19 @@
     margin-top: 5px;
 }
 
+/* Cores dos cards do dashboard */
 .summary-indo_carregar { border-color: #2B6CB0; }
 .summary-carregando { border-color: #D69E2E; }
 .summary-retornando { border-color: #805AD5; }
-.summary-patio { border-color: #D53F8C; }
+.summary-patio_carregado { border-color: #D53F8C; }
+.summary-patio_vazio { border-color: #718096; }
 .summary-descarregando { border-color: #38A169; }
 .summary-quebrado { border-color: var(--accent-danger); }
 
 
-/* --- NOVOS ESTILOS PARA O PAINEL DE CAMINHÕES DISPONÍVEIS --- */
-.disponiveis-card {
-    background-color: var(--bg-light);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    margin-bottom: 24px;
-    grid-column: 1 / -1; /* Ocupa a linha inteira */
-}
-
-.disponiveis-header {
-    padding: 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.disponiveis-header i {
-    font-size: 24px;
-    color: #718096;
-}
-
-.disponiveis-header h3 {
-    font-size: 1.2rem;
-}
-
-.disponiveis-body {
-    padding: 16px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-}
-
-.disponiveis-coluna h4 {
-    color: var(--text-secondary);
-    margin-bottom: 12px;
-}
-
-.disponiveis-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.caminhao-disponivel-item, .caminhao-quebrado-item {
-    background-color: var(--bg-dark);
-    padding: 10px 15px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    border: 1px solid var(--border-color);
-}
-
-.caminhao-disponivel-item .btn-primary {
-    padding: 6px 10px;
-    font-size: 0.8rem;
-}
-/* --- FIM DOS NOVOS ESTILOS --- */
-
-
 .controle-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
     gap: 24px;
     margin-bottom: 32px;
 }
@@ -146,60 +87,22 @@
     margin-bottom: 16px;
 }
 
-.frente-header-main i {
-    font-size: 24px;
-    color: var(--accent-primary);
-}
+.frente-header-main i { font-size: 24px; color: var(--accent-primary); }
+.frente-header-main h3 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
 
-.frente-header-main h3 {
-    font-size: 1.2rem;
-    color: var(--text-primary);
-    margin: 0;
-}
-
-.frente-fazenda-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: rgba(0,0,0,0.2);
-    padding: 12px;
-    border-radius: 8px;
-}
-
-.fazenda-display {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.fazenda-display i {
-    color: var(--text-secondary);
-}
-
-.fazenda-nome {
-    font-weight: 500;
-}
-
-.fazenda-codigo {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    background-color: var(--bg-dark);
-    padding: 2px 8px;
-    border-radius: 6px;
-}
-
-.btn-alterar-fazenda {
-    padding: 6px 12px;
-    font-size: 0.8rem;
-    background-color: var(--bg-light);
-}
+.frente-fazenda-info { display: flex; justify-content: space-between; align-items: center; background-color: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; }
+.fazenda-display { display: flex; align-items: center; gap: 10px; }
+.fazenda-display i { color: var(--text-secondary); }
+.fazenda-nome { font-weight: 500; }
+.fazenda-codigo { font-size: 0.8rem; color: var(--text-secondary); background-color: var(--bg-dark); padding: 2px 8px; border-radius: 6px; }
+.btn-alterar-fazenda { padding: 6px 12px; font-size: 0.8rem; background-color: var(--bg-light); }
 
 .frente-body {
     padding: 16px;
     flex-grow: 1;
 }
 
-.caminhoes-coluna h4 {
+.frente-body h4 {
     font-size: 1rem;
     color: var(--text-secondary);
     margin-bottom: 12px;
@@ -207,25 +110,20 @@
     border-bottom: 1px solid var(--border-color);
 }
 
-.caminhoes-em-operacao-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-height: 100px;
+.caminhoes-em-operacao-table {
+    width: 100%;
+    border-collapse: collapse;
 }
 
-.caminhao-operacao-item {
-    background-color: var(--bg-dark);
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
+.caminhoes-em-operacao-table th, .caminhoes-em-operacao-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
 }
 
-.caminhao-operacao-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+.caminhoes-em-operacao-table th {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
 }
 
 .caminhao-status-badge {
@@ -236,92 +134,29 @@
     color: white;
 }
 
+/* Cores dos status */
 .status-indo_carregar { background-color: #2B6CB0; }
 .status-carregando { background-color: #D69E2E; }
 .status-retornando { background-color: #805AD5; }
-.status-patio { background-color: #D53F8C; }
+.status-patio_carregado { background-color: #D53F8C; }
+.status-patio_vazio { background-color: #A0AEC0; }
 .status-descarregando { background-color: #38A169; }
 .status-disponivel { background-color: #718096; }
 .status-quebrado { background-color: var(--accent-danger); }
 
 
-.status-actions {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-    margin-top: 12px;
-}
+.historico-container { background-color: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; }
+.historico-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.historico-header h2 { font-size: 1.5rem; color: var(--text-primary); }
 
-.status-actions button {
-    background-color: #374151;
-    color: var(--text-secondary);
-    border: 1px solid var(--border-color);
-    padding: 8px;
-    font-size: 0.75rem;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-}
-.status-actions button:hover {
-    background-color: var(--accent-primary);
-    color: white;
-}
-.status-actions button.full-width {
-    grid-column: 1 / -1;
-}
+.data-table-modern { width: 100%; border-collapse: collapse; }
+.data-table-modern th, .data-table-modern td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border-color); }
+.data-table-modern th { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; }
+.data-table-modern tbody tr:hover { background-color: rgba(74, 85, 104, 0.2); }
 
-.status-actions button.btn-danger {
-    border-color: var(--accent-danger);
-    color: var(--accent-danger);
-}
-.status-actions button.btn-danger:hover {
-    background-color: var(--accent-danger);
-    color: white;
-}
-
-.historico-container {
-    background-color: var(--bg-light);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 24px;
-}
-
-.historico-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-}
-
-.historico-header h2 {
-    font-size: 1.5rem;
-    color: var(--text-primary);
-}
-
-.data-table-modern {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.data-table-modern th, .data-table-modern td {
-    padding: 12px 16px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.data-table-modern th {
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-    text-transform: uppercase;
-}
-
-.data-table-modern tbody tr:hover {
-    background-color: rgba(74, 85, 104, 0.2);
-}
-
-.fazenda-select-form {
+/* Estilos para o Modal de Ação */
+.action-modal-form {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 16px;
 }

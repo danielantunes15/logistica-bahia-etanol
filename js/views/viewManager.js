@@ -3,7 +3,7 @@ import { DashboardView } from './dashboard.js';
 import { ControleView } from './controle.js';
 import { RelatoriosView } from './relatorios.js';
 import { CadastrosView } from './cadastros.js';
-import { FrotaView } from './frota.js'; // Importa a nova view
+import { FrotaView } from './frota.js';
 
 export class ViewManager {
     constructor() {
@@ -17,18 +17,15 @@ export class ViewManager {
         window.addEventListener('viewChanged', (e) => {
             this.showView(e.detail.view);
         });
-        // Define a view inicial como o Painel de Controle
         this.showView('controle'); 
     }
 
     registerViews() {
-        // Views principais
         this.views.set('dashboard', new DashboardView());
         this.views.set('controle', new ControleView());
         this.views.set('relatorios', new RelatoriosView());
-        this.views.set('frota', new FrotaView()); // Registra a nova view
+        this.views.set('frota', new FrotaView());
         
-        // Views de cadastro
         this.views.set('cadastro-fazendas', new CadastrosView('fazendas'));
         this.views.set('cadastro-caminhoes', new CadastrosView('caminhoes'));
         this.views.set('cadastro-equipamentos', new CadastrosView('equipamentos'));
@@ -41,14 +38,11 @@ export class ViewManager {
     }
 
     async showView(viewName) {
-        console.log('Tentando mostrar view:', viewName);
         if (this.currentView && this.currentView.hide) {
             await this.currentView.hide();
         }
-
         const view = this.views.get(viewName);
         if (view) {
-            console.log('View encontrada, mostrando...');
             await view.show();
             this.currentView = view;
             if (window.app) {
