@@ -17,7 +17,6 @@
     color: var(--text-primary);
 }
 
-/* --- NOVOS ESTILOS PARA O DASHBOARD DE RESUMO --- */
 .controle-dashboard-summary {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -29,7 +28,7 @@
     background-color: var(--bg-light);
     border-radius: 12px;
     padding: 20px;
-    border-bottom: 4px solid; /* Cor definida por status */
+    border-bottom: 4px solid;
     transition: transform 0.2s ease;
 }
 
@@ -49,14 +48,73 @@
     margin-top: 5px;
 }
 
-/* Cores dos cards */
 .summary-indo_carregar { border-color: #2B6CB0; }
 .summary-carregando { border-color: #D69E2E; }
 .summary-retornando { border-color: #805AD5; }
 .summary-patio { border-color: #D53F8C; }
 .summary-descarregando { border-color: #38A169; }
 .summary-quebrado { border-color: var(--accent-danger); }
-/* --- FIM DOS ESTILOS DO DASHBOARD --- */
+
+
+/* --- NOVOS ESTILOS PARA O PAINEL DE CAMINHÕES DISPONÍVEIS --- */
+.disponiveis-card {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin-bottom: 24px;
+    grid-column: 1 / -1; /* Ocupa a linha inteira */
+}
+
+.disponiveis-header {
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.disponiveis-header i {
+    font-size: 24px;
+    color: #718096;
+}
+
+.disponiveis-header h3 {
+    font-size: 1.2rem;
+}
+
+.disponiveis-body {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.disponiveis-coluna h4 {
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+}
+
+.disponiveis-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.caminhao-disponivel-item, .caminhao-quebrado-item {
+    background-color: var(--bg-dark);
+    padding: 10px 15px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border: 1px solid var(--border-color);
+}
+
+.caminhao-disponivel-item .btn-primary {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+}
+/* --- FIM DOS NOVOS ESTILOS --- */
 
 
 .controle-grid {
@@ -138,9 +196,6 @@
 
 .frente-body {
     padding: 16px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
     flex-grow: 1;
 }
 
@@ -152,30 +207,11 @@
     border-bottom: 1px solid var(--border-color);
 }
 
-.caminhoes-disponiveis-list, .caminhoes-em-operacao-list {
+.caminhoes-em-operacao-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
     min-height: 100px;
-}
-
-.caminhao-item {
-    background-color: var(--bg-dark);
-    padding: 12px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border: 1px solid var(--border-color);
-}
-
-.caminhao-item-info {
-    font-weight: 500;
-}
-
-.caminhao-item .btn-primary {
-    padding: 6px 10px;
-    font-size: 0.8rem;
 }
 
 .caminhao-operacao-item {
@@ -206,7 +242,7 @@
 .status-patio { background-color: #D53F8C; }
 .status-descarregando { background-color: #38A169; }
 .status-disponivel { background-color: #718096; }
-.status-quebrado { background-color: var(--accent-danger); } /* Nova cor */
+.status-quebrado { background-color: var(--accent-danger); }
 
 
 .status-actions {
@@ -244,7 +280,6 @@
     color: white;
 }
 
-/* Tabela de Histórico */
 .historico-container {
     background-color: var(--bg-light);
     border: 1px solid var(--border-color);

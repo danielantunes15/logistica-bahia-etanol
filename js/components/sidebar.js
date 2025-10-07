@@ -9,13 +9,17 @@ export async function loadSidebar() {
             <h2>LOGISTICA BEL</h2>
         </div>
         <nav>
-            <button class="nav-button active" data-view="dashboard">
+            <button class="nav-button" data-view="dashboard">
                 <i class="ph-fill ph-map-trifold"></i>
                 <span>Mapa Principal</span>
             </button>
-            <button class="nav-button" data-view="controle">
+            <button class="nav-button active" data-view="controle">
                 <i class="ph-fill ph-arrows-clockwise"></i>
                 <span>Painel de Controle</span>
+            </button>
+            <button class="nav-button" data-view="frota">
+                <i class="ph-fill ph-truck"></i>
+                <span>Gerenciamento de Frota</span>
             </button>
             <button class="nav-button" data-view="relatorios">
                 <i class="ph-fill ph-chart-bar"></i>
@@ -61,26 +65,21 @@ export async function loadSidebar() {
         </nav>
     `;
 
-    // Adicionar event listeners
     addSidebarEventListeners();
 }
 
 function addSidebarEventListeners() {
-    // Navegação entre views
     document.querySelectorAll('.nav-button').forEach(button => {
         button.addEventListener('click', (e) => {
             if (e.target.closest('.nav-button-group')) return;
             
             const view = button.dataset.view;
-            console.log('Clicou no botão:', view);
-            
             if (view) {
                 switchView(view);
             }
         });
     });
 
-    // Submenu cadastros
     const navGroup = document.querySelector('.nav-group');
     const navButtonGroup = document.querySelector('.nav-button-group');
     
@@ -92,20 +91,21 @@ function addSidebarEventListeners() {
 }
 
 function switchView(viewName) {
-    console.log('Tentando mudar para view:', viewName);
-    
-    // Remover classe active de todos os botões
     document.querySelectorAll('.nav-button').forEach(btn => {
         btn.classList.remove('active');
     });
 
-    // Adicionar classe active ao botão clicado
     const clickedButton = document.querySelector(`[data-view="${viewName}"]`);
     if (clickedButton) {
         clickedButton.classList.add('active');
+        
+        // Se o botão estiver dentro de um submenu, abre o submenu
+        const parentGroup = clickedButton.closest('.nav-group');
+        if (parentGroup) {
+            parentGroup.classList.add('open');
+        }
     }
 
-    // Disparar evento de mudança de view
     window.dispatchEvent(new CustomEvent('viewChanged', { 
         detail: { view: viewName } 
     }));

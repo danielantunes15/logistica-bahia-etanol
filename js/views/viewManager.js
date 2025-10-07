@@ -3,6 +3,7 @@ import { DashboardView } from './dashboard.js';
 import { ControleView } from './controle.js';
 import { RelatoriosView } from './relatorios.js';
 import { CadastrosView } from './cadastros.js';
+import { FrotaView } from './frota.js'; // Importa a nova view
 
 export class ViewManager {
     constructor() {
@@ -12,16 +13,12 @@ export class ViewManager {
     }
 
     init() {
-        // Registrar todas as views
         this.registerViews();
-        
-        // Ouvir mudanças de view
         window.addEventListener('viewChanged', (e) => {
             this.showView(e.detail.view);
         });
-
-        // Mostrar view inicial
-        this.showView('dashboard');
+        // Define a view inicial como o Painel de Controle
+        this.showView('controle'); 
     }
 
     registerViews() {
@@ -29,6 +26,7 @@ export class ViewManager {
         this.views.set('dashboard', new DashboardView());
         this.views.set('controle', new ControleView());
         this.views.set('relatorios', new RelatoriosView());
+        this.views.set('frota', new FrotaView()); // Registra a nova view
         
         // Views de cadastro
         this.views.set('cadastro-fazendas', new CadastrosView('fazendas'));
@@ -44,20 +42,15 @@ export class ViewManager {
 
     async showView(viewName) {
         console.log('Tentando mostrar view:', viewName);
-        
-        // Esconder view atual
         if (this.currentView && this.currentView.hide) {
             await this.currentView.hide();
         }
 
-        // Mostrar nova view
         const view = this.views.get(viewName);
         if (view) {
             console.log('View encontrada, mostrando...');
             await view.show();
             this.currentView = view;
-            
-            // Atualizar o estado da aplicação
             if (window.app) {
                 window.app.currentView = viewName;
             }
