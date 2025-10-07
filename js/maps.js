@@ -42,8 +42,20 @@ export class MapManager {
         const map = this.initMap('dashboard-map');
         if (map) {
             // Adicionar marcador da usina
-            L.marker(USINA_COORDS).addTo(map)
-                .bindPopup('<b>Usina</b><br>Localização principal')
+            const usinaIcon = L.divIcon({
+                className: 'usina-marker',
+                html: `
+                    <div class="marker-pin usina">
+                        <i class="ph-fill ph-factory"></i>
+                    </div>
+                    <div class="marker-pulse usina"></div>
+                `,
+                iconSize: [35, 35],
+                iconAnchor: [17, 17]
+            });
+            
+            L.marker(USINA_COORDS, { icon: usinaIcon }).addTo(map)
+                .bindPopup('<b>Usina LOGISTICA BEL</b><br>Localização principal')
                 .openPopup();
         }
         return map;
@@ -165,6 +177,78 @@ export class MapManager {
                     }
                     this.markers.get('dashboard-fazendas').push(marker);
                 }
+            }
+        });
+    }
+
+    updateFazendaMarkersWithStatus(fazendas) {
+        const map = this.maps.get('dashboard-map');
+        if (!map) return;
+        
+        // Limpar marcadores existentes de fazendas
+        this.clearMarkers('dashboard-fazendas');
+        
+        // Adicionar marcadores para cada fazenda com cores diferentes
+        fazendas.forEach(fazenda => {
+            if (fazenda.latitude && fazenda.longitude) {
+                const coords = [parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)];
+                
+                // Definir cor baseada no status
+                let color, iconColor;
+                switch(fazenda.status) {
+                    case 'colhendo':
+                        color = '#38A169'; // Verde
+                        iconColor = 'green';
+                        break;
+                    case 'disponível':
+                        color = '#3182CE'; // Azul
+                        iconColor = 'blue';
+                        break;
+                    case 'finalizada':
+                        color = '#718096'; // Cinza
+                        iconColor = 'gray';
+                        break;
+                    default:
+                        color = '#D69E2E'; // Amarelo
+                        iconColor = 'orange';
+                }
+                
+                // Criar ícone personalizado
+                const customIcon = L.divIcon({
+                    className: `fazenda-marker ${fazenda.status}`,
+                    html: `
+                        <div class="marker-pin" style="background-color: ${color}">
+                            <i class="ph-fill ph-tree-evergreen"></i>
+                        </div>
+                        <div class="marker-pulse" style="border-color: ${color}"></div>
+                    `,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+                
+                const marker = L.marker(coords, { icon: customIcon }).addTo(map);
+                
+                const popupContent = `
+                    <div class="fazenda-popup">
+                        <h4>${fazenda.nome}</h4>
+                        <div class="popup-status ${fazenda.status}">
+                            <i class="ph-fill ph-circle"></i>
+                            ${fazenda.status.charAt(0).toUpperCase() + fazenda.status.slice(1)}
+                        </div>
+                        <div class="popup-details">
+                            <p><strong>Hectares:</strong> ${fazenda.hectares || 'N/A'} ha</p>
+                            <p><strong>Fornecedor:</strong> ${fazenda.fornecedores?.nome || 'N/A'}</p>
+                            <p><strong>Coordenadas:</strong> ${parseFloat(fazenda.latitude).toFixed(4)}, ${parseFloat(fazenda.longitude).toFixed(4)}</p>
+                        </div>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                
+                if (!this.markers.has('dashboard-fazendas')) {
+                    this.markers.set('dashboard-fazendas', []);
+                }
+                this.markers.get('dashboard-fazendas').push(marker);
             }
         });
     }
