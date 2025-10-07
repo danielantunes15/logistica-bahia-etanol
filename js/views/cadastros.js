@@ -1,7 +1,7 @@
-// js/views/cadastros.js
+// js/views/cadastros.js - Específico para Fazendas
 import { showToast, handleOperation } from '../helpers.js';
 import { mapManager } from '../maps.js';
-import { fetchAllData, insertItem } from '../api.js';
+import { fetchAllData, insertItem, deleteItem } from '../api.js';
 
 export class CadastrosView {
     constructor(tipo) {
@@ -15,12 +15,14 @@ export class CadastrosView {
         await this.loadHTML();
         await this.loadData();
         this.renderForm();
-        this.initializeMap();
+        if (this.tipo === 'fazendas') {
+            this.initializeMap();
+        }
         this.addEventListeners();
     }
 
     async hide() {
-        // Limpar recursos do mapa se necessário
+        // Limpar recursos se necessário
     }
 
     async loadHTML() {
@@ -35,34 +37,49 @@ export class CadastrosView {
 
         return `
             <div id="cadastros-view" class="view active-view">
-                <div class="cadastro-header">
-                    <h1 class="cadastro-title">Cadastro de ${title}</h1>
-                </div>
+                <div class="cadastro-container">
+                    <div class="cadastro-header">
+                        <h1>Cadastro de ${title}</h1>
+                        <p>Gerencie os ${title.toLowerCase()} do sistema</p>
+                    </div>
 
-                <div class="cadastro-content">
-                    <div class="form-section">
-                        <h3>Adicionar Novo</h3>
-                        <div id="form-container">
-                            <!-- Formulário será injetado aqui -->
+                    <div class="cadastro-content">
+                        <div class="form-section-modern">
+                            <h3>Adicionar Nova ${title.slice(0, -1)}</h3>
+                            <div id="form-container">
+                                <!-- Formulário será injetado aqui -->
+                            </div>
                         </div>
+
+                        ${showMap ? `
+                        <div class="cadastro-map-container">
+                            <h3>Localização no Mapa</h3>
+                            <div class="map-instructions">
+                                <p>
+                                    <i class="ph-fill ph-info"></i>
+                                    Clique no mapa para selecionar a localização da fazenda
+                                </p>
+                            </div>
+                            <div id="map-cadastro-medio"></div>
+                        </div>
+                        ` : `
+                        <div class="list-container-modern">
+                            <h2>${title} Cadastrados</h2>
+                            <div id="table-container">
+                                <!-- Tabela será injetada aqui -->
+                            </div>
+                        </div>
+                        `}
                     </div>
 
                     ${showMap ? `
-                    <div class="form-section">
-                        <h3>Localização no Mapa</h3>
-                        <p>Clique no mapa para selecionar a localização da fazenda</p>
-                        <div id="map-container-medio">
-                            <div id="map-cadastro-medio" style="height: 400px; width: 100%;"></div>
-                        </div>
-                    </div>
-                    ` : ''}
-
-                    <div class="list-container">
-                        <h2>Itens Cadastrados</h2>
+                    <div class="list-container-modern">
+                        <h2>Fazendas Cadastradas</h2>
                         <div id="table-container">
                             <!-- Tabela será injetada aqui -->
                         </div>
                     </div>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -80,7 +97,6 @@ export class CadastrosView {
 
     initializeMap() {
         if (this.tipo === 'fazendas') {
-            // Aguardar um pouco para o container ser renderizado
             setTimeout(() => {
                 const map = mapManager.initCadastroMap((lat, lng) => {
                     console.log('Localização selecionada:', lat, lng);
@@ -97,10 +113,9 @@ export class CadastrosView {
     getFormFields() {
         const baseFields = {
             fazendas: [
+                { name: 'cod_equipamento', label: 'Código da Fazenda', type: 'text', required: true },
                 { name: 'nome', label: 'Nome da Fazenda', type: 'text', required: true },
-                { name: 'status', label: 'Status', type: 'select', options: ['colhendo', 'disponível', 'finalizada'], required: true },
-                { name: 'hectares', label: 'Hectares (ha)', type: 'number', required: false },
-                { name: 'fornecedor_id', label: 'Fornecedor de Cana', type: 'select', source: 'fornecedores', displayField: 'nome', required: true },
+                { name: 'fornecedor_id', label: 'Fornecedor', type: 'select', source: 'fornecedores', displayField: 'nome', required: true },
                 { name: 'latitude', label: 'Latitude', type: 'text', required: false },
                 { name: 'longitude', label: 'Longitude', type: 'text', required: false }
             ],
@@ -114,6 +129,14 @@ export class CadastrosView {
                 { name: 'cod_equipamento', label: 'Código do Equipamento', type: 'text', required: true },
                 { name: 'finalidade', label: 'Finalidade', type: 'select', options: ['Carregadeira', 'Trator Reboque', 'Colhedora', 'Trator Transbordo'], required: true },
                 { name: 'status', label: 'Status', type: 'select', options: ['ativo', 'em_viagem', 'manutenção', 'inativo'], required: true }
+            ],
+            fornecedores: [
+                { name: 'nome', label: 'Nome do Fornecedor', type: 'text', required: true },
+                { name: 'tipo_fornecedor', label: 'Tipo', type: 'select', options: ['Cana Própria', 'Arrendado', 'Terceiros'], required: true }
+            ],
+            proprietarios: [
+                { name: 'nome', label: 'Nome', type: 'text', required: true },
+                { name: 'tipo', label: 'Tipo', type: 'select', options: ['Próprio', 'Terceiro'], required: true }
             ]
         };
 
@@ -147,12 +170,12 @@ export class CadastrosView {
         const inputsHTML = this.formFields.map(field => {
             const requiredAttr = field.required ? 'required' : '';
             let inputHTML = `
-                <div class="form-field">
+                <div class="form-group">
                     <label for="${field.name}">${field.label}</label>
             `;
 
             if (field.type === 'select') {
-                inputHTML += `<select name="${field.name}" id="${field.name}" ${requiredAttr}>`;
+                inputHTML += `<select name="${field.name}" id="${field.name}" class="form-select" ${requiredAttr}>`;
                 inputHTML += `<option value="">Selecione...</option>`;
                 
                 if (field.source && this.data[field.source]) {
@@ -167,7 +190,7 @@ export class CadastrosView {
                 inputHTML += `</select>`;
             } else {
                 const value = field.name === 'latitude' || field.name === 'longitude' ? '' : '';
-                inputHTML += `<input type="${field.type}" name="${field.name}" id="${field.name}" value="${value}" ${requiredAttr}>`;
+                inputHTML += `<input type="${field.type}" name="${field.name}" id="${field.name}" class="form-input" value="${value}" ${requiredAttr}>`;
             }
 
             inputHTML += `</div>`;
@@ -175,11 +198,11 @@ export class CadastrosView {
         }).join('');
 
         return `
-            <form id="form-${this.tipo}" class="add-form">
+            <form id="form-${this.tipo}" class="form-modern">
                 ${inputsHTML}
-                <button type="submit" class="btn-primary">
+                <button type="submit" class="form-submit">
                     <i class="ph-fill ph-floppy-disk"></i>
-                    Salvar ${this.getTipoDisplayName()}
+                    Cadastrar ${this.getTipoDisplayName().slice(0, -1)}
                 </button>
             </form>
         `;
@@ -196,7 +219,12 @@ export class CadastrosView {
         const items = this.data[this.tipo] || [];
         
         if (items.length === 0) {
-            tableContainer.innerHTML = '<p>Nenhum registro cadastrado.</p>';
+            tableContainer.innerHTML = `
+                <div class="empty-state">
+                    <i class="ph-fill ph-table"></i>
+                    <p>Nenhum ${this.getTipoDisplayName().toLowerCase()} cadastrado</p>
+                </div>
+            `;
             return;
         }
 
@@ -204,7 +232,7 @@ export class CadastrosView {
         const rows = items.map(item => this.generateTableRow(item)).join('');
 
         tableContainer.innerHTML = `
-            <table class="data-table">
+            <table class="data-table-modern">
                 <thead>
                     <tr>${headers}</tr>
                 </thead>
@@ -217,9 +245,11 @@ export class CadastrosView {
 
     getTableHeaders() {
         const headersConfig = {
-            'fazendas': ['Nome', 'Status', 'Hectares', 'Fornecedor', 'Coordenadas', 'Ações'],
+            'fazendas': ['Código', 'Nome', 'Fornecedor', 'Coordenadas', 'Ações'],
             'caminhoes': ['Código', 'Placa', 'Status', 'Proprietário', 'Ações'],
-            'equipamentos': ['Código', 'Finalidade', 'Status', 'Ações']
+            'equipamentos': ['Código', 'Finalidade', 'Status', 'Ações'],
+            'fornecedores': ['Nome', 'Tipo', 'Ações'],
+            'proprietarios': ['Nome', 'Tipo', 'Ações']
         };
 
         const headers = headersConfig[this.tipo] || ['Nome', 'Status', 'Ações'];
@@ -231,13 +261,15 @@ export class CadastrosView {
         return `
             <tr>
                 ${cells}
-                <td class="action-buttons">
-                    <button class="edit-btn" data-id="${item.id}">
-                        <i class="ph-fill ph-pencil-simple"></i>
-                    </button>
-                    <button class="delete-btn" data-id="${item.id}">
-                        <i class="ph-fill ph-trash"></i>
-                    </button>
+                <td>
+                    <div class="action-buttons-modern">
+                        <button class="action-btn edit-btn-modern" data-id="${item.id}">
+                            <i class="ph-fill ph-pencil-simple"></i>
+                        </button>
+                        <button class="action-btn delete-btn-modern" data-id="${item.id}">
+                            <i class="ph-fill ph-trash"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
@@ -246,9 +278,8 @@ export class CadastrosView {
     getTableCells(item) {
         const cellsConfig = {
             'fazendas': [
+                item.cod_equipamento,
                 item.nome,
-                this.formatOption(item.status),
-                item.hectares || 'N/A',
                 item.fornecedores?.nome || 'N/A',
                 item.latitude && item.longitude ? 
                     `${parseFloat(item.latitude).toFixed(4)}, ${parseFloat(item.longitude).toFixed(4)}` : 
@@ -264,6 +295,14 @@ export class CadastrosView {
                 item.cod_equipamento,
                 item.finalidade,
                 this.formatOption(item.status)
+            ],
+            'fornecedores': [
+                item.nome,
+                this.formatOption(item.tipo_fornecedor)
+            ],
+            'proprietarios': [
+                item.nome,
+                this.formatOption(item.tipo)
             ]
         };
 
@@ -280,10 +319,10 @@ export class CadastrosView {
 
         // Action buttons
         this.container.addEventListener('click', (e) => {
-            if (e.target.closest('.edit-btn')) {
-                this.handleEdit(e.target.closest('.edit-btn').dataset.id);
-            } else if (e.target.closest('.delete-btn')) {
-                this.handleDelete(e.target.closest('.delete-btn').dataset.id);
+            if (e.target.closest('.edit-btn-modern')) {
+                this.handleEdit(e.target.closest('.edit-btn-modern').dataset.id);
+            } else if (e.target.closest('.delete-btn-modern')) {
+                this.handleDelete(e.target.closest('.delete-btn-modern').dataset.id);
             }
         });
     }
@@ -295,7 +334,7 @@ export class CadastrosView {
 
         try {
             const { error } = await insertItem(this.tipo, data);
-            handleOperation(error, `${this.getTipoDisplayName()} cadastrado com sucesso!`);
+            handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} cadastrado com sucesso!`);
             
             if (!error) {
                 e.target.reset();
@@ -307,15 +346,23 @@ export class CadastrosView {
     }
 
     async handleEdit(id) {
-        showToast(`Editando ${this.getTipoDisplayName()} ID: ${id}`, 'success');
+        showToast(`Editando ${this.getTipoDisplayName().slice(0, -1)} ID: ${id}`, 'success');
         // Implementar edição completa posteriormente
     }
 
     async handleDelete(id) {
-        const confirmDelete = confirm('Deseja realmente excluir este item?');
+        const confirmDelete = confirm(`Deseja realmente excluir este ${this.getTipoDisplayName().slice(0, -1).toLowerCase()}?`);
         if (!confirmDelete) return;
 
-        showToast(`${this.getTipoDisplayName()} excluído com sucesso!`, 'success');
-        // Implementar exclusão completa posteriormente
+        try {
+            const { error } = await deleteItem(this.tipo, id);
+            handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} excluído com sucesso!`);
+            
+            if (!error) {
+                await this.loadData();
+            }
+        } catch (error) {
+            handleOperation(error, '');
+        }
     }
 }
