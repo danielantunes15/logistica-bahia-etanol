@@ -50,12 +50,9 @@ export async function fetchAllData() {
     try {
         const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico] = await Promise.all([
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
-            // --- CORREÇÃO AQUI ---
-            // A busca direta de 'frentes_servico' foi removida, pois causava o erro.
-            // A coluna 'frente_id' já é trazida pelo '*'
             fetchTable('caminhoes', '*, proprietarios(id, nome)'),
             fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome), equipamento_terceiros(terceiros(*))'),
-            fetchTable('frentes_servico'),
+            fetchTable('frentes_servico', '*, fazendas(cod_equipamento, nome)'), // ATUALIZADO: Busca a fazenda associada
             fetchTable('fornecedores'),
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
@@ -116,6 +113,22 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
     if (error) throw error;
     return { data };
 }
+
+
+/**
+ * NOVA FUNÇÃO: Associa uma fazenda a uma frente de serviço.
+ */
+export async function updateFrenteComFazenda(frenteId, fazendaId) {
+    const { data, error } = await supabase
+        .from('frentes_servico')
+        .update({ fazenda_id: fazendaId })
+        .eq('id', frenteId)
+        .select();
+    
+    if (error) throw error;
+    return { data };
+}
+
 
 export async function insertItem(tableName, dataToInsert) {
     if (tableName === 'equipamentos') return await insertEquipment(dataToInsert);

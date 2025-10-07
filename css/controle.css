@@ -19,7 +19,7 @@
 
 .controle-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
     gap: 24px;
     margin-bottom: 32px;
 }
@@ -30,25 +30,69 @@
     border: 1px solid var(--border-color);
     border-radius: 12px;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .frente-header {
     background-color: #374151;
     padding: 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
     border-bottom: 1px solid var(--border-color);
 }
 
-.frente-header i {
+.frente-header-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.frente-header-main i {
     font-size: 24px;
     color: var(--accent-primary);
 }
 
-.frente-header h3 {
+.frente-header-main h3 {
     font-size: 1.2rem;
     color: var(--text-primary);
+    margin: 0;
+}
+
+.frente-fazenda-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(0,0,0,0.2);
+    padding: 12px;
+    border-radius: 8px;
+}
+
+.fazenda-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fazenda-display i {
+    color: var(--text-secondary);
+}
+
+.fazenda-nome {
+    font-weight: 500;
+}
+
+.fazenda-codigo {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background-color: var(--bg-dark);
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+.btn-alterar-fazenda {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    background-color: var(--bg-light);
 }
 
 .frente-body {
@@ -56,6 +100,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
+    flex-grow: 1;
 }
 
 .caminhoes-coluna h4 {
@@ -125,7 +170,7 @@
 
 .status-actions {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 6px;
     margin-top: 12px;
 }
@@ -139,6 +184,7 @@
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
+    white-space: nowrap;
 }
 .status-actions button:hover {
     background-color: var(--accent-primary);
@@ -147,7 +193,6 @@
 .status-actions button.full-width {
     grid-column: 1 / -1;
 }
-
 
 /* Tabela de Histórico */
 .historico-container {
@@ -188,4 +233,11 @@
 
 .data-table-modern tbody tr:hover {
     background-color: rgba(74, 85, 104, 0.2);
+}
+
+/* Modal de seleção de fazenda */
+.fazenda-select-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
