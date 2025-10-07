@@ -1,5 +1,5 @@
 // js/views/controle.js
-import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente } from '../api.js';
+import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
 
@@ -26,6 +26,13 @@ export class ControleView {
             patio_vazio: 'Pátio Vazio',
             quebrado: 'Quebrado'
         };
+
+        // --- NOVO: Status da Frente de Serviço ---
+        this.frenteStatusLabels = {
+            ativa: 'Ativa (Colheita)',
+            inativa: 'Inativa',
+            fazendo_cata: 'Fazendo Cata',
+        };
     }
 
     async show() {
@@ -35,8 +42,9 @@ export class ControleView {
 
     async hide() {}
 
+    // --- MUDANÇA AQUI: Removido showLoading/hideLoading para evitar aninhamento ---
     async loadData() {
-        showLoading();
+        showLoading(); // Chamada inicial de loading para o show()
         try {
             this.data = await fetchAllData();
             this.render();
@@ -120,12 +128,14 @@ export class ControleView {
         return frentes_servico.map(frente => {
             const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel');
             const fazendaAtual = frente.fazendas;
+            const frenteStatus = frente.status || 'inativa'; // Garante um status
 
             return `
                 <div class="frente-card">
                     <div class="frente-header">
                         <div class="frente-header-main">
                             <i class="ph-fill ph-users-three"></i><h3>${frente.nome}</h3>
+                            <span class="frente-status-badge status-${frenteStatus}">${this.frenteStatusLabels[frenteStatus]}</span>
                         </div>
                         <div class="frente-fazenda-info">
                             <div class="fazenda-display">
@@ -139,7 +149,12 @@ export class ControleView {
                         </div>
                     </div>
                     <div class="frente-body">
-                        <h4>Caminhões em Operação</h4>
+                        <h4>Ações da Frente</h4>
+                        <div class="frente-status-actions">
+                            <button class="btn-secondary btn-frente-status" data-frente-id="${frente.id}" data-current-status="${frenteStatus}">Mudar Status</button>
+                        </div>
+                        
+                        <h4 style="margin-top: 15px;">Caminhões em Operação</h4>
                         <table class="caminhoes-em-operacao-table">
                             <thead>
                                 <tr>
@@ -183,12 +198,55 @@ export class ControleView {
 
             if (btn.id === 'btn-fazer-acao') this.showAssignmentModal();
             if (btn.classList.contains('btn-alterar-fazenda')) this.showFazendaSelector(btn.dataset.frenteId);
+            if (btn.classList.contains('btn-frente-status')) this.showFrenteStatusModal(btn.dataset.frenteId, btn.dataset.currentStatus); 
             
             if (btn.dataset.caminhaoId && !btn.closest('#action-modal-form')) {
                 this.showStatusUpdateModal(btn.dataset.caminhaoId);
             }
         });
     }
+
+    // --- NOVO: Modal para Mudar Status da Frente ---
+    showFrenteStatusModal(frenteId, currentStatus) {
+        const optionsHTML = Object.entries(this.frenteStatusLabels).map(([statusKey, statusLabel]) => 
+            `<option value="${statusKey}" ${statusKey === currentStatus ? 'selected' : ''}>${statusLabel}</option>`
+        ).join('');
+
+        const modalContent = `
+            <form id="frente-status-form" class="action-modal-form">
+                <p>Status atual: <strong>${this.frenteStatusLabels[currentStatus]}</strong></p>
+                <div class="form-group">
+                    <label>Novo Status da Frente</label>
+                    <select name="new_status" class="form-select" required>
+                        ${optionsHTML}
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Atualizar Status</button>
+            </form>
+        `;
+        openModal('Alterar Status da Frente', modalContent);
+
+        document.getElementById('frente-status-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newStatus = e.target.new_status.value;
+            this.handleFrenteStatusUpdate(frenteId, newStatus);
+        });
+    }
+
+    async handleFrenteStatusUpdate(frenteId, newStatus) {
+        showLoading();
+        try {
+            await updateFrenteStatus(frenteId, newStatus);
+            showToast(`Status da frente atualizado para ${this.frenteStatusLabels[newStatus]}!`, 'success');
+            closeModal();
+            await this.loadData();
+        } catch (error) {
+            handleOperation(error);
+        } finally {
+            hideLoading();
+        }
+    }
+    // --- FIM NOVO MODAL ---
 
     showAssignmentModal() {
         const { caminhoes = [], frentes_servico = [] } = this.data;
@@ -198,6 +256,9 @@ export class ControleView {
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         const nowString = now.toISOString().slice(0,16);
+
+        // Filtra para mostrar apenas frentes ATIVAS (ativa ou fazendo_cata) e com fazenda associada
+        const frentesAtivas = frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'));
 
         const modalContent = `
             <form id="action-modal-form" class="action-modal-form">
@@ -209,10 +270,10 @@ export class ControleView {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>2. Escolha a Frente de Destino (Apenas frentes com fazenda)</label>
+                    <label>2. Escolha a Frente de Destino (Apenas frentes Ativas)</label>
                     <select name="frente" class="form-select" required>
                         <option value="">Selecione...</option>
-                        ${frentes_servico.filter(f => f.fazenda_id).map(f => `<option value="${f.id}">${f.nome}</option>`).join('')}
+                        ${frentesAtivas.map(f => `<option value="${f.id}">${f.nome} (${this.frenteStatusLabels[f.status]})</option>`).join('')}
                     </select>
                 </div>
                 <div class="form-group">
@@ -288,16 +349,22 @@ export class ControleView {
     }
     
     async handleStatusUpdate(caminhaoId, novoStatus, frenteId, successMessage) {
-        showLoading();
+        showLoading(); // INICIA AQUI
         try {
+            // 1. Atualiza o DB
             await updateCaminhaoStatus(caminhaoId, novoStatus, frenteId);
+            
+            // 2. Feedback RÁPIDO para o usuário
             showToast(successMessage, 'success');
             closeModal();
-            await this.loadData();
+            
+            // 3. Recarrega os DADOS (a parte LENTA)
+            await this.loadData(); 
+            
         } catch (error) {
             handleOperation(error);
         } finally {
-            hideLoading();
+            hideLoading(); // FINALIZA APÓS O loadData() (ou após o erro)
         }
     }
 

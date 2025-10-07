@@ -130,7 +130,7 @@ export class DashboardView {
                                     <div class="stat-content">
                                         <div class="stat-main">
                                             <span class="stat-value" id="fazendas-colhendo">0</span>
-                                            <span class="stat-label">Colhendo</span>
+                                            <span class="stat-label">Colhendo/Cata</span>
                                         </div>
                                         <div class="stat-secondary">
                                             <span class="stat-badge" id="fazendas-disponiveis">0</span>
@@ -170,7 +170,7 @@ export class DashboardView {
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color colhendo"></div>
-                                <span>Colhendo</span>
+                                <span>Colhendo / Cata</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color disponivel"></div>
@@ -223,8 +223,6 @@ export class DashboardView {
     }
 
     updateDashboardStats() {
-        // --- CORREÇÃO AQUI ---
-        // Alterado de 'frentes' para 'frentes_servico'
         const { caminhoes, frentes_servico, equipamentos, fazendas } = this.data;
 
         // -------------------------------------------------------------
@@ -244,14 +242,12 @@ export class DashboardView {
         const caminhoesAtivos = caminhoes ? caminhoes.filter(c => 
             cycleStatuses.includes(c.status) // Filtra APENAS pelos status do ciclo
         ).length : 0;
-        // Caminhões parados = Total - (Caminhões em qualquer fase do ciclo)
-        // Isso inclui 'disponivel', 'quebrado' e status nulos
         const caminhoesParados = totalCaminhoes - caminhoesAtivos;
 
-        // Estatísticas de Frentes
+        // Estatísticas de Frentes (MODIFICADO)
         const totalFrentes = frentes_servico ? frentes_servico.length : 0;
-        const frentesAtivas = frentes_servico ? frentes_servico.filter(f => f.status === 'ativa').length : 0;
-        const frentesInativas = totalFrentes - frentesAtivas;
+        const frentesAtivasColheita = frentes_servico ? frentes_servico.filter(f => f.status === 'ativa' || f.status === 'fazendo_cata').length : 0;
+        const frentesInativas = totalFrentes - frentesAtivasColheita;
 
         // Estatísticas de Equipamentos
         const totalEquipamentos = equipamentos ? equipamentos.length : 0;
@@ -260,17 +256,25 @@ export class DashboardView {
         ).length : 0;
         const equipamentosParados = totalEquipamentos - equipamentosAtivos;
 
-        // Estatísticas de Fazendas
+        // Estatísticas de Fazendas (MODIFICADO)
+        // Fazendas Colhendo/Cata: Contar fazendas que TEM uma frente ativa/fazendo_cata associada
+        const fazendasColhendoIds = new Set(
+            frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
+                            .map(f => f.fazenda_id)
+        );
+        const fazendasColhendo = fazendasColhendoIds.size;
+        
+        // Fazendas Disponíveis: Contar fazendas que não estão associadas a nenhuma frente ativa/cata
         const totalFazendas = fazendas ? fazendas.length : 0;
-        const fazendasColhendo = fazendas ? fazendas.filter(f => f.status === 'colhendo').length : 0;
-        const fazendasDisponiveis = fazendas ? fazendas.filter(f => f.status === 'disponível').length : 0;
+        const fazendasDisponiveis = totalFazendas - fazendasColhendo;
+
 
         // Atualizar elementos
         this.updateStatElement('caminhoes-ativos', caminhoesAtivos);
         this.updateStatElement('caminhoes-parados', caminhoesParados);
         this.updateStatElement('caminhoes-total', totalCaminhoes);
 
-        this.updateStatElement('frentes-ativas', frentesAtivas);
+        this.updateStatElement('frentes-ativas', frentesAtivasColheita);
         this.updateStatElement('frentes-inativas', frentesInativas);
         this.updateStatElement('frentes-total', totalFrentes);
 
@@ -353,25 +357,30 @@ export class DashboardView {
     }
 
     updateMap() {
-        const { fazendas } = this.data;
-        if (fazendas && fazendas.length > 0) {
-            // Mostrar todas as fazendas com cores diferentes por status
-            mapManager.updateFazendaMarkersWithStatus(fazendas);
-            
-            // Ajustar o zoom para mostrar TODAS as fazendas que estão colhendo
-            const fazendasColhendo = fazendas.filter(f => f.status === 'colhendo');
-            if (fazendasColhendo.length > 0) {
-                this.adjustMapToShowFazendas(fazendasColhendo);
-            } else {
-                // Se não há fazendas colhendo, mostrar todas as fazendas disponíveis
-                const fazendasDisponiveis = fazendas.filter(f => f.status === 'disponível');
-                if (fazendasDisponiveis.length > 0) {
-                    this.adjustMapToShowFazendas(fazendasDisponiveis);
-                } else {
-                    // Mostrar todas as fazendas
-                    this.adjustMapToShowFazendas(fazendas);
-                }
-            }
+        const { fazendas, frentes_servico } = this.data;
+        if (!fazendas || fazendas.length === 0) return;
+
+        // MODIFICADO: Lógica para filtrar APENAS as fazendas que estão ATIVAS (colhendo ou cata)
+        const activeFrenteMap = new Map();
+        frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
+                       .forEach(frente => {
+                           // Associa o status da frente à fazenda (para o mapa)
+                           activeFrenteMap.set(frente.fazenda_id, frente.status); 
+                       });
+
+        const fazendasAtivasNoMapa = fazendas.filter(f => activeFrenteMap.has(f.id)).map(f => ({
+            ...f,
+            // Sobrescreve o status da fazenda com o status da frente (ativa/fazendo_cata)
+            status: activeFrenteMap.get(f.id) 
+        }));
+
+        if (fazendasAtivasNoMapa.length > 0) {
+            mapManager.updateFazendaMarkersWithStatus(fazendasAtivasNoMapa);
+            this.adjustMapToShowFazendas(fazendasAtivasNoMapa);
+        } else {
+            // Se não há fazendas ativas, limpa os marcadores e centraliza na usina
+            mapManager.clearMarkers('dashboard-fazendas');
+            mapManager.maps.get('dashboard-map')?.setView(USINA_COORDS, INITIAL_ZOOM);
         }
     }
 
@@ -421,3 +430,4 @@ export class DashboardView {
 
 // Coordenadas da usina (definir se não estiver definido)
 const USINA_COORDS = [-17.642301, -40.181525];
+const INITIAL_ZOOM = 14; // NOVO: Definição de zoom inicial para o caso sem fazendas ativas

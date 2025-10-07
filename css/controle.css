@@ -126,6 +126,26 @@
     color: var(--text-secondary);
 }
 
+/* --- ESTILOS ADICIONAIS PARA FRENTE --- */
+.frente-status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+}
+
+.frente-status-actions {
+    margin-bottom: 15px;
+}
+
+/* Status das Frentes */
+.status-ativa { background-color: var(--accent-primary); } /* Verde */
+.status-inativa { background-color: #718096; } /* Cinza */
+.status-fazendo_cata { background-color: #D69E2E; } /* Amarelo */
+/* --- FIM ESTILOS ADICIONAIS --- */
+
+
 .caminhao-status-badge {
     padding: 4px 10px;
     border-radius: 12px;

@@ -54,7 +54,6 @@ export async function fetchAllData() {
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
             fetchTable('caminhao_historico', '*, caminhoes(cod_equipamento)'),
-            // MODIFICADO: Inclui nome da frente para o histórico
             fetchTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada') 
         ]);
         
@@ -72,7 +71,7 @@ export async function fetchTable(tableName, select = '*') {
 }
 
 /**
- * NOVA FUNÇÃO: Designa um caminhão para uma frente com status e horário.
+ * MUDANÇA AQUI: Designa um caminhão para uma frente com status e horário.
  */
 export async function assignCaminhaoToFrente(caminhaoId, frenteId, statusInicial, horaSaida) {
      // 1. Atualiza o caminhão com o novo status e frente
@@ -188,6 +187,18 @@ export async function updateFrenteComFazenda(frenteId, fazendaId) {
         .update({ fazenda_id: fazendaId })
         .eq('id', frenteId)
         .select();
+    if (error) throw error;
+    return { data };
+}
+
+// --- NOVO: Função para atualizar apenas o status da Frente ---
+export async function updateFrenteStatus(frenteId, newStatus) {
+    const { data, error } = await supabase
+        .from('frentes_servico')
+        .update({ status: newStatus })
+        .eq('id', frenteId)
+        .select()
+        .single();
     if (error) throw error;
     return { data };
 }

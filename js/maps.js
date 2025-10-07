@@ -193,34 +193,40 @@ export class MapManager {
             if (fazenda.latitude && fazenda.longitude) {
                 const coords = [parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)];
                 
-                // Definir cor baseada no status
-                let color, iconColor;
+                // MODIFICADO: Definir cor baseada no status da FRENTE
+                let color;
+                let statusLabel;
                 switch(fazenda.status) {
-                    case 'colhendo':
-                        color = '#38A169'; // Verde
-                        iconColor = 'green';
+                    case 'ativa':
+                        color = '#38A169'; // Verde (Colhendo)
+                        statusLabel = 'Colhendo';
+                        break;
+                    case 'fazendo_cata':
+                        color = '#D69E2E'; // Amarelo (Cata)
+                        statusLabel = 'Fazendo Cata';
                         break;
                     case 'disponível':
-                        color = '#3182CE'; // Azul
-                        iconColor = 'blue';
+                        color = '#3182CE'; // Azul (Disponível - Padrão do BD, mas filtrado no dashboard)
+                        statusLabel = 'Disponível';
                         break;
                     case 'finalizada':
-                        color = '#718096'; // Cinza
-                        iconColor = 'gray';
+                        color = '#718096'; // Cinza (Finalizada)
+                        statusLabel = 'Finalizada';
                         break;
                     default:
-                        color = '#D69E2E'; // Amarelo
-                        iconColor = 'orange';
+                        color = '#D69E2E'; // Amarelo (Default)
+                        statusLabel = 'N/A';
                 }
                 
                 // Criar ícone personalizado
                 const customIcon = L.divIcon({
-                    className: `fazenda-marker ${fazenda.status}`,
+                    // Usa o status real para o CSS (para colhendo/cata)
+                    className: `fazenda-marker status-${fazenda.status}`, 
                     html: `
                         <div class="marker-pin" style="background-color: ${color}">
                             <i class="ph-fill ph-tree-evergreen"></i>
                         </div>
-                        <div class="marker-pulse" style="border-color: ${color}"></div>
+                        <div class="marker-pulse" style="box-shadow: 0 0 1px 2px ${color}; background: ${color}"></div>
                     `,
                     iconSize: [30, 30],
                     iconAnchor: [15, 15]
@@ -233,7 +239,7 @@ export class MapManager {
                         <h4>${fazenda.nome}</h4>
                         <div class="popup-status ${fazenda.status}">
                             <i class="ph-fill ph-circle"></i>
-                            ${fazenda.status.charAt(0).toUpperCase() + fazenda.status.slice(1)}
+                            ${statusLabel}
                         </div>
                         <div class="popup-details">
                             <p><strong>Hectares:</strong> ${fazenda.hectares || 'N/A'} ha</p>
