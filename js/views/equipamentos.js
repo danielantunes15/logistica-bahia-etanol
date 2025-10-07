@@ -14,11 +14,12 @@ export class EquipamentosView {
             quebrado: 'Quebrado',
         };
         this.frentesMap = new Map(); // Inicialização do mapa de frentes
+        this._boundClickHandler = null; // Para armazenar a referência do handler e removê-lo
     }
 
     async show() {
         await this.loadData();
-        this.addEventListeners();
+        // REMOVIDO: this.addEventListeners() - Movido para loadData para ser chamado após cada re-renderização
     }
 
     async hide() {}
@@ -30,6 +31,7 @@ export class EquipamentosView {
             // Mapeia Frentes para fácil acesso no painel de parados
             this.frentesMap = new Map(this.data.frentes_servico.map(f => [f.id, f.nome]));
             this.render();
+            this.addEventListeners(); // CORREÇÃO: Rebind listeners após cada renderização
         } catch (error) {
             handleOperation(error);
         } finally {
@@ -370,19 +372,28 @@ export class EquipamentosView {
 
 
     addEventListeners() {
-        this.container.addEventListener('click', (e) => {
+        // CORREÇÃO: Remove listeners antigos antes de adicionar novos
+        if (this.container && this._boundClickHandler) {
+            this.container.removeEventListener('click', this._boundClickHandler);
+        }
+        
+        // Cria um manipulador de eventos único e armazena a referência
+        this._boundClickHandler = (e) => {
             const btnStatus = e.target.closest('.btn-status-modal');
             const btnRefresh = e.target.closest('#refresh-equipamentos');
             const btnAssign = e.target.closest('.btn-assign-modal');
-            const btnParadosAction = e.target.closest('.btn-parados-action'); // NOVO Listener
+            const btnParadosAction = e.target.closest('.btn-parados-action');
 
             if (btnStatus) this.showStatusUpdateModal(btnStatus.dataset.equipamentoId, btnStatus.dataset.frenteId);
             if (btnRefresh) this.loadData();
             if (btnAssign) this.showAssignmentModal(btnAssign.dataset.frenteId);
             if (btnParadosAction) this.showParadosActionModal(btnParadosAction.dataset.equipamentoId, btnParadosAction.dataset.frenteId);
-        });
+        };
 
-        // O listener de submit para finalizar-parada-form foi movido para showParadosActionModal
+        // Adiciona o listener ao novo container
+        if (this.container) {
+            this.container.addEventListener('click', this._boundClickHandler);
+        }
     }
 
     showAssignmentModal(frenteId) {
