@@ -21,6 +21,10 @@ export async function loadSidebar() {
                 <i class="ph-fill ph-truck"></i>
                 <span>Gerenciamento de Frota</span>
             </button>
+            <button class="nav-button" data-view="equipamentos">
+                <i class="ph-fill ph-tractor"></i>
+                <span>Gerenciador de Equipamentos</span>
+            </button>
             <button class="nav-button" data-view="relatorios">
                 <i class="ph-fill ph-chart-bar"></i>
                 <span>Relatórios</span>

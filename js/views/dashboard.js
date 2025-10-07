@@ -227,11 +227,25 @@ export class DashboardView {
         // Alterado de 'frentes' para 'frentes_servico'
         const { caminhoes, frentes_servico, equipamentos, fazendas } = this.data;
 
+        // -------------------------------------------------------------
+        // NOVO: Definir status do ciclo operacional dos caminhões
+        const cycleStatuses = [
+            'indo_carregar', 
+            'carregando', 
+            'retornando', 
+            'patio_carregado',
+            'descarregando',
+            'patio_vazio' 
+        ];
+        // -------------------------------------------------------------
+
         // Estatísticas de Caminhões
         const totalCaminhoes = caminhoes ? caminhoes.length : 0;
         const caminhoesAtivos = caminhoes ? caminhoes.filter(c => 
-            c.status === 'ativo' || c.status === 'em_viagem'
+            cycleStatuses.includes(c.status) // Filtra APENAS pelos status do ciclo
         ).length : 0;
+        // Caminhões parados = Total - (Caminhões em qualquer fase do ciclo)
+        // Isso inclui 'disponivel', 'quebrado' e status nulos
         const caminhoesParados = totalCaminhoes - caminhoesAtivos;
 
         // Estatísticas de Frentes

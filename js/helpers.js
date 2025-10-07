@@ -1,5 +1,4 @@
 // js/helpers.js
-
 /**
  * Exibe uma notificação toast moderna com ícone e cores.
  * @param {string} message - A mensagem a ser exibida.
@@ -66,12 +65,36 @@ export function formatDate(date) {
     return new Date(date).toLocaleDateString('pt-BR');
 }
 
+export function formatDateTime(date) {
+    return new Date(date).toLocaleString('pt-BR');
+}
+
 export function formatCurrency(value) {
     return new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL'
     }).format(value);
 }
+
+// --- NOVO: Função para calcular e formatar o tempo de inatividade ---
+export function calculateDowntimeDuration(startTime, endTime) {
+    const start = new Date(startTime).getTime();
+    // Se endTime for nulo, usa o tempo atual (ainda parado)
+    const end = endTime ? new Date(endTime).getTime() : new Date().getTime();
+    const diffMillis = end - start;
+
+    if (diffMillis < 0) return 'Tempo Inválido';
+
+    const diffHours = Math.floor(diffMillis / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMillis % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffHours > 0) {
+        return `${diffHours}h ${diffMinutes}m`;
+    } else {
+        return `${diffMinutes}m`;
+    }
+}
+// -------------------------------------------------------------------
 
 export function debounce(func, wait) {
     let timeout;

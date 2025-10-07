@@ -134,8 +134,8 @@ export class FrotaView {
             const actionMenuButton = target.closest('.action-menu-button');
             if (actionMenuButton) {
                 const menu = actionMenuButton.closest('.action-menu');
-                // Fecha outros menus antes de abrir o novo
-                document.querySelectorAll('.action-menu.show').forEach(m => {
+                // CORREÇÃO: Usar this.container.querySelectorAll em vez de document.querySelectorAll
+                this.container.querySelectorAll('.action-menu.show').forEach(m => {
                     if (m !== menu) m.classList.remove('show');
                 });
                 menu.classList.toggle('show');
@@ -143,7 +143,8 @@ export class FrotaView {
             }
 
             if (!target.closest('.action-menu')) {
-                document.querySelectorAll('.action-menu.show').forEach(menu => menu.classList.remove('show'));
+                // CORREÇÃO: Usar this.container.querySelectorAll em vez de document.querySelectorAll
+                this.container.querySelectorAll('.action-menu.show').forEach(menu => menu.classList.remove('show'));
             }
             
             if (target.closest('#refresh-frota')) {
