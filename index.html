@@ -13,24 +13,24 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- CSS Principal -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/cadastros.css">
 </head>
 <body>
-    <!-- Sidebar -->
     <aside class="sidebar" id="sidebar"></aside>
 
-    <!-- Main Content -->
     <main class="main-content">
         <div id="views-container"></div>
     </main>
 
-    <!-- Components -->
     <div id="toast-container"></div>
     <div id="modal-container"></div>
+    
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
 
-    <!-- Scripts -->
+
     <script type="module" src="js/main.js"></script>
 </body>
 </html>

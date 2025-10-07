@@ -1,7 +1,7 @@
 // js/views/dashboard.js
 import { mapManager } from '../maps.js';
 import { fetchAllData } from '../api.js';
-import { showToast } from '../helpers.js';
+import { showToast, showLoading, hideLoading } from '../helpers.js';
 
 export class DashboardView {
     constructor() {
@@ -44,7 +44,6 @@ export class DashboardView {
                 <div class="map-fullscreen">
                     <div id="dashboard-map"></div>
                     
-                    <!-- Painel Moderno Sobre o Mapa -->
                     <div class="modern-dashboard-overlay">
                         <div class="stats-panel">
                             <div class="panel-header">
@@ -55,7 +54,6 @@ export class DashboardView {
                             </div>
                             
                             <div class="stats-grid">
-                                <!-- Caminhões -->
                                 <div class="stat-card">
                                     <div class="stat-header">
                                         <div class="stat-icon">
@@ -78,7 +76,6 @@ export class DashboardView {
                                     </div>
                                 </div>
 
-                                <!-- Frentes -->
                                 <div class="stat-card">
                                     <div class="stat-header">
                                         <div class="stat-icon">
@@ -101,7 +98,6 @@ export class DashboardView {
                                     </div>
                                 </div>
 
-                                <!-- Equipamentos -->
                                 <div class="stat-card">
                                     <div class="stat-header">
                                         <div class="stat-icon">
@@ -124,7 +120,6 @@ export class DashboardView {
                                     </div>
                                 </div>
 
-                                <!-- Fazendas -->
                                 <div class="stat-card">
                                     <div class="stat-header">
                                         <div class="stat-icon">
@@ -166,7 +161,6 @@ export class DashboardView {
                         </div>
                     </div>
 
-                    <!-- Legenda do Mapa -->
                     <div class="map-legend">
                         <div class="legend-title">Legenda</div>
                         <div class="legend-items">
@@ -200,6 +194,7 @@ export class DashboardView {
     }
 
     async loadData() {
+        showLoading();
         try {
             this.data = await fetchAllData();
             this.updateDashboardStats();
@@ -208,6 +203,8 @@ export class DashboardView {
         } catch (error) {
             console.error('Erro ao carregar dados do dashboard:', error);
             showToast('Erro ao carregar dados', 'error');
+        } finally {
+            hideLoading();
         }
     }
 

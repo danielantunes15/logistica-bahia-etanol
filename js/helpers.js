@@ -24,6 +24,17 @@ export function handleOperation(error, successMessage) {
     }
 }
 
+export function showLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'flex';
+}
+
+export function hideLoading() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+
 export function formatDate(date) {
     return new Date(date).toLocaleDateString('pt-BR');
 }

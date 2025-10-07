@@ -1,7 +1,8 @@
 // js/views/cadastros.js
-import { showToast, handleOperation } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { mapManager } from '../maps.js';
-import { fetchAllData, insertItem, deleteItem } from '../api.js';
+import { openModal, closeModal } from '../components/modal.js';
+import { fetchAllData, insertItem, deleteItem, fetchItemById, updateItem } from '../api.js';
 
 export class CadastrosView {
     constructor(tipo) {
@@ -47,8 +48,7 @@ export class CadastrosView {
                         <div class="form-section-modern">
                             <h3>Adicionar Novo</h3>
                             <div id="form-container">
-                                <!-- Formulário será injetado aqui -->
-                            </div>
+                                </div>
                         </div>
 
                         ${showMap ? `
@@ -66,8 +66,7 @@ export class CadastrosView {
                         <div class="list-container-modern">
                             <h2>${title} Cadastrados</h2>
                             <div id="table-container">
-                                <!-- Tabela será injetada aqui -->
-                            </div>
+                                </div>
                         </div>
                         `}
                     </div>
@@ -76,8 +75,7 @@ export class CadastrosView {
                     <div class="list-container-modern">
                         <h2>Fazendas Cadastradas</h2>
                         <div id="table-container">
-                            <!-- Tabela será injetada aqui -->
-                        </div>
+                            </div>
                     </div>
                     ` : ''}
                 </div>
@@ -86,12 +84,15 @@ export class CadastrosView {
     }
 
     async loadData() {
+        showLoading();
         try {
             this.data = await fetchAllData();
             this.renderTable();
         } catch (error) {
             console.error(`Erro ao carregar dados de ${this.tipo}:`, error);
             showToast('Erro ao carregar dados', 'error');
+        } finally {
+            hideLoading();
         }
     }
 
@@ -182,54 +183,61 @@ export class CadastrosView {
         formContainer.innerHTML = this.generateFormHTML();
     }
 
-    generateFormHTML() {
+    generateFormHTML(item = null) {
+        const isEdit = item !== null;
+    
         const inputsHTML = this.formFields.map(field => {
             const requiredAttr = field.required ? 'required' : '';
+            const value = isEdit ? (item[field.name] || '') : '';
+            const id = isEdit ? `edit-${field.name}` : field.name;
+    
             let inputHTML = `
                 <div class="form-group">
-                    <label for="${field.name}">${field.label}</label>
+                    <label for="${id}">${field.label}</label>
             `;
-
+    
             if (field.type === 'select' || field.type === 'select-multiple') {
                 const multipleAttr = field.type === 'select-multiple' ? 'multiple' : '';
                 const sizeAttr = field.type === 'select-multiple' ? 'size="4"' : '';
                 
-                inputHTML += `<select name="${field.name}" id="${field.name}" class="form-select" ${multipleAttr} ${sizeAttr} ${requiredAttr}>`;
+                inputHTML += `<select name="${field.name}" id="${id}" class="form-select" ${multipleAttr} ${sizeAttr} ${requiredAttr}>`;
                 
                 if (!multipleAttr) {
                     inputHTML += `<option value="">Selecione...</option>`;
                 }
                 
                 if (field.source && this.data[field.source]) {
-                    this.data[field.source].forEach(item => {
-                        inputHTML += `<option value="${item.id}">${item[field.displayField]}</option>`;
+                    this.data[field.source].forEach(optionItem => {
+                        const isSelected = isEdit && (value == optionItem.id || (Array.isArray(value) && value.includes(optionItem.id)));
+                        inputHTML += `<option value="${optionItem.id}" ${isSelected ? 'selected' : ''}>${optionItem[field.displayField]}</option>`;
                     });
                 } else if (field.options) {
                     field.options.forEach(option => {
-                        inputHTML += `<option value="${option}">${this.formatOption(option)}</option>`;
+                        const isSelected = isEdit && value === option;
+                        inputHTML += `<option value="${option}" ${isSelected ? 'selected' : ''}>${this.formatOption(option)}</option>`;
                     });
                 }
                 inputHTML += `</select>`;
                 
-                // Adicionar hint para select múltiplo
                 if (field.type === 'select-multiple') {
                     inputHTML += `<div class="select-multiple-hint"><i class="ph-fill ph-info"></i> Mantenha Ctrl pressionado para selecionar múltiplos</div>`;
                 }
             } else {
-                const value = field.name === 'latitude' || field.name === 'longitude' ? '' : '';
-                inputHTML += `<input type="${field.name === 'telefone' ? 'tel' : field.type}" name="${field.name}" id="${field.name}" class="form-input" value="${value}" ${requiredAttr}>`;
+                inputHTML += `<input type="${field.name === 'telefone' ? 'tel' : field.type}" name="${field.name}" id="${id}" class="form-input" value="${value}" ${requiredAttr}>`;
             }
-
+    
             inputHTML += `</div>`;
             return inputHTML;
         }).join('');
-
+    
+        const submitText = isEdit ? 'Salvar Alterações' : `Cadastrar ${this.getTipoDisplayName().slice(0, -1)}`;
+        
         return `
-            <form id="form-${this.tipo}" class="form-modern">
+            <form id="${isEdit ? 'form-edit-' + this.tipo : 'form-' + this.tipo}" class="form-modern">
                 ${inputsHTML}
                 <button type="submit" class="form-submit">
                     <i class="ph-fill ph-floppy-disk"></i>
-                    Cadastrar ${this.getTipoDisplayName().slice(0, -1)}
+                    ${submitText}
                 </button>
             </form>
         `;
@@ -361,13 +369,11 @@ export class CadastrosView {
     }
 
     addEventListeners() {
-        // Form submit
         const form = document.getElementById(`form-${this.tipo}`);
         if (form) {
             form.addEventListener('submit', (e) => this.handleFormSubmit(e));
         }
 
-        // Action buttons
         this.container.addEventListener('click', (e) => {
             if (e.target.closest('.edit-btn-modern')) {
                 this.handleEdit(e.target.closest('.edit-btn-modern').dataset.id);
@@ -382,7 +388,6 @@ export class CadastrosView {
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
 
-        // Processar selects múltiplos
         if (this.tipo === 'caminhoes' || this.tipo === 'equipamentos') {
             const motoristasSelect = document.querySelector('select[name="motoristas"]');
             const operadoresSelect = document.querySelector('select[name="operadores"]');
@@ -394,7 +399,8 @@ export class CadastrosView {
                 data.operadores = Array.from(operadoresSelect.selectedOptions).map(option => option.value);
             }
         }
-
+        
+        showLoading();
         try {
             const { error } = await insertItem(this.tipo, data);
             handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} cadastrado com sucesso!`);
@@ -405,18 +411,77 @@ export class CadastrosView {
             }
         } catch (error) {
             handleOperation(error, '');
+        } finally {
+            hideLoading();
         }
     }
 
     async handleEdit(id) {
-        showToast(`Editando ${this.getTipoDisplayName().slice(0, -1)} ID: ${id}`, 'success');
-        // Implementar edição completa posteriormente
+        showLoading();
+        // Buscar os dados do item para preencher o formulário
+        const { data: item, error } = await fetchItemById(this.tipo, id);
+        hideLoading();
+    
+        if (error || !item) {
+            showToast('Erro ao buscar dados para edição.', 'error');
+            return;
+        }
+    
+        // Gerar o HTML do formulário de edição com os dados do item
+        const formHTML = this.generateFormHTML(item);
+        
+        // Abrir o modal com o formulário
+        openModal(`Editar ${this.getTipoDisplayName().slice(0, -1)}`, formHTML);
+        
+        // Adicionar listener para o formulário de edição
+        const editForm = document.getElementById(`form-edit-${this.tipo}`);
+        if (editForm) {
+            editForm.addEventListener('submit', (e) => this.handleUpdateSubmit(e, id));
+        }
     }
 
-    async handleDelete(id) {
-        const confirmDelete = confirm(`Deseja realmente excluir este ${this.getTipoDisplayName().slice(0, -1).toLowerCase()}?`);
-        if (!confirmDelete) return;
+    async handleUpdateSubmit(e, id) {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+    
+        // Lógica para processar select-multiple, se houver
+        if (this.tipo === 'caminhoes' || this.tipo === 'equipamentos') {
+            const motoristasSelect = document.querySelector('#edit-motoristas');
+            const operadoresSelect = document.querySelector('#edit-operadores');
+            if (motoristasSelect) data.motoristas = Array.from(motoristasSelect.selectedOptions).map(o => o.value);
+            if (operadoresSelect) data.operadores = Array.from(operadoresSelect.selectedOptions).map(o => o.value);
+        }
+    
+        showLoading();
+        const { error } = await updateItem(this.tipo, id, data);
+        hideLoading();
+        handleOperation(error, 'Item atualizado com sucesso!');
+    
+        if (!error) {
+            closeModal();
+            await this.loadData(); // Recarrega os dados da tabela
+        }
+    }
+    
 
+    async handleDelete(id) {
+        const content = `
+            <p>Deseja realmente excluir este item? Esta ação não pode ser desfeita.</p>
+            <div class="modal-actions">
+                <button id="cancel-delete-btn" class="btn-secondary">Cancelar</button>
+                <button id="confirm-delete-btn" class="btn-primary">Confirmar Exclusão</button>
+            </div>
+        `;
+    
+        openModal('Confirmar Exclusão', content);
+    
+        document.getElementById('confirm-delete-btn').onclick = () => this.handleRealDelete(id);
+        document.getElementById('cancel-delete-btn').onclick = closeModal;
+    }
+    
+    async handleRealDelete(id) {
+        showLoading();
         try {
             const { error } = await deleteItem(this.tipo, id);
             handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} excluído com sucesso!`);
@@ -426,6 +491,9 @@ export class CadastrosView {
             }
         } catch (error) {
             handleOperation(error, '');
+        } finally {
+            hideLoading();
+            closeModal();
         }
     }
 }
