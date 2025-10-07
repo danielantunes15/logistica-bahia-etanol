@@ -67,7 +67,7 @@ export class EquipamentosView {
                             <thead>
                                 <tr>
                                     <th>Equipamento</th>
-                                    <th>Frente de Origem</th> <!- NOVA COLUNA ->
+                                    <th>Frente de Origem</th>
                                     <th>Status Anterior</th>
                                     <th>Status Novo</th>
                                     <th>Motivo</th>
@@ -111,7 +111,6 @@ export class EquipamentosView {
                 if (!hasEndLog) {
                     latestDowntime[log.equipamento_id] = {
                         motivo: log.motivo_parada || 'Não informado',
-                        // O nome da Frente precisa vir da última Frente conhecida do equipamento
                         frenteNome: log.equipamentos?.frentes_servico?.nome || 'N/A' 
                     };
                 }
@@ -269,39 +268,106 @@ export class EquipamentosView {
         `;
     }
 
+    // --- CORREÇÃO COMPLETA: Agrupa logs em sessões de inatividade e calcula a duração ---
     renderHistorico(equipamentoId = null, frenteId = null, date = null) {
         const { equipamento_historico = [] } = this.data;
         
-        // Ordena por horário mais recente
-        const logs = equipamento_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
+        // 1. Classifica os logs por tempo, do mais antigo para o mais recente (para reconstruir a linha do tempo)
+        const sortedLogs = equipamento_historico.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
 
-        return logs.map(log => {
-            // Obtém o nome da Frente a partir da relação no log
-            const frenteNome = log.equipamentos?.frentes_servico?.nome || 'N/A';
+        const downtimeSessions = [];
+        const activeSessions = new Map(); // Para rastrear inícios de parada (log de status_novo != 'ativo' e status_anterior == 'ativo')
+
+        // 2. Percorre os logs para agrupar em sessões de inatividade
+        for (const log of sortedLogs) {
+            const isDowntimeStart = log.status_novo !== 'ativo' && log.status_anterior === 'ativo';
+            const isStatusChangeDowntime = log.status_novo !== 'ativo' && log.status_anterior !== 'ativo';
+            const isDowntimeEnd = log.status_novo === 'ativo' && log.status_anterior !== 'ativo';
+
+            if (isDowntimeStart) {
+                // Início de uma nova parada
+                activeSessions.set(log.equipamento_id, {
+                    startLog: log,
+                    startTime: new Date(log.timestamp_mudanca),
+                    startStatus: log.status_novo,
+                });
+            } else if (isDowntimeEnd) {
+                const session = activeSessions.get(log.equipamento_id);
+                if (session) {
+                    // Fim da parada
+                    downtimeSessions.push({
+                        cod_equipamento: log.equipamentos?.cod_equipamento || 'N/A',
+                        finalidade: log.equipamentos?.finalidade || 'N/A',
+                        frente: session.startLog.equipamentos?.frentes_servico?.nome || 'N/A',
+                        start_time: session.startTime,
+                        end_time: new Date(log.timestamp_mudanca),
+                        start_status: session.startStatus,
+                        end_status: log.status_novo, // 'ativo'
+                        motivo: session.startLog.motivo_parada || 'Não informado',
+                    });
+                    activeSessions.delete(log.equipamento_id);
+                }
+            } else if (isStatusChangeDowntime) {
+                // Se o status mudar entre 'parado' e 'quebrado', atualiza o log inicial com o motivo mais recente
+                const session = activeSessions.get(log.equipamento_id);
+                if (session) {
+                    session.startStatus = log.status_novo; 
+                    session.startLog.motivo_parada = log.motivo_parada || session.startLog.motivo_parada;
+                }
+            }
+        }
+        
+        // 3. Adiciona sessões que ainda estão abertas
+        for (const [id, session] of activeSessions.entries()) {
+            downtimeSessions.push({
+                cod_equipamento: session.startLog.equipamentos?.cod_equipamento || 'N/A',
+                finalidade: session.startLog.equipamentos?.finalidade || 'N/A',
+                frente: session.startLog.equipamentos?.frentes_servico?.nome || 'N/A',
+                start_time: session.startTime,
+                end_time: null, // Ainda em aberto
+                start_status: session.startStatus,
+                end_status: session.startStatus, // O status final é o status atual (parado/quebrado)
+                motivo: session.startLog.motivo_parada || 'Não informado',
+            });
+        }
+        
+        // 4. Ordena as sessões para exibição (mais recente primeiro)
+        downtimeSessions.sort((a, b) => b.start_time - a.start_time);
+        
+        // 5. Gera as linhas da tabela a partir das sessões
+        return downtimeSessions.map(session => {
+            const duration = calculateDowntimeDuration(session.start_time, session.end_time);
             
-            const statusNovoBadge = `<span class="caminhao-status-badge status-${log.status_novo}">${this.statusLabels[log.status_novo] || log.status_novo || 'N/A'}</span>`;
-            const statusAntigoBadge = `<span class="caminhao-status-badge status-${log.status_anterior}">${this.statusLabels[log.status_anterior] || log.status_anterior || 'N/A'}</span>`;
-
-            // Nota: O cálculo da duração precisa de um log de 'ativo' subsequente (como no método original)
-            // Por simplificação na exibição por linha do log:
-            const isFinished = log.status_novo === 'ativo' && log.status_anterior !== 'ativo';
-            const durationDisplay = isFinished ? 'Calculando...' : 'Em Aberto';
-            const endTimeDisplay = isFinished ? formatDateTime(log.timestamp_mudanca) : 'Em Aberto';
+            const startStatusBadge = `<span class="caminhao-status-badge status-${session.start_status}">${this.statusLabels[session.start_status] || session.start_status}</span>`;
+            
+            let endStatusLabel;
+            if (session.end_time) {
+                // Se a sessão terminou (end_time existe), o status final é Ativo
+                endStatusLabel = `<span class="caminhao-status-badge status-ativo">${this.statusLabels['ativo']}</span>`;
+            } else {
+                // Se ainda está aberta, o status final é o status atual (Parado/Quebrado)
+                endStatusLabel = `<span class="caminhao-status-badge status-${session.end_status}">${this.statusLabels[session.end_status] || session.end_status}</span>`;
+            }
+            
+            const endTimeDisplay = session.end_time ? formatDateTime(session.end_time) : '<span style="color: var(--accent-danger);">Em Aberto</span>';
+            const durationDisplay = duration;
 
             return `
                 <tr>
-                    <td>${log.equipamentos?.cod_equipamento || 'N/A'} (${log.equipamentos?.finalidade || 'N/A'})</td>
-                    <td>${frenteNome}</td> 
-                    <td>${statusAntigoBadge}</td>
-                    <td>${statusNovoBadge}</td>
-                    <td>${log.motivo_parada || '---'}</td>
-                    <td>${formatDateTime(log.timestamp_mudanca)}</td>
+                    <td>${session.cod_equipamento} (${session.finalidade})</td>
+                    <td>${session.frente}</td>
+                    <td>${startStatusBadge}</td>
+                    <td>${endStatusLabel}</td> 
+                    <td>${session.motivo}</td>
+                    <td>${formatDateTime(session.start_time)}</td>
                     <td>${endTimeDisplay}</td>
                     <td>${durationDisplay}</td>
                 </tr>
             `;
         }).join('');
     }
+    // --- FIM DA CORREÇÃO COMPLETA DO HISTÓRICO ---
+
 
     addEventListeners() {
         this.container.addEventListener('click', (e) => {

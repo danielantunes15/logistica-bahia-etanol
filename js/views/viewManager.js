@@ -18,7 +18,7 @@ export class ViewManager {
         window.addEventListener('viewChanged', (e) => {
             this.showView(e.detail.view);
         });
-        this.showView('dashboard'); // MUDANÇA AQUI: Define 'dashboard' como view inicial
+        this.showView('dashboard'); // CORRIGIDO: Define 'dashboard' como view inicial
     }
 
     registerViews() {
