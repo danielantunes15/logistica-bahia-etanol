@@ -7,6 +7,7 @@ export class DashboardView {
     constructor() {
         this.container = null;
         this.data = {};
+        this.selectedFazendas = new Set();
     }
 
     async show() {
@@ -30,49 +31,53 @@ export class DashboardView {
         return `
             <div id="dashboard-view" class="view active-view">
                 <div class="dashboard-header">
-                    <h1>Dashboard de Operações</h1>
+                    <h1>Mapa de Operações - LOGISTICA BEL</h1>
                     <div class="dashboard-actions">
-                        <button class="btn-secondary" id="refresh-dashboard">
+                        <button class="btn-primary" id="refresh-operations">
                             <i class="ph-fill ph-arrows-clockwise"></i>
-                            Atualizar
+                            Atualizar Operações
+                        </button>
+                        <button class="btn-secondary" id="toggle-fazendas">
+                            <i class="ph-fill ph-tree-evergreen"></i>
+                            Gerenciar Fazendas
                         </button>
                     </div>
                 </div>
-                
-                <div class="kpi-container">
-                    <div class="kpi-card">
-                        <h3>Caminhões Ativos</h3>
-                        <p id="kpi-caminhoes-ativos">0</p>
-                    </div>
-                    <div class="kpi-card">
-                        <h3>Equipamentos Ativos</h3>
-                        <p id="kpi-equipamentos-ativos">0</p>
-                    </div>
-                    <div class="kpi-card">
-                        <h3>Fazendas Colhendo</h3>
-                        <p id="kpi-fazendas-colhendo">0</p>
-                    </div>
-                    <div class="kpi-card">
-                        <h3>Total de Fazendas</h3>
-                        <p id="kpi-total-fazendas">0</p>
-                    </div>
-                </div>
 
-                <div class="map-container">
-                    <div id="dashboard-map" style="height: 100%; width: 100%;"></div>
-                </div>
-
-                <div class="dashboard-grid">
-                    <div class="dashboard-card">
-                        <h3>Operações Recentes</h3>
-                        <div id="recent-operations">
-                            <p>Carregando operações...</p>
+                <div class="map-fullscreen">
+                    <div id="dashboard-map"></div>
+                    <div class="map-overlay">
+                        <div class="operations-panel">
+                            <h3>Operações Ativas</h3>
+                            <div id="active-operations">
+                                <p>Carregando operações...</p>
+                            </div>
                         </div>
                     </div>
-                    <div class="dashboard-card">
-                        <h3>Alertas do Sistema</h3>
-                        <div id="system-alerts">
-                            <p>Nenhum alerta no momento.</p>
+                </div>
+
+                <!-- Modal de Seleção de Fazendas -->
+                <div id="fazendas-modal" class="modal-overlay">
+                    <div class="modal-content large">
+                        <div class="modal-header">
+                            <h2>Selecionar Fazendas para Monitoramento</h2>
+                            <button class="close-btn" id="close-fazendas-modal">
+                                <i class="ph-fill ph-x"></i>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="fazendas-list" id="fazendas-list">
+                                <!-- Lista de fazendas será carregada aqui -->
+                            </div>
+                            <div class="modal-actions">
+                                <button class="btn-primary" id="confirm-fazendas">
+                                    <i class="ph-fill ph-check"></i>
+                                    Confirmar Seleção
+                                </button>
+                                <button class="btn-secondary" id="cancel-fazendas">
+                                    Cancelar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -85,7 +90,9 @@ export class DashboardView {
         setTimeout(() => {
             const map = mapManager.initDashboardMap();
             if (map) {
-                console.log('Mapa do dashboard inicializado com sucesso');
+                console.log('Mapa principal inicializado com sucesso');
+                // Ajustar o mapa para ocupar toda a área
+                mapManager.invalidateSize('dashboard-map');
             }
         }, 100);
     }
@@ -93,96 +100,239 @@ export class DashboardView {
     async loadData() {
         try {
             this.data = await fetchAllData();
-            this.updateKPIs();
             this.updateMap();
-            this.updateRecentOperations();
+            this.updateActiveOperations();
         } catch (error) {
             console.error('Erro ao carregar dados do dashboard:', error);
             showToast('Erro ao carregar dados do dashboard', 'error');
         }
     }
 
-    updateKPIs() {
-        const { caminhoes, equipamentos, fazendas } = this.data;
+    updateMap() {
+        const { fazendas } = this.data;
+        if (fazendas && fazendas.length > 0) {
+            // Mostrar apenas fazendas que estão colhendo
+            const fazendasColhendo = fazendas.filter(f => f.status === 'colhendo');
+            mapManager.updateFazendaMarkers(fazendasColhendo);
+            
+            // Ajustar view do mapa para mostrar todas as fazendas ativas
+            if (fazendasColhendo.length > 0) {
+                const bounds = this.calculateBounds(fazendasColhendo);
+                const map = mapManager.maps.get('dashboard-map');
+                if (map && bounds.isValid()) {
+                    map.fitBounds(bounds, { padding: [20, 20] });
+                }
+            }
+        }
+    }
+
+    calculateBounds(fazendas) {
+        const bounds = L.latLngBounds();
+        fazendas.forEach(fazenda => {
+            if (fazenda.latitude && fazenda.longitude) {
+                bounds.extend([parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)]);
+            }
+        });
+        return bounds;
+    }
+
+    updateActiveOperations() {
+        const container = document.getElementById('active-operations');
+        if (!container) return;
+
+        const { fazendas, caminhoes, equipamentos } = this.data;
         
+        const activeItems = [];
+        
+        // Fazendas colhendo
+        const fazendasColhendo = (fazendas || []).filter(f => f.status === 'colhendo');
+        if (fazendasColhendo.length > 0) {
+            activeItems.push(`
+                <div class="operation-category">
+                    <h4><i class="ph-fill ph-tree-evergreen"></i> Fazendas Colhendo</h4>
+                    ${fazendasColhendo.map(fazenda => `
+                        <div class="operation-item">
+                            <div class="operation-info">
+                                <strong>${fazenda.nome}</strong>
+                                <span>${fazenda.hectares || 'N/A'} hectares</span>
+                                <small>Fornecedor: ${fazenda.fornecedores?.nome || 'N/A'}</small>
+                            </div>
+                            <div class="operation-status active"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            `);
+        }
+
         // Caminhões ativos
         const caminhoesAtivos = (caminhoes || []).filter(c => 
             c.status === 'ativo' || c.status === 'em_viagem'
-        ).length;
-        document.getElementById('kpi-caminhoes-ativos').textContent = caminhoesAtivos;
+        );
+        if (caminhoesAtivos.length > 0) {
+            activeItems.push(`
+                <div class="operation-category">
+                    <h4><i class="ph-fill ph-truck"></i> Caminhões Ativos</h4>
+                    ${caminhoesAtivos.map(caminhao => `
+                        <div class="operation-item">
+                            <div class="operation-info">
+                                <strong>${caminhao.cod_equipamento}</strong>
+                                <span>${caminhao.placa} - ${caminhao.status}</span>
+                                <small>${caminhao.proprietarios?.nome || 'N/A'}</small>
+                            </div>
+                            <div class="operation-status ${caminhao.status === 'em_viagem' ? 'warning' : 'active'}"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            `);
+        }
 
         // Equipamentos ativos
         const equipamentosAtivos = (equipamentos || []).filter(e => 
             e.status === 'ativo' || e.status === 'em_viagem'
-        ).length;
-        document.getElementById('kpi-equipamentos-ativos').textContent = equipamentosAtivos;
+        );
+        if (equipamentosAtivos.length > 0) {
+            activeItems.push(`
+                <div class="operation-category">
+                    <h4><i class="ph-fill ph-tractor"></i> Equipamentos Ativos</h4>
+                    ${equipamentosAtivos.map(equipamento => `
+                        <div class="operation-item">
+                            <div class="operation-info">
+                                <strong>${equipamento.cod_equipamento}</strong>
+                                <span>${equipamento.finalidade} - ${equipamento.status}</span>
+                                <small>Frente: ${equipamento.frentes_servico?.nome || 'N/A'}</small>
+                            </div>
+                            <div class="operation-status ${equipamento.status === 'em_viagem' ? 'warning' : 'active'}"></div>
+                        </div>
+                    `).join('')}
+                </div>
+            `);
+        }
 
-        // Fazendas colhendo
-        const fazendasColhendo = (fazendas || []).filter(f => 
-            f.status === 'colhendo'
-        ).length;
-        document.getElementById('kpi-fazendas-colhendo').textContent = fazendasColhendo;
-
-        // Total de fazendas
-        const totalFazendas = (fazendas || []).length;
-        document.getElementById('kpi-total-fazendas').textContent = totalFazendas;
+        container.innerHTML = activeItems.length > 0 ? 
+            activeItems.join('') : 
+            '<div class="no-operations"><p>Nenhuma operação ativa no momento</p></div>';
     }
 
-    updateMap() {
+    showFazendasModal() {
+        const modal = document.getElementById('fazendas-modal');
+        const fazendasList = document.getElementById('fazendas-list');
+        
+        if (!modal || !fazendasList) return;
+
         const { fazendas } = this.data;
+        
         if (fazendas && fazendas.length > 0) {
-            mapManager.updateFazendaMarkers(fazendas);
+            fazendasList.innerHTML = fazendas.map(fazenda => `
+                <div class="fazenda-item">
+                    <label class="checkbox-label">
+                        <input type="checkbox" value="${fazenda.id}" 
+                               ${this.selectedFazendas.has(fazenda.id) ? 'checked' : ''}
+                               ${fazenda.status === 'colhendo' ? 'checked' : ''}>
+                        <span class="checkmark"></span>
+                        <div class="fazenda-info">
+                            <strong>${fazenda.nome}</strong>
+                            <span>${fazenda.hectares || 'N/A'} hectares - ${fazenda.status}</span>
+                            <small>${fazenda.fornecedores?.nome || 'N/A'}</small>
+                        </div>
+                    </label>
+                </div>
+            `).join('');
+        } else {
+            fazendasList.innerHTML = '<p>Nenhuma fazenda cadastrada</p>';
+        }
+
+        modal.classList.add('active');
+    }
+
+    confirmFazendasSelection() {
+        const checkboxes = document.querySelectorAll('#fazendas-list input[type="checkbox"]');
+        this.selectedFazendas.clear();
+        
+        checkboxes.forEach(checkbox => {
+            if (checkbox.checked) {
+                this.selectedFazendas.add(checkbox.value);
+            }
+        });
+
+        this.closeFazendasModal();
+        this.updateMapWithSelectedFazendas();
+        showToast('Fazendas selecionadas para monitoramento', 'success');
+    }
+
+    updateMapWithSelectedFazendas() {
+        const { fazendas } = this.data;
+        if (!fazendas) return;
+
+        const fazendasParaMostrar = fazendas.filter(fazenda => 
+            this.selectedFazendas.has(fazenda.id.toString())
+        );
+
+        mapManager.updateFazendaMarkers(fazendasParaMostrar);
+        
+        // Ajustar view do mapa
+        if (fazendasParaMostrar.length > 0) {
+            const bounds = this.calculateBounds(fazendasParaMostrar);
+            const map = mapManager.maps.get('dashboard-map');
+            if (map && bounds.isValid()) {
+                map.fitBounds(bounds, { padding: [20, 20] });
+            }
         }
     }
 
-    updateRecentOperations() {
-        const container = document.getElementById('recent-operations');
-        if (!container) return;
-
-        const { caminhoes, equipamentos } = this.data;
-        const recentItems = [];
-
-        // Adicionar últimos caminhões
-        if (caminhoes) {
-            caminhoes.slice(0, 3).forEach(caminhao => {
-                recentItems.push(`
-                    <div class="operation-item">
-                        <i class="ph-fill ph-truck"></i>
-                        <div>
-                            <strong>${caminhao.cod_equipamento}</strong>
-                            <span>${caminhao.placa} - ${caminhao.status}</span>
-                        </div>
-                    </div>
-                `);
-            });
+    closeFazendasModal() {
+        const modal = document.getElementById('fazendas-modal');
+        if (modal) {
+            modal.classList.remove('active');
         }
-
-        // Adicionar últimos equipamentos
-        if (equipamentos) {
-            equipamentos.slice(0, 2).forEach(equipamento => {
-                recentItems.push(`
-                    <div class="operation-item">
-                        <i class="ph-fill ph-tractor"></i>
-                        <div>
-                            <strong>${equipamento.cod_equipamento}</strong>
-                            <span>${equipamento.finalidade} - ${equipamento.status}</span>
-                        </div>
-                    </div>
-                `);
-            });
-        }
-
-        container.innerHTML = recentItems.length > 0 ? 
-            recentItems.join('') : 
-            '<p>Nenhuma operação recente</p>';
     }
 
     addEventListeners() {
-        const refreshBtn = document.getElementById('refresh-dashboard');
+        // Botão de atualizar
+        const refreshBtn = document.getElementById('refresh-operations');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
                 this.loadData();
-                showToast('Dados atualizados', 'success');
+                showToast('Operações atualizadas', 'success');
+            });
+        }
+
+        // Botão de gerenciar fazendas
+        const toggleFazendasBtn = document.getElementById('toggle-fazendas');
+        if (toggleFazendasBtn) {
+            toggleFazendasBtn.addEventListener('click', () => {
+                this.showFazendasModal();
+            });
+        }
+
+        // Modal de fazendas
+        const closeModalBtn = document.getElementById('close-fazendas-modal');
+        if (closeModalBtn) {
+            closeModalBtn.addEventListener('click', () => {
+                this.closeFazendasModal();
+            });
+        }
+
+        const confirmFazendasBtn = document.getElementById('confirm-fazendas');
+        if (confirmFazendasBtn) {
+            confirmFazendasBtn.addEventListener('click', () => {
+                this.confirmFazendasSelection();
+            });
+        }
+
+        const cancelFazendasBtn = document.getElementById('cancel-fazendas');
+        if (cancelFazendasBtn) {
+            cancelFazendasBtn.addEventListener('click', () => {
+                this.closeFazendasModal();
+            });
+        }
+
+        // Fechar modal clicando fora
+        const fazendasModal = document.getElementById('fazendas-modal');
+        if (fazendasModal) {
+            fazendasModal.addEventListener('click', (e) => {
+                if (e.target === fazendasModal) {
+                    this.closeFazendasModal();
+                }
             });
         }
     }

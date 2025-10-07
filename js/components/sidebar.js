@@ -5,12 +5,12 @@ export async function loadSidebar() {
     sidebar.innerHTML = `
         <div class="sidebar-header">
             <i class="ph-fill ph-tractor"></i>
-            <h2>Controle</h2>
+            <h2>LOGISTICA BEL</h2>
         </div>
         <nav>
             <button class="nav-button active" data-view="dashboard">
-                <i class="ph-fill ph-chart-pie-slice"></i>
-                <span>Dashboard</span>
+                <i class="ph-fill ph-map-trifold"></i>
+                <span>Mapa Principal</span>
             </button>
             <button class="nav-button" data-view="controle">
                 <i class="ph-fill ph-arrows-clockwise"></i>

@@ -556,3 +556,462 @@ input, select {
         padding: 8px 12px;
     }
 }
+
+/* Adicionar ao CSS existente */
+
+/* Sidebar com LOGISTICA BEL */
+.sidebar-header h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    background: linear-gradient(45deg, var(--accent-primary), #2F855A);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Mapa Fullscreen */
+.map-fullscreen {
+    position: relative;
+    height: calc(100vh - 80px);
+    width: 100%;
+}
+
+#dashboard-map {
+    height: 100%;
+    width: 100%;
+}
+
+.map-overlay {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 300px;
+    max-height: calc(100% - 40px);
+    background: rgba(26, 32, 44, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.operations-panel {
+    padding: 16px;
+}
+
+.operations-panel h3 {
+    margin-bottom: 16px;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+.operation-category {
+    margin-bottom: 20px;
+}
+
+.operation-category h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.operation-category h4 i {
+    color: var(--accent-primary);
+}
+
+.operation-item {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.operation-item:last-child {
+    border-bottom: none;
+}
+
+.operation-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.operation-info strong {
+    font-size: 0.9rem;
+    margin-bottom: 2px;
+}
+
+.operation-info span {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+}
+
+.operation-info small {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.operation-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 12px;
+}
+
+.operation-status.active {
+    background-color: var(--accent-primary);
+}
+
+.operation-status.warning {
+    background-color: #D69E2E;
+}
+
+.operation-status.inactive {
+    background-color: var(--text-secondary);
+}
+
+.no-operations {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+}
+
+/* Modal de Fazendas */
+.modal-content.large {
+    max-width: 600px;
+    max-height: 80vh;
+}
+
+.fazendas-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+}
+
+.fazenda-item {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.fazenda-item:last-child {
+    border-bottom: none;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.checkbox-label input {
+    display: none;
+}
+
+.checkmark {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.checkbox-label input:checked + .checkmark {
+    background-color: var(--accent-primary);
+    border-color: var(--accent-primary);
+}
+
+.checkbox-label input:checked + .checkmark::after {
+    content: '✓';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.fazenda-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.fazenda-info strong {
+    font-size: 0.9rem;
+    margin-bottom: 2px;
+}
+
+.fazenda-info span {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+}
+
+.fazenda-info small {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+/* Painel de Controle */
+.frentes-container {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+    padding: 24px;
+    height: calc(100vh - 80px);
+}
+
+.frentes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+    overflow-y: auto;
+}
+
+.controle-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.frente-card {
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    transition: all 0.3s ease;
+}
+
+.frente-card.active {
+    border-left: 4px solid var(--accent-primary);
+}
+
+.frente-card.inactive {
+    border-left: 4px solid var(--text-secondary);
+    opacity: 0.7;
+}
+
+.frente-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.frente-header h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+.frente-status {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.frente-status.ativa {
+    background-color: rgba(56, 161, 105, 0.2);
+    color: var(--accent-primary);
+}
+
+.frente-status.inativa {
+    background-color: rgba(160, 174, 192, 0.2);
+    color: var(--text-secondary);
+}
+
+.frente-info {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.info-item i {
+    color: var(--accent-primary);
+}
+
+.frente-equipamentos,
+.frente-fazendas {
+    margin-bottom: 16px;
+}
+
+.frente-equipamentos h4,
+.frente-fazendas h4 {
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+}
+
+.equipamento-item,
+.fazenda-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 0.8rem;
+}
+
+.equipamento-item {
+    border-bottom: 1px solid rgba(74, 85, 104, 0.3);
+}
+
+.equipamento-item:last-child {
+    border-bottom: none;
+}
+
+.equip-codigo {
+    font-weight: 600;
+}
+
+.equip-tipo {
+    color: var(--text-secondary);
+}
+
+.equip-status {
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.equip-status.ativo {
+    background-color: rgba(56, 161, 105, 0.2);
+    color: var(--accent-primary);
+}
+
+.equip-status.em_viagem {
+    background-color: rgba(214, 158, 46, 0.2);
+    color: #D69E2E;
+}
+
+.frente-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+/* Estatísticas */
+.resumo-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 12px;
+    background: rgba(74, 85, 104, 0.2);
+    border-radius: 6px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+/* Fazendas Ativas */
+.fazenda-ativa-item {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.fazenda-ativa-item:last-child {
+    border-bottom: none;
+}
+
+.fazenda-progress {
+    margin-top: 8px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background-color: var(--border-color);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), #2F855A);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-align: right;
+    display: block;
+}
+
+/* Responsivo */
+@media (max-width: 1024px) {
+    .frentes-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .controle-sidebar {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .map-overlay {
+        position: relative;
+        width: 100%;
+        max-height: 300px;
+        top: 0;
+        right: 0;
+        margin: 0;
+        border-radius: 0;
+    }
+    
+    .frentes-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .dashboard-actions {
+        flex-direction: column;
+    }
+}
