@@ -8,7 +8,7 @@ export class RelatoriosView {
         this.data = {};
         this.workHoursChart = null;
         this.downtimeHoursChart = null; 
-        this.productivityChart = null;
+        this.utilizationChart = null; // RENOMEADO
     }
 
     async show() {
@@ -21,7 +21,7 @@ export class RelatoriosView {
     async hide() {
         if (this.workHoursChart) this.workHoursChart.destroy();
         if (this.downtimeHoursChart) this.downtimeHoursChart.destroy();
-        if (this.productivityChart) this.productivityChart.destroy();
+        if (this.utilizationChart) this.utilizationChart.destroy();
     }
 
     async loadHTML() {
@@ -81,9 +81,9 @@ export class RelatoriosView {
                     </div>
                     
                     <div class="chart-container">
-                        <h3>Produtividade por Frente (MOCK)</h3>
+                        <h3>Taxa de Utilização por Equipamento (%)</h3>
                         <div class="chart-wrapper">
-                            <canvas id="productivityChart"></canvas>
+                            <canvas id="utilizationChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -176,10 +176,10 @@ export class RelatoriosView {
             const workHoursEquipamentos = this.calculateWorkHours(filteredDowntimeHistory, this.data.equipamentos, 'equipamento_id');
             const allWorkHours = [...workHoursCaminhoes, ...workHoursEquipamentos];
 
-            const downtimeHours = this.calculateDowntimeHours(filteredDowntimeHistory, this.data.equipamentos);
+            const downtimeHoursIndividual = this.calculateDowntimeHours(filteredDowntimeHistory, this.data.equipamentos);
             
             // 3. PREPARAÇÃO DO GRÁFICO COMPARATIVO
-            const comparisonData = this.prepareComparisonData(allWorkHours, downtimeHours);
+            const comparisonData = this.prepareComparisonData(allWorkHours, downtimeHoursIndividual);
             
             const workChartLabels = comparisonData.labels;
             const workChartDatasets = [
@@ -199,7 +199,6 @@ export class RelatoriosView {
                 }
             ];
 
-            // Renderiza Gráfico 1: Comparativo por EQUIPAMENTO (CÓDIGO)
             this.drawComparisonChart('workHoursChart', workChartLabels, workChartDatasets, 'bar');
 
 
@@ -209,8 +208,9 @@ export class RelatoriosView {
             const downtimeData = downtimeHoursByType.map(item => item.totalHours);
             this.drawChart('downtimeHoursChart', downtimeLabels, downtimeData, 'bar', 'Total de Horas de Inatividade (H)', 'rgba(197, 48, 48, 0.6)');
 
-            // 5. GRÁFICO 3 (MOCK)
-            this.drawChart('productivityChart', ['Frente A', 'Frente B'], [450, 320], 'line', 'Produtividade (t/ha)', 'rgba(49, 130, 206, 0.6)');
+            // 5. CÁLCULO DE HORAS (GRÁFICO 3: TAXA DE UTILIZAÇÃO)
+            const utilizationData = this.calculateUtilizationRate(comparisonData);
+            this.drawUtilizationChart('utilizationChart', utilizationData.labels, utilizationData.data);
             
         } catch (error) {
             showToast('Erro ao gerar os relatórios. Verifique os filtros.', 'error');
@@ -277,7 +277,7 @@ export class RelatoriosView {
         return filtered;
     }
 
-    // NOVA LÓGICA: Calcula Horas Trabalhadas por CÓDIGO de Equipamento
+    // Calcula Horas Trabalhadas por CÓDIGO de Equipamento
     calculateWorkHours(history, items, idColumn) {
         const itemMap = new Map(items.map(i => [i.id, i]));
         const productiveStatus = ['ativo', 'indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando', 'patio_vazio'];
@@ -329,7 +329,7 @@ export class RelatoriosView {
         return results;
     }
 
-    // NOVA LÓGICA: Calcula Horas de Inatividade por CÓDIGO de Equipamento (para o comparativo)
+    // Calcula Horas de Inatividade por CÓDIGO de Equipamento (para o comparativo)
     calculateDowntimeHours(history, equipamentos) {
         const itemMap = new Map(equipamentos.map(i => [i.id, i]));
         const nonProductiveStatus = ['parado', 'quebrado'];
@@ -381,19 +381,22 @@ export class RelatoriosView {
         return results;
     }
 
-    // NOVO: Função para mesclar os dados de Horas Trabalhadas e Paradas
+    // Função para mesclar os dados de Horas Trabalhadas e Paradas
     prepareComparisonData(workHours, downtimeHours) {
         const dataMap = new Map();
 
+        // Combina caminhões e equipamentos (que têm horas trabalhadas)
         workHours.forEach(item => {
             dataMap.set(item.cod_equipamento, { work: item.totalHours, downtime: 0 });
         });
 
+        // Adiciona horas paradas (apenas equipamentos têm downtime logado)
         downtimeHours.forEach(item => {
             if (dataMap.has(item.cod_equipamento)) {
                 dataMap.get(item.cod_equipamento).downtime = item.totalHours;
             } else {
-                dataMap.set(item.cod_equipamento, { work: 0, downtime: item.totalHours });
+                 // Se o equipamento não tem horas trabalhadas (0), ele só aparecerá no filtro individual
+                 dataMap.set(item.cod_equipamento, { work: 0, downtime: item.totalHours });
             }
         });
 
@@ -403,8 +406,68 @@ export class RelatoriosView {
         
         return { labels, workData, downtimeData };
     }
+    
+    // NOVO: Calcula Taxa de Utilização com base nos dados de comparação
+    calculateUtilizationRate(comparisonData) {
+        const labels = comparisonData.labels;
+        const utilizationData = [];
 
-    // NOVO: Função para o Gráfico de Comparação (Multi-Dataset)
+        labels.forEach((label, index) => {
+            const work = comparisonData.workData[index];
+            const downtime = comparisonData.downtimeData[index];
+            const total = work + downtime;
+            
+            const utilization = total > 0 ? (work / total) * 100 : 0;
+            utilizationData.push(parseFloat(utilization.toFixed(1)));
+        });
+
+        return { labels, data: utilizationData };
+    }
+
+    // NOVO: Função para renderizar o Gráfico de Utilização (Gráfico de Barras Simples)
+    drawUtilizationChart(canvasId, labels, data) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        
+        if (this.utilizationChart) this.utilizationChart.destroy();
+
+        this.utilizationChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Taxa de Utilização (%)',
+                    data: data,
+                    backgroundColor: data.map(v => v >= 80 ? 'rgba(56, 161, 105, 0.8)' : v >= 50 ? 'rgba(214, 158, 46, 0.8)' : 'rgba(197, 48, 48, 0.8)'),
+                    borderColor: data.map(v => v >= 80 ? 'rgba(56, 161, 105, 1)' : v >= 50 ? 'rgba(214, 158, 46, 1)' : 'rgba(197, 48, 48, 1)'),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        max: 100,
+                        ticks: { color: '#A0AEC0', callback: (value) => value + "%" }, 
+                        grid: { color: '#4A5568' } 
+                    }, 
+                    x: { 
+                        ticks: { color: '#A0AEC0' }, 
+                        grid: { color: '#4A5568' } 
+                    } 
+                },
+                plugins: { 
+                    legend: { 
+                        labels: { color: '#F7FAFC' } 
+                    } 
+                }
+            }
+        });
+    }
+
+    // Função para o Gráfico de Comparação (Multi-Dataset)
     drawComparisonChart(canvasId, labels, datasets, type) {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
@@ -423,12 +486,10 @@ export class RelatoriosView {
                 scales: { 
                     y: { 
                         beginAtZero: true, 
-                        stacked: true, // Empilhamento para a visualização desejada
                         ticks: { color: '#A0AEC0' }, 
                         grid: { color: '#4A5568' } 
                     }, 
                     x: { 
-                        stacked: true, // Empilhamento para a visualização desejada
                         ticks: { color: '#A0AEC0' }, 
                         grid: { color: '#4A5568' } 
                     } 
@@ -499,13 +560,12 @@ export class RelatoriosView {
         return finalResults;
     }
     
-    // Função para renderizar gráficos simples (usada no Gráfico 2 e 3)
+    // Função para renderizar gráficos simples (usada no Gráfico 2)
     drawChart(canvasId, labels, data, type, label, color = 'rgba(56, 161, 105, 0.6)') {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
         
         if (canvasId === 'downtimeHoursChart' && this.downtimeHoursChart) this.downtimeHoursChart.destroy();
-        if (canvasId === 'productivityChart' && this.productivityChart) this.productivityChart.destroy();
 
         const newChart = new Chart(ctx, {
             type: type,
@@ -542,7 +602,6 @@ export class RelatoriosView {
         });
         
         if (canvasId === 'downtimeHoursChart') this.downtimeHoursChart = newChart;
-        if (canvasId === 'productivityChart') this.productivityChart = newChart;
     }
 
     addEventListeners() {
