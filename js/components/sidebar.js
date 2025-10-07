@@ -9,11 +9,11 @@ export async function loadSidebar() {
             <h2>LOGISTICA BEL</h2>
         </div>
         <nav>
-            <button class="nav-button" data-view="dashboard">
+            <button class="nav-button active" data-view="dashboard"> <!- CORREÇÃO AQUI ->
                 <i class="ph-fill ph-map-trifold"></i>
                 <span>Mapa Principal</span>
             </button>
-            <button class="nav-button active" data-view="controle">
+            <button class="nav-button" data-view="controle">
                 <i class="ph-fill ph-arrows-clockwise"></i>
                 <span>Painel de Controle</span>
             </button>

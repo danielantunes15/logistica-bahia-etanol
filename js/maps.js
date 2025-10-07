@@ -1,6 +1,6 @@
 // js/maps.js
 const USINA_COORDS = [-17.642301, -40.181525];
-const INITIAL_ZOOM = 14;
+const INITIAL_ZOOM = 10; // AJUSTADO: Zoom inicial mais distante
 
 export class MapManager {
     constructor() {
@@ -41,7 +41,7 @@ export class MapManager {
     initDashboardMap() {
         const map = this.initMap('dashboard-map');
         if (map) {
-            // Adicionar marcador da usina
+            // AUMENTADO o iconSize para o marcador da usina
             const usinaIcon = L.divIcon({
                 className: 'usina-marker',
                 html: `
@@ -50,8 +50,8 @@ export class MapManager {
                     </div>
                     <div class="marker-pulse usina"></div>
                 `,
-                iconSize: [35, 35],
-                iconAnchor: [17, 17]
+                iconSize: [45, 45], // AUMENTADO
+                iconAnchor: [22, 22] // Ajuste da âncora
             });
             
             L.marker(USINA_COORDS, { icon: usinaIcon }).addTo(map)
@@ -193,7 +193,7 @@ export class MapManager {
             if (fazenda.latitude && fazenda.longitude) {
                 const coords = [parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)];
                 
-                // MODIFICADO: Definir cor baseada no status da FRENTE
+                // Definir cor baseada no status da FRENTE (ativa/fazendo_cata)
                 let color;
                 let statusLabel;
                 switch(fazenda.status) {
@@ -205,31 +205,23 @@ export class MapManager {
                         color = '#D69E2E'; // Amarelo (Cata)
                         statusLabel = 'Fazendo Cata';
                         break;
-                    case 'disponível':
-                        color = '#3182CE'; // Azul (Disponível - Padrão do BD, mas filtrado no dashboard)
-                        statusLabel = 'Disponível';
-                        break;
-                    case 'finalizada':
-                        color = '#718096'; // Cinza (Finalizada)
-                        statusLabel = 'Finalizada';
-                        break;
                     default:
-                        color = '#D69E2E'; // Amarelo (Default)
+                        // Deve ser filtrado no dashboard.js, mas como fallback
+                        color = '#718096'; 
                         statusLabel = 'N/A';
                 }
                 
                 // Criar ícone personalizado
                 const customIcon = L.divIcon({
-                    // Usa o status real para o CSS (para colhendo/cata)
                     className: `fazenda-marker status-${fazenda.status}`, 
                     html: `
                         <div class="marker-pin" style="background-color: ${color}">
                             <i class="ph-fill ph-tree-evergreen"></i>
                         </div>
-                        <div class="marker-pulse" style="box-shadow: 0 0 1px 2px ${color}; background: ${color}"></div>
+                        <div class="marker-pulse" style="background-color: ${color}"></div>
                     `,
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15]
+                    iconSize: [40, 40], // AUMENTADO
+                    iconAnchor: [20, 20]
                 });
                 
                 const marker = L.marker(coords, { icon: customIcon }).addTo(map);

@@ -358,29 +358,34 @@ export class DashboardView {
 
     updateMap() {
         const { fazendas, frentes_servico } = this.data;
-        if (!fazendas || fazendas.length === 0) return;
+        if (!fazendas || fazendas.length === 0) {
+             // Se não há fazendas no BD, centraliza na usina com zoom distante.
+            mapManager.clearMarkers('dashboard-fazendas');
+            mapManager.maps.get('dashboard-map')?.setView(USINA_COORDS, 10); 
+            return;
+        }
 
-        // MODIFICADO: Lógica para filtrar APENAS as fazendas que estão ATIVAS (colhendo ou cata)
+        // Lógica para filtrar APENAS as fazendas que estão ATIVAS (colhendo ou cata)
         const activeFrenteMap = new Map();
         frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
                        .forEach(frente => {
-                           // Associa o status da frente à fazenda (para o mapa)
                            activeFrenteMap.set(frente.fazenda_id, frente.status); 
                        });
 
         const fazendasAtivasNoMapa = fazendas.filter(f => activeFrenteMap.has(f.id)).map(f => ({
             ...f,
-            // Sobrescreve o status da fazenda com o status da frente (ativa/fazendo_cata)
             status: activeFrenteMap.get(f.id) 
         }));
 
         if (fazendasAtivasNoMapa.length > 0) {
             mapManager.updateFazendaMarkersWithStatus(fazendasAtivasNoMapa);
-            this.adjustMapToShowFazendas(fazendasAtivasNoMapa);
+            // Passa apenas as ativas, mas calculateBounds inclui a Usina
+            this.adjustMapToShowFazendas(fazendasAtivasNoMapa); 
         } else {
-            // Se não há fazendas ativas, limpa os marcadores e centraliza na usina
+            // Se não há fazendas ativas, limpa os marcadores e centraliza na usina (zoom distante)
             mapManager.clearMarkers('dashboard-fazendas');
-            mapManager.maps.get('dashboard-map')?.setView(USINA_COORDS, INITIAL_ZOOM);
+            mapManager.maps.get('dashboard-map')?.setView(USINA_COORDS, 10);
+            this.updateLastUpdateTime(); 
         }
     }
 
@@ -390,30 +395,27 @@ export class DashboardView {
 
         const bounds = this.calculateBounds(fazendas);
         if (bounds.isValid()) {
-            // Ajustar o zoom com padding para garantir que todos os marcadores sejam visíveis
+            // AJUSTADO: maxZoom reduzido para 12 para uma visão mais distante/ampla.
             map.fitBounds(bounds, { 
                 padding: [50, 50],
-                maxZoom: 15 // Limitar o zoom máximo para não ficar muito próximo
+                maxZoom: 12 // MUDANÇA AQUI: Visão mais distante (mais zoom out)
             });
         }
     }
 
     calculateBounds(fazendas) {
         const bounds = L.latLngBounds();
-        let hasValidCoords = false;
         
+        // 1. Incluir Coordenadas da Usina SEMPRE (MUDANÇA AQUI)
+        bounds.extend(USINA_COORDS); 
+        
+        // 2. Incluir todas as fazendas ativas
         fazendas.forEach(fazenda => {
             if (fazenda.latitude && fazenda.longitude) {
                 bounds.extend([parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)]);
-                hasValidCoords = true;
             }
         });
 
-        // Se não há coordenadas válidas, usar coordenadas padrão da usina
-        if (!hasValidCoords) {
-            bounds.extend(USINA_COORDS);
-        }
-        
         return bounds;
     }
 
@@ -430,4 +432,4 @@ export class DashboardView {
 
 // Coordenadas da usina (definir se não estiver definido)
 const USINA_COORDS = [-17.642301, -40.181525];
-const INITIAL_ZOOM = 14; // NOVO: Definição de zoom inicial para o caso sem fazendas ativas
+const INITIAL_ZOOM = 14;
