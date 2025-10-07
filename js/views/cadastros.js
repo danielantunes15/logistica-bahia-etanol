@@ -188,7 +188,7 @@ export class CadastrosView {
     
         const inputsHTML = this.formFields.map(field => {
             const requiredAttr = field.required ? 'required' : '';
-            const value = isEdit ? (item[field.name] || '') : '';
+            const value = isEdit ? (item[field.name] || (field.type === 'select-multiple' ? [] : '')) : '';
             const id = isEdit ? `edit-${field.name}` : field.name;
     
             let inputHTML = `
@@ -208,7 +208,7 @@ export class CadastrosView {
                 
                 if (field.source && this.data[field.source]) {
                     this.data[field.source].forEach(optionItem => {
-                        const isSelected = isEdit && (value == optionItem.id || (Array.isArray(value) && value.includes(optionItem.id)));
+                        const isSelected = isEdit && (value == optionItem.id || (Array.isArray(value) && value.some(val => val.terceiro_id == optionItem.id)));
                         inputHTML += `<option value="${optionItem.id}" ${isSelected ? 'selected' : ''}>${optionItem[field.displayField]}</option>`;
                     });
                 } else if (field.options) {
@@ -375,10 +375,13 @@ export class CadastrosView {
         }
 
         this.container.addEventListener('click', (e) => {
-            if (e.target.closest('.edit-btn-modern')) {
-                this.handleEdit(e.target.closest('.edit-btn-modern').dataset.id);
-            } else if (e.target.closest('.delete-btn-modern')) {
-                this.handleDelete(e.target.closest('.delete-btn-modern').dataset.id);
+            const editButton = e.target.closest('.edit-btn-modern');
+            const deleteButton = e.target.closest('.delete-btn-modern');
+
+            if (editButton) {
+                this.handleEdit(editButton.dataset.id);
+            } else if (deleteButton) {
+                this.handleDelete(deleteButton.dataset.id);
             }
         });
     }
@@ -418,22 +421,28 @@ export class CadastrosView {
 
     async handleEdit(id) {
         showLoading();
-        // Buscar os dados do item para preencher o formulário
-        const { data: item, error } = await fetchItemById(this.tipo, id);
+        
+        const selectQuery = (this.tipo === 'caminhoes') ? '*, caminhao_terceiros(terceiro_id)' :
+                            (this.tipo === 'equipamentos') ? '*, equipamento_terceiros(terceiro_id)' : '*';
+
+        const { data: item, error } = await fetchItemById(this.tipo, id, selectQuery);
         hideLoading();
     
         if (error || !item) {
             showToast('Erro ao buscar dados para edição.', 'error');
             return;
         }
+
+        if (this.tipo === 'caminhoes' && item.caminhao_terceiros) {
+            item.motoristas = item.caminhao_terceiros.map(ct => ct.terceiro_id);
+        }
+        if (this.tipo === 'equipamentos' && item.equipamento_terceiros) {
+            item.operadores = item.equipamento_terceiros.map(et => et.terceiro_id);
+        }
     
-        // Gerar o HTML do formulário de edição com os dados do item
         const formHTML = this.generateFormHTML(item);
-        
-        // Abrir o modal com o formulário
         openModal(`Editar ${this.getTipoDisplayName().slice(0, -1)}`, formHTML);
         
-        // Adicionar listener para o formulário de edição
         const editForm = document.getElementById(`form-edit-${this.tipo}`);
         if (editForm) {
             editForm.addEventListener('submit', (e) => this.handleUpdateSubmit(e, id));
@@ -445,25 +454,28 @@ export class CadastrosView {
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
     
-        // Lógica para processar select-multiple, se houver
         if (this.tipo === 'caminhoes' || this.tipo === 'equipamentos') {
             const motoristasSelect = document.querySelector('#edit-motoristas');
             const operadoresSelect = document.querySelector('#edit-operadores');
-            if (motoristasSelect) data.motoristas = Array.from(motoristasSelect.selectedOptions).map(o => o.value);
-            if (operadoresSelect) data.operadores = Array.from(operadoresSelect.selectedOptions).map(o => o.value);
+            if (motoristasSelect) {
+                data.motoristas = Array.from(motoristasSelect.selectedOptions).map(o => o.value);
+            }
+            if (operadoresSelect) {
+                data.operadores = Array.from(operadoresSelect.selectedOptions).map(o => o.value);
+            }
         }
     
         showLoading();
         const { error } = await updateItem(this.tipo, id, data);
         hideLoading();
+        
         handleOperation(error, 'Item atualizado com sucesso!');
     
         if (!error) {
             closeModal();
-            await this.loadData(); // Recarrega os dados da tabela
+            await this.loadData();
         }
     }
-    
 
     async handleDelete(id) {
         const content = `
@@ -484,13 +496,24 @@ export class CadastrosView {
         showLoading();
         try {
             const { error } = await deleteItem(this.tipo, id);
-            handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} excluído com sucesso!`);
             
-            if (!error) {
+            // --- NOVA LÓGICA DE TRATAMENTO DE ERRO ---
+            if (error) {
+                // Verifica se o erro é a violação de chave estrangeira que identificamos
+                if (error.message.includes('violates foreign key constraint') && error.message.includes('equipamentos')) {
+                     showToast('Não é possível excluir. Esta frente está em uso por um ou mais equipamentos.', 'error');
+                } else {
+                    // Para outros erros, mostra a mensagem padrão
+                    handleOperation(error, null);
+                }
+            } else {
+                // Se não houve erro, mostra sucesso
+                handleOperation(null, `${this.getTipoDisplayName().slice(0, -1)} excluído com sucesso!`);
                 await this.loadData();
             }
-        } catch (error) {
-            handleOperation(error, '');
+
+        } catch (err) {
+            handleOperation(err, '');
         } finally {
             hideLoading();
             closeModal();
