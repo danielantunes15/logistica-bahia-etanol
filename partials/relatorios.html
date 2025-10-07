@@ -1,25 +1,25 @@
 <div id="relatorios-view" class="view">
     <div class="report-header">
         <h1>Relatórios Gerenciais</h1>
-        <div class="report-filters">
-            <select id="report-period">
-                <option value="7">Últimos 7 dias</option>
-                <option value="30">Últimos 30 dias</option>
-                <option value="90">Últimos 90 dias</option>
-            </select>
-        </div>
     </div>
-
+    
     <div class="charts-grid">
         <div class="chart-container">
-            <h3>Horas Trabalhadas - Caminhões</h3>
+            <h3>Horas Trabalhadas (Caminhões e Equipamentos)</h3>
             <div class="chart-wrapper">
                 <canvas id="workHoursChart"></canvas>
             </div>
         </div>
 
         <div class="chart-container">
-            <h3>Produtividade por Frente</h3>
+            <h3>Horas de Inatividade (Parado / Quebrado)</h3>
+            <div class="chart-wrapper">
+                <canvas id="downtimeHoursChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <h3>Produtividade por Frente (MOCK)</h3>
             <div class="chart-wrapper">
                 <canvas id="productivityChart"></canvas>
             </div>
