@@ -13,6 +13,7 @@ export class EquipamentosView {
             parado: 'Parado',
             quebrado: 'Quebrado',
         };
+        this.frentesMap = new Map(); // Inicialização do mapa de frentes
     }
 
     async show() {
@@ -26,6 +27,8 @@ export class EquipamentosView {
         showLoading();
         try {
             this.data = await fetchAllData();
+            // Mapeia Frentes para fácil acesso no painel de parados
+            this.frentesMap = new Map(this.data.frentes_servico.map(f => [f.id, f.nome]));
             this.render();
         } catch (error) {
             handleOperation(error);
@@ -47,6 +50,8 @@ export class EquipamentosView {
                 </div>
 
                 ${this.renderDashboardSummary()}
+                
+                ${this.renderParadosPanel()} 
 
                 <div class="controle-grid" id="main-grid">
                     ${this.renderFrentes()}
@@ -62,8 +67,10 @@ export class EquipamentosView {
                             <thead>
                                 <tr>
                                     <th>Equipamento</th>
+                                    <th>Frente de Origem</th> <!- NOVA COLUNA ->
                                     <th>Status Anterior</th>
                                     <th>Status Novo</th>
+                                    <th>Motivo</th>
                                     <th>Início</th>
                                     <th>Fim</th>
                                     <th>Duração (Horas/Min)</th>
@@ -79,6 +86,87 @@ export class EquipamentosView {
         `;
         this.container = container.querySelector('#equipamentos-view');
     }
+
+    // --- PAINEL DE MAQUINÁRIO PARADO/QUEBRADO GERAL (COM BOTÃO DE AÇÃO) ---
+    renderParadosPanel() {
+        const { equipamentos = [], proprietarios = [] } = this.data;
+        
+        const proprietariosMap = new Map(proprietarios.map(p => [p.id, p]));
+        const parados = equipamentos.filter(e => e.status === 'parado' || e.status === 'quebrado');
+
+        const { equipamento_historico = [] } = this.data;
+        const latestDowntime = {};
+
+        // Lógica para encontrar o último motivo de parada *aberta*
+        for (const log of equipamento_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca))) {
+            const isDowntimeStart = log.status_novo !== 'ativo';
+            
+            if (parados.some(e => e.id === log.equipamento_id) && isDowntimeStart && !latestDowntime[log.equipamento_id]) {
+                const hasEndLog = equipamento_historico.some(
+                    h => h.equipamento_id === log.equipamento_id && 
+                         h.status_novo === 'ativo' && 
+                         new Date(h.timestamp_mudanca) > new Date(log.timestamp_mudanca)
+                );
+                
+                if (!hasEndLog) {
+                    latestDowntime[log.equipamento_id] = {
+                        motivo: log.motivo_parada || 'Não informado',
+                        // O nome da Frente precisa vir da última Frente conhecida do equipamento
+                        frenteNome: log.equipamentos?.frentes_servico?.nome || 'N/A' 
+                    };
+                }
+            }
+        }
+
+        const rows = parados.map(e => {
+            const proprietario = proprietariosMap.get(e.proprietario_id)?.nome || 'N/A';
+            const downtimeInfo = latestDowntime[e.id] || { motivo: 'Não informado' };
+            const statusLabel = this.statusLabels[e.status];
+
+            return `
+                <tr>
+                    <td><strong>${e.cod_equipamento}</strong></td>
+                    <td>${e.descricao}</td>
+                    <td>${e.finalidade}</td>
+                    <td>${proprietario}</td>
+                    <td><span class="caminhao-status-badge status-${e.status}">${statusLabel}</span></td>
+                    <td>${downtimeInfo.motivo}</td>
+                    <td>
+                        <button class="action-btn edit-btn-modern btn-parados-action" data-equipamento-id="${e.id}" data-frente-id="${e.frente_id || ''}" title="Finalizar Parada / Mudar Status">
+                            <i class="ph-fill ph-pencil-simple"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <div class="historico-container" style="margin-bottom: 32px;">
+                <div class="historico-header">
+                    <h2>Maquinário Parado / Quebrado (${parados.length})</h2>
+                </div>
+                <div class="table-wrapper">
+                    <table class="data-table-modern" id="parados-table">
+                        <thead>
+                            <tr>
+                                <th>Cód. Equipamento</th>
+                                <th>Descrição</th>
+                                <th>Tipo</th>
+                                <th>Proprietário</th>
+                                <th>Status</th>
+                                <th>Motivo da Parada</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.length > 0 ? rows : '<tr><td colspan="7">Nenhum equipamento parado ou quebrado.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    // --- FIM DO PAINEL PARADOS ---
 
     renderDashboardSummary() {
         const { equipamentos = [] } = this.data;
@@ -184,56 +272,32 @@ export class EquipamentosView {
     renderHistorico(equipamentoId = null, frenteId = null, date = null) {
         const { equipamento_historico = [] } = this.data;
         
-        let logs = equipamento_historico.filter(log => log.status_novo !== 'ativo');
-        
-        // Simples lógica de agrupamento para calcular a duração da inatividade
-        const downtimeSessions = [];
-        let currentSession = null;
+        // Ordena por horário mais recente
+        const logs = equipamento_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
 
-        for (const log of logs) {
-            const isDowntimeStart = log.status_novo !== 'ativo';
-            const isDowntimeEnd = log.status_novo === 'ativo';
+        return logs.map(log => {
+            // Obtém o nome da Frente a partir da relação no log
+            const frenteNome = log.equipamentos?.frentes_servico?.nome || 'N/A';
+            
+            const statusNovoBadge = `<span class="caminhao-status-badge status-${log.status_novo}">${this.statusLabels[log.status_novo] || log.status_novo || 'N/A'}</span>`;
+            const statusAntigoBadge = `<span class="caminhao-status-badge status-${log.status_anterior}">${this.statusLabels[log.status_anterior] || log.status_anterior || 'N/A'}</span>`;
 
-            if (isDowntimeStart) {
-                // Inicia uma nova sessão se não houver ou se for um equipamento diferente
-                if (!currentSession || currentSession.equipamento_id !== log.equipamento_id) {
-                    if (currentSession) downtimeSessions.push(currentSession); // Salva sessão anterior
-                    currentSession = {
-                        equipamento_id: log.equipamento_id,
-                        cod_equipamento: log.equipamentos?.cod_equipamento || 'N/A',
-                        finalidade: log.equipamentos?.finalidade || 'N/A',
-                        start_time: log.timestamp_mudanca,
-                        start_status: log.status_novo,
-                        end_time: null,
-                        end_status: null
-                    };
-                } else {
-                    // Atualiza o status inicial se a máquina já estava em inatividade (ex: de parado para quebrado)
-                    currentSession.start_status = log.status_novo;
-                }
-            } else if (isDowntimeEnd && currentSession && currentSession.equipamento_id === log.equipamento_id) {
-                // Finaliza a sessão atual
-                currentSession.end_time = log.timestamp_mudanca;
-                currentSession.end_status = log.status_novo;
-                downtimeSessions.push(currentSession);
-                currentSession = null;
-            }
-        }
-        if (currentSession) downtimeSessions.push(currentSession); // Salva a última sessão se ainda aberta
+            // Nota: O cálculo da duração precisa de um log de 'ativo' subsequente (como no método original)
+            // Por simplificação na exibição por linha do log:
+            const isFinished = log.status_novo === 'ativo' && log.status_anterior !== 'ativo';
+            const durationDisplay = isFinished ? 'Calculando...' : 'Em Aberto';
+            const endTimeDisplay = isFinished ? formatDateTime(log.timestamp_mudanca) : 'Em Aberto';
 
-        // Ordenar por início de inatividade
-        downtimeSessions.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
-        
-        return downtimeSessions.map(session => {
-            const duration = calculateDowntimeDuration(session.start_time, session.end_time);
             return `
                 <tr>
-                    <td>${session.cod_equipamento} (${session.finalidade})</td>
-                    <td><span class="caminhao-status-badge status-ativo">Ativo</span></td>
-                    <td><span class="caminhao-status-badge status-${session.start_status}">${this.statusLabels[session.start_status] || session.start_status}</span></td>
-                    <td>${formatDateTime(session.start_time)}</td>
-                    <td>${session.end_time ? formatDateTime(session.end_time) : '<span style="color: var(--accent-danger);">Em Aberto</span>'}</td>
-                    <td>${duration}</td>
+                    <td>${log.equipamentos?.cod_equipamento || 'N/A'} (${log.equipamentos?.finalidade || 'N/A'})</td>
+                    <td>${frenteNome}</td> 
+                    <td>${statusAntigoBadge}</td>
+                    <td>${statusNovoBadge}</td>
+                    <td>${log.motivo_parada || '---'}</td>
+                    <td>${formatDateTime(log.timestamp_mudanca)}</td>
+                    <td>${endTimeDisplay}</td>
+                    <td>${durationDisplay}</td>
                 </tr>
             `;
         }).join('');
@@ -244,23 +308,15 @@ export class EquipamentosView {
             const btnStatus = e.target.closest('.btn-status-modal');
             const btnRefresh = e.target.closest('#refresh-equipamentos');
             const btnAssign = e.target.closest('.btn-assign-modal');
+            const btnParadosAction = e.target.closest('.btn-parados-action'); // NOVO Listener
 
             if (btnStatus) this.showStatusUpdateModal(btnStatus.dataset.equipamentoId, btnStatus.dataset.frenteId);
             if (btnRefresh) this.loadData();
             if (btnAssign) this.showAssignmentModal(btnAssign.dataset.frenteId);
+            if (btnParadosAction) this.showParadosActionModal(btnParadosAction.dataset.equipamentoId, btnParadosAction.dataset.frenteId);
         });
 
-        // Event listener for finishing a stop (to be added to modal form)
-        this.container.addEventListener('submit', (e) => {
-            if (e.target.id === 'finalizar-parada-form') {
-                e.preventDefault();
-                const equipamentoId = e.target.equipamento_id.value;
-                const horaFim = e.target.hora_fim.value;
-                const frenteId = e.target.frente_id.value;
-                
-                this.handleStatusUpdate(equipamentoId, 'ativo', frenteId, new Date(horaFim).toISOString(), 'Parada Finalizada! Equipamento Ativo.');
-            }
-        });
+        // O listener de submit para finalizar-parada-form foi movido para showParadosActionModal
     }
 
     showAssignmentModal(frenteId) {
@@ -289,6 +345,7 @@ export class EquipamentosView {
             
             showLoading();
             try {
+                // Ao designar, o status é 'ativo' e a frente é associada
                 await updateEquipamentoStatus(equipamentoId, 'ativo', frenteId);
                 showToast('Equipamento designado com sucesso!', 'success');
                 closeModal();
@@ -301,6 +358,84 @@ export class EquipamentosView {
         });
     }
 
+    // --- NOVO: Modal para Ações no Painel de Parados (Finalizar / Mudar Status) ---
+    showParadosActionModal(equipamentoId, frenteId) {
+        const equipamento = this.data.equipamentos.find(e => e.id == equipamentoId);
+        if (!equipamento) return;
+
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        const nowString = now.toISOString().slice(0,16);
+        
+        // Filtra frentes que possuem fazenda para designação
+        const frentesComFazenda = this.data.frentes_servico.filter(f => f.fazenda_id);
+
+        const modalContent = `
+            <p>Equipamento: <strong>${equipamento.cod_equipamento} (${equipamento.finalidade})</strong></p>
+            <form id="finalizar-parada-form" class="action-modal-form">
+                <input type="hidden" name="equipamento_id" value="${equipamento.id}">
+                <div class="form-group">
+                    <label>Designar a Frente (Obrigatório para Ativar)</label>
+                    <select name="frente_id" class="form-select" required>
+                        <option value="">Selecione a Frente de Serviço</option>
+                        ${frentesComFazenda.map(f => `<option value="${f.id}" ${f.id === frenteId ? 'selected' : ''}>${f.nome}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Hora de Finalização da Parada</label>
+                    <input type="datetime-local" name="hora_fim" class="form-input" value="${nowString}" required>
+                </div>
+                <button type="submit" class="btn-primary">Finalizar Parada (Tornar Ativo)</button>
+            </form>
+            
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+            
+            <form id="mudar-status-form-parados" class="action-modal-form">
+                <p>Mudar Status de Inatividade:</p>
+                <div class="form-group">
+                    <label>Mudar para</label>
+                    <select name="status_mudanca" class="form-select" required>
+                        <option value="parado" ${equipamento.status === 'parado' ? 'selected' : ''}>Parado</option>
+                        <option value="quebrado" ${equipamento.status === 'quebrado' ? 'selected' : ''}>Quebrado</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Detalhes da Mudança (Obrigatório)</label>
+                    <input type="text" name="motivo_mudanca" class="form-input" required placeholder="Ex: De 'Parado' para 'Quebrado' por falha no motor">
+                </div>
+                <button type="submit" class="btn-secondary">Mudar Status</button>
+            </form>
+        `;
+        openModal('Finalizar/Mudar Status de Parada', modalContent);
+
+        // Listener para Finalizar Parada
+        document.getElementById('finalizar-parada-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const horaFim = form.hora_fim.value;
+            const novaFrenteId = form.frente_id.value;
+            
+            if (!novaFrenteId) {
+                showToast('É obrigatório selecionar uma Frente de Serviço para ativar o equipamento.', 'error');
+                return;
+            }
+            
+            // O handleStatusUpdate cuida de passar a nova frente_id para o updateEquipamentoStatus
+            this.handleStatusUpdate(equipamento.id, 'ativo', novaFrenteId, new Date(horaFim).toISOString(), 'Parada Finalizada! Equipamento Ativo.');
+        });
+        
+        // Listener para Mudar Status Inativo
+        document.getElementById('mudar-status-form-parados').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const novoStatus = e.target.status_mudanca.value;
+            const motivo = e.target.motivo_mudanca.value;
+            
+            // Note: Manter a frente_id existente, pois a máquina continua inativa
+            this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, new Date().toISOString(), `Status alterado para ${this.statusLabels[novoStatus]}!`, motivo);
+        });
+    }
+
+
     showStatusUpdateModal(equipamentoId, frenteId) {
         const equipamento = this.data.equipamentos.find(e => e.id == equipamentoId);
         if (!equipamento) return;
@@ -312,17 +447,21 @@ export class EquipamentosView {
         let modalContent;
 
         if (equipamento.status === 'ativo') {
-            // Se estiver ativo, só pode parar (parado ou quebrado)
+            // Se estiver ativo, só pode ir para parado/quebrado
             modalContent = `
                 <p>Equipamento: <strong>${equipamento.cod_equipamento} (${equipamento.finalidade})</strong></p>
                 <form id="parada-equipamento-form" class="action-modal-form">
                     <div class="form-group">
                         <label>Motivo da Parada</label>
-                        <select name="status" class="form-select" required>
+                        <select name="status" id="parada-status" class="form-select" required>
                             <option value="">Selecione...</option>
                             <option value="parado">Parado (Manutenção, Espera)</option>
                             <option value="quebrado">Quebrado</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Descrição/Detalhes do Motivo</label>
+                        <input type="text" name="motivo" class="form-input" required placeholder="Ex: Manutenção preventiva, Esperando pneu, etc.">
                     </div>
                     <div class="form-group">
                         <label>Hora de Início da Parada</label>
@@ -337,55 +476,24 @@ export class EquipamentosView {
                 e.preventDefault();
                 const novoStatus = e.target.status.value;
                 const horaInicio = e.target.hora_inicio.value;
+                const motivo = e.target.motivo.value;
                 
-                this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, new Date(horaInicio).toISOString(), 'Parada registrada com sucesso!');
+                this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, new Date(horaInicio).toISOString(), 'Parada registrada com sucesso!', motivo);
             });
 
-        } else if (equipamento.status === 'parado' || equipamento.status === 'quebrado') {
-            // Se estiver parado ou quebrado, pode ser finalizado (tornar ativo) ou mudar o status entre parado/quebrado.
-            modalContent = `
-                <p>Equipamento: <strong>${equipamento.cod_equipamento} (${equipamento.finalidade})</strong></p>
-                <form id="finalizar-parada-form" class="action-modal-form">
-                    <input type="hidden" name="equipamento_id" value="${equipamento.id}">
-                    <input type="hidden" name="frente_id" value="${frenteId}">
-                    <div class="form-group">
-                        <label>Hora de Finalização da Parada</label>
-                        <input type="datetime-local" name="hora_fim" class="form-input" value="${nowString}" required>
-                    </div>
-                    <button type="submit" class="btn-primary">Finalizar Parada (Tornar Ativo)</button>
-                </form>
-                
-                <hr style="margin: 20px 0; border-color: var(--border-color);">
-                
-                <form id="mudar-status-form" class="action-modal-form">
-                    <p>Mudar Status de Inatividade:</p>
-                    <div class="form-group">
-                        <label>Mudar para</label>
-                        <select name="status_mudanca" class="form-select" required>
-                            <option value="parado" ${equipamento.status === 'parado' ? 'selected' : ''}>Parado</option>
-                            <option value="quebrado" ${equipamento.status === 'quebrado' ? 'selected' : ''}>Quebrado</option>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn-secondary">Mudar Status</button>
-                </form>
-            `;
-            openModal('Finalizar/Mudar Status', modalContent);
-
-            document.getElementById('mudar-status-form').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const novoStatus = e.target.status_mudanca.value;
-                this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, new Date().toISOString(), `Status alterado para ${this.statusLabels[novoStatus]}!`);
-            });
-            // O form de finalizar parada é capturado pelo event listener do container (linha 308)
+        } else {
+             // Se estiver parado ou quebrado, redireciona para o modal completo (showParadosActionModal)
+             this.showParadosActionModal(equipamentoId, frenteId);
         }
     }
     
-    async handleStatusUpdate(equipamentoId, novoStatus, frenteId, timestamp, successMessage) {
+    async handleStatusUpdate(equipamentoId, novoStatus, frenteId, timestamp, successMessage, motivoParada = null) {
         showLoading();
         try {
-            // Se o novo status for ativo, precisamos manter a frente_id, senão desassociamos (null)
-            const newFrenteId = novoStatus === 'ativo' ? frenteId : null;
-            await updateEquipamentoStatus(equipamentoId, novoStatus, newFrenteId, timestamp);
+            // Se o novo status for ativo, a Frente_id deve ser a frente de destino (frontId), senão é nulo (newFrenteId)
+            const newFrenteId = novoStatus === 'ativo' ? frenteId : null; 
+            
+            await updateEquipamentoStatus(equipamentoId, novoStatus, newFrenteId, timestamp, motivoParada);
             showToast(successMessage, 'success');
             closeModal();
             await this.loadData();

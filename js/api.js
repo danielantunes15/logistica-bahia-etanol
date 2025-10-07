@@ -45,7 +45,6 @@ export async function updateCaminhao(id, data) {
 
 export async function fetchAllData() {
     try {
-        // --- CORREÇÃO APLICADA: Usando o nome da coluna FK 'equipamento_id' para o join ---
         const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico] = await Promise.all([
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
             fetchTable('caminhoes', '*, proprietarios(id, nome)'),
@@ -55,10 +54,11 @@ export async function fetchAllData() {
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
             fetchTable('caminhao_historico', '*, caminhoes(cod_equipamento)'),
-            fetchTable('equipamento_historico', '*, equipamento_id(cod_equipamento, finalidade)') // CORRIGIDO: Usa o nome da coluna FK
+            // MODIFICADO: Inclui nome da frente para o histórico
+            fetchTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada') 
         ]);
         
-        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico }; // NOVO
+        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico }; 
     } catch (error) {
         console.error('Erro ao buscar todos os dados:', error);
         throw error;
@@ -138,7 +138,7 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
 }
 
 // --- FUNÇÃO: Atualiza status do Equipamento e registra histórico ---
-export async function updateEquipamentoStatus(equipamentoId, novoStatus, frenteId = null, timestamp = new Date().toISOString()) {
+export async function updateEquipamentoStatus(equipamentoId, novoStatus, frenteId = null, timestamp = new Date().toISOString(), motivoParada = null) {
     const { data: equipamentoAtual, error: fetchError } = await supabase
         .from('equipamentos')
         .select('status')
@@ -149,19 +149,23 @@ export async function updateEquipamentoStatus(equipamentoId, novoStatus, frenteI
     const statusAnterior = equipamentoAtual.status;
 
     // 1. Cria o registro no histórico
+    const logData = {
+        equipamento_id: equipamentoId,
+        status_anterior: statusAnterior,
+        status_novo: novoStatus,
+        timestamp_mudanca: timestamp,
+        motivo_parada: motivoParada // Envia o motivo para o banco
+    };
+    
     const { error: historyError } = await supabase
         .from('equipamento_historico')
-        .insert({
-            equipamento_id: equipamentoId,
-            status_anterior: statusAnterior,
-            status_novo: novoStatus,
-            timestamp_mudanca: timestamp
-        });
+        .insert(logData);
     
     if (historyError) throw historyError;
 
     // 2. Atualiza o status do equipamento e, se estiver ativo, associa à frente
     const updateData = { status: novoStatus, frente_id: null };
+    // Se o status for ativo, usa a frente de destino
     if (novoStatus === 'ativo' && frenteId) {
         updateData.frente_id = frenteId;
     }

@@ -200,9 +200,14 @@ export class CadastrosView {
         return `<form id="${isEdit ? 'form-edit-' + this.tipo : 'form-' + this.tipo}" class="form-modern">${inputsHTML}<button type="submit" class="form-submit"><i class="ph-fill ph-floppy-disk"></i> ${submitText}</button></form>`;
     }
 
+    // --- CORREÇÃO APLICADA AQUI ---
     formatOption(option) {
+        if (!option || typeof option !== 'string') {
+            return 'N/A';
+        }
         return option.charAt(0).toUpperCase() + option.slice(1).replace('_', ' ');
     }
+    // -----------------------------
 
     renderTable() {
         const tableContainer = document.getElementById('table-container');
