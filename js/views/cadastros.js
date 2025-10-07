@@ -267,10 +267,14 @@ export class CadastrosView {
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
 
-        if (this.tipo === 'caminhoes' || this.tipo === 'equipamentos') {
+        // --- CORREÇÃO APLICADA AQUI: Separar o tratamento de motoristas e operadores ---
+        if (this.tipo === 'caminhoes') {
             data.motoristas = formData.getAll('motoristas');
+        }
+        if (this.tipo === 'equipamentos') {
             data.operadores = formData.getAll('operadores');
         }
+        // -------------------------------------------------------------------------------
         
         showLoading();
         try {
@@ -310,10 +314,14 @@ export class CadastrosView {
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
     
-        if (this.tipo === 'caminhoes' || this.tipo === 'equipamentos') {
+        // --- CORREÇÃO APLICADA AQUI: Separar o tratamento de motoristas e operadores ---
+        if (this.tipo === 'caminhoes') {
             data.motoristas = formData.getAll('motoristas');
+        }
+        if (this.tipo === 'equipamentos') {
             data.operadores = formData.getAll('operadores');
         }
+        // -------------------------------------------------------------------------------
     
         showLoading();
         const { error } = await updateItem(this.tipo, id, data);
