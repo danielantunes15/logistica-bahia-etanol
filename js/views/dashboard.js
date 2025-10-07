@@ -46,6 +46,115 @@ export class DashboardView {
 
                 <div class="map-fullscreen">
                     <div id="dashboard-map"></div>
+                    
+                    <!-- Painel Moderno Centralizado -->
+                    <div class="modern-dashboard-panel">
+                        <div class="panel-header">
+                            <h3>Status das Operações</h3>
+                            <div class="last-update" id="last-update">
+                                Atualizado agora
+                            </div>
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <!-- Caminhões -->
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="ph-fill ph-truck"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-main">
+                                        <span class="stat-value" id="caminhoes-ativos">0</span>
+                                        <span class="stat-label">Ativos</span>
+                                    </div>
+                                    <div class="stat-secondary">
+                                        <span class="stat-badge danger" id="caminhoes-parados">0</span>
+                                        <span class="stat-label">Parados</span>
+                                    </div>
+                                </div>
+                                <div class="stat-total">
+                                    Total: <span id="caminhoes-total">0</span>
+                                </div>
+                            </div>
+
+                            <!-- Frentes -->
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="ph-fill ph-users-three"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-main">
+                                        <span class="stat-value" id="frentes-ativas">0</span>
+                                        <span class="stat-label">Ativas</span>
+                                    </div>
+                                    <div class="stat-secondary">
+                                        <span class="stat-badge danger" id="frentes-inativas">0</span>
+                                        <span class="stat-label">Inativas</span>
+                                    </div>
+                                </div>
+                                <div class="stat-total">
+                                    Total: <span id="frentes-total">0</span>
+                                </div>
+                            </div>
+
+                            <!-- Equipamentos -->
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="ph-fill ph-tractor"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-main">
+                                        <span class="stat-value" id="equipamentos-ativos">0</span>
+                                        <span class="stat-label">Ativos</span>
+                                    </div>
+                                    <div class="stat-secondary">
+                                        <span class="stat-badge danger" id="equipamentos-parados">0</span>
+                                        <span class="stat-label">Parados</span>
+                                    </div>
+                                </div>
+                                <div class="stat-total">
+                                    Total: <span id="equipamentos-total">0</span>
+                                </div>
+                            </div>
+
+                            <!-- Fazendas -->
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="ph-fill ph-tree-evergreen"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <div class="stat-main">
+                                        <span class="stat-value" id="fazendas-colhendo">0</span>
+                                        <span class="stat-label">Colhendo</span>
+                                    </div>
+                                    <div class="stat-secondary">
+                                        <span class="stat-badge" id="fazendas-disponiveis">0</span>
+                                        <span class="stat-label">Disponíveis</span>
+                                    </div>
+                                </div>
+                                <div class="stat-total">
+                                    Total: <span id="fazendas-total">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-footer">
+                            <div class="efficiency-metric">
+                                <div class="metric-label">Eficiência Geral</div>
+                                <div class="metric-value">
+                                    <span id="eficiencia-geral">0%</span>
+                                    <div class="metric-bar">
+                                        <div class="metric-fill" id="eficiencia-bar"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="active-now">
+                                <i class="ph-fill ph-pulse"></i>
+                                <span id="operacoes-ativas">0</span> operações ativas
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="map-overlay">
                         <div class="operations-panel">
                             <h3>Operações Ativas</h3>
@@ -86,12 +195,10 @@ export class DashboardView {
     }
 
     async initializeMap() {
-        // Aguardar um pouco para o container ser renderizado
         setTimeout(() => {
             const map = mapManager.initDashboardMap();
             if (map) {
                 console.log('Mapa principal inicializado com sucesso');
-                // Ajustar o mapa para ocupar toda a área
                 mapManager.invalidateSize('dashboard-map');
             }
         }, 100);
@@ -100,22 +207,139 @@ export class DashboardView {
     async loadData() {
         try {
             this.data = await fetchAllData();
+            this.updateDashboardStats();
             this.updateMap();
             this.updateActiveOperations();
+            this.updateLastUpdateTime();
         } catch (error) {
             console.error('Erro ao carregar dados do dashboard:', error);
             showToast('Erro ao carregar dados do dashboard', 'error');
         }
     }
 
+    updateDashboardStats() {
+        const { caminhoes, frentes, equipamentos, fazendas } = this.data;
+
+        // Estatísticas de Caminhões
+        const totalCaminhoes = caminhoes ? caminhoes.length : 0;
+        const caminhoesAtivos = caminhoes ? caminhoes.filter(c => 
+            c.status === 'ativo' || c.status === 'em_viagem'
+        ).length : 0;
+        const caminhoesParados = totalCaminhoes - caminhoesAtivos;
+
+        // Estatísticas de Frentes
+        const totalFrentes = frentes ? frentes.length : 0;
+        const frentesAtivas = frentes ? frentes.filter(f => f.status === 'ativa').length : 0;
+        const frentesInativas = totalFrentes - frentesAtivas;
+
+        // Estatísticas de Equipamentos
+        const totalEquipamentos = equipamentos ? equipamentos.length : 0;
+        const equipamentosAtivos = equipamentos ? equipamentos.filter(e => 
+            e.status === 'ativo' || e.status === 'em_viagem'
+        ).length : 0;
+        const equipamentosParados = totalEquipamentos - equipamentosAtivos;
+
+        // Estatísticas de Fazendas
+        const totalFazendas = fazendas ? fazendas.length : 0;
+        const fazendasColhendo = fazendas ? fazendas.filter(f => f.status === 'colhendo').length : 0;
+        const fazendasDisponiveis = fazendas ? fazendas.filter(f => f.status === 'disponível').length : 0;
+
+        // Atualizar elementos
+        this.updateStatElement('caminhoes-ativos', caminhoesAtivos);
+        this.updateStatElement('caminhoes-parados', caminhoesParados);
+        this.updateStatElement('caminhoes-total', totalCaminhoes);
+
+        this.updateStatElement('frentes-ativas', frentesAtivas);
+        this.updateStatElement('frentes-inativas', frentesInativas);
+        this.updateStatElement('frentes-total', totalFrentes);
+
+        this.updateStatElement('equipamentos-ativos', equipamentosAtivos);
+        this.updateStatElement('equipamentos-parados', equipamentosParados);
+        this.updateStatElement('equipamentos-total', totalEquipamentos);
+
+        this.updateStatElement('fazendas-colhendo', fazendasColhendo);
+        this.updateStatElement('fazendas-disponiveis', fazendasDisponiveis);
+        this.updateStatElement('fazendas-total', totalFazendas);
+
+        // Calcular eficiência geral
+        const totalAtivos = caminhoesAtivos + equipamentosAtivos;
+        const totalRecursos = totalCaminhoes + totalEquipamentos;
+        const eficiencia = totalRecursos > 0 ? Math.round((totalAtivos / totalRecursos) * 100) : 0;
+        
+        this.updateStatElement('eficiencia-geral', `${eficiencia}%`);
+        this.updateEfficiencyBar(eficiencia);
+
+        // Operações ativas
+        const operacoesAtivas = caminhoesAtivos + equipamentosAtivos + fazendasColhendo;
+        this.updateStatElement('operacoes-ativas', operacoesAtivas);
+    }
+
+    updateStatElement(elementId, value) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            // Animação de contagem se for número
+            if (typeof value === 'number') {
+                this.animateCount(element, parseInt(element.textContent) || 0, value);
+            } else {
+                element.textContent = value;
+            }
+        }
+    }
+
+    animateCount(element, start, end) {
+        const duration = 1000; // 1 segundo
+        const startTime = performance.now();
+        
+        function update(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Easing function para animação suave
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            const currentValue = Math.floor(start + (end - start) * easeOut);
+            
+            element.textContent = currentValue;
+            
+            if (progress < 1) {
+                requestAnimationFrame(update);
+            } else {
+                element.textContent = end;
+            }
+        }
+        
+        requestAnimationFrame(update);
+    }
+
+    updateEfficiencyBar(percentage) {
+        const bar = document.getElementById('eficiencia-bar');
+        if (bar) {
+            bar.style.width = `${percentage}%`;
+            
+            // Cor baseada na eficiência
+            if (percentage >= 80) {
+                bar.style.background = 'linear-gradient(90deg, #38A169, #2F855A)';
+            } else if (percentage >= 60) {
+                bar.style.background = 'linear-gradient(90deg, #D69E2E, #B7791F)';
+            } else {
+                bar.style.background = 'linear-gradient(90deg, #E53E3E, #C53030)';
+            }
+        }
+    }
+
+    updateLastUpdateTime() {
+        const element = document.getElementById('last-update');
+        if (element) {
+            const now = new Date();
+            element.textContent = `Atualizado ${now.toLocaleTimeString('pt-BR')}`;
+        }
+    }
+
     updateMap() {
         const { fazendas } = this.data;
         if (fazendas && fazendas.length > 0) {
-            // Mostrar apenas fazendas que estão colhendo
             const fazendasColhendo = fazendas.filter(f => f.status === 'colhendo');
             mapManager.updateFazendaMarkers(fazendasColhendo);
             
-            // Ajustar view do mapa para mostrar todas as fazendas ativas
             if (fazendasColhendo.length > 0) {
                 const bounds = this.calculateBounds(fazendasColhendo);
                 const map = mapManager.maps.get('dashboard-map');
@@ -269,7 +493,6 @@ export class DashboardView {
 
         mapManager.updateFazendaMarkers(fazendasParaMostrar);
         
-        // Ajustar view do mapa
         if (fazendasParaMostrar.length > 0) {
             const bounds = this.calculateBounds(fazendasParaMostrar);
             const map = mapManager.maps.get('dashboard-map');
@@ -287,7 +510,6 @@ export class DashboardView {
     }
 
     addEventListeners() {
-        // Botão de atualizar
         const refreshBtn = document.getElementById('refresh-operations');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
@@ -296,7 +518,6 @@ export class DashboardView {
             });
         }
 
-        // Botão de gerenciar fazendas
         const toggleFazendasBtn = document.getElementById('toggle-fazendas');
         if (toggleFazendasBtn) {
             toggleFazendasBtn.addEventListener('click', () => {
@@ -304,7 +525,6 @@ export class DashboardView {
             });
         }
 
-        // Modal de fazendas
         const closeModalBtn = document.getElementById('close-fazendas-modal');
         if (closeModalBtn) {
             closeModalBtn.addEventListener('click', () => {
@@ -326,7 +546,6 @@ export class DashboardView {
             });
         }
 
-        // Fechar modal clicando fora
         const fazendasModal = document.getElementById('fazendas-modal');
         if (fazendasModal) {
             fazendasModal.addEventListener('click', (e) => {

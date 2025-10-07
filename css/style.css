@@ -1015,3 +1015,311 @@ input, select {
         flex-direction: column;
     }
 }
+
+/* Painel Moderno do Dashboard */
+.modern-dashboard-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(26, 32, 44, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(74, 85, 104, 0.3);
+    border-radius: 20px;
+    padding: 24px;
+    width: 90%;
+    max-width: 1000px;
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+    z-index: 1000;
+    animation: slideInUp 0.6s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -40%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(74, 85, 104, 0.3);
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #38A169, #2B6CB0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.last-update {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background: rgba(74, 85, 104, 0.3);
+    padding: 4px 12px;
+    border-radius: 12px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, rgba(45, 55, 72, 0.8), rgba(26, 32, 44, 0.9));
+    border: 1px solid rgba(74, 85, 104, 0.3);
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #38A169, #2B6CB0);
+    opacity: 0.7;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(56, 161, 105, 0.5);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #38A169, #2F855A);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stat-icon i {
+    font-size: 24px;
+    color: white;
+}
+
+.stat-content {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stat-main,
+.stat-secondary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.stat-badge {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #E53E3E;
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.stat-badge.danger {
+    color: #E53E3E;
+}
+
+.stat-total {
+    position: absolute;
+    bottom: 12px;
+    right: 16px;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.stat-total span {
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+.panel-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 16px;
+    border-top: 1px solid rgba(74, 85, 104, 0.3);
+}
+
+.efficiency-metric {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.metric-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.metric-value span {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    min-width: 40px;
+}
+
+.metric-bar {
+    width: 100px;
+    height: 6px;
+    background: rgba(74, 85, 104, 0.5);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.metric-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: all 1s ease;
+    background: linear-gradient(90deg, #38A169, #2F855A);
+}
+
+.active-now {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    background: rgba(56, 161, 105, 0.1);
+    padding: 6px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(56, 161, 105, 0.3);
+}
+
+.active-now i {
+    color: var(--accent-primary);
+}
+
+.active-now span {
+    color: var(--text-primary);
+    font-weight: 800;
+}
+
+/* Responsivo para o painel moderno */
+@media (max-width: 1024px) {
+    .modern-dashboard-panel {
+        width: 95%;
+        padding: 20px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .modern-dashboard-panel {
+        position: relative;
+        top: auto;
+        left: auto;
+        transform: none;
+        width: 100%;
+        margin: 20px 0;
+        border-radius: 0;
+        animation: none;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .panel-footer {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    
+    .stat-content {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    
+    .stat-main,
+    .stat-secondary {
+        flex-direction: row;
+        gap: 8px;
+        align-items: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .modern-dashboard-panel {
+        padding: 16px;
+    }
+    
+    .panel-header {
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+    
+    .stat-card {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+    }
+    
+    .stat-content {
+        flex-direction: column;
+        width: 100%;
+    }
+}
