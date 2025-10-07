@@ -315,3 +315,64 @@
         padding: 12px 8px;
     }
 }
+/* Adicionar ao cadastros.css */
+
+/* Select Múltiplo Estilizado */
+.form-select[multiple] {
+    height: 120px;
+    resize: vertical;
+}
+
+.form-select[multiple] option {
+    padding: 8px 12px;
+    margin: 2px 0;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.form-select[multiple] option:hover {
+    background-color: rgba(56, 161, 105, 0.1);
+}
+
+.form-select[multiple] option:checked {
+    background-color: var(--accent-primary);
+    color: white;
+}
+
+/* Campos de Telefone e CPF/CNPJ */
+.form-input[type="tel"] {
+    font-family: monospace;
+}
+
+/* Indicador de Select Múltiplo */
+.select-multiple-hint {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.select-multiple-hint i {
+    font-size: 0.7rem;
+}
+
+/* Estados dos formulários */
+.form-group:focus-within label {
+    color: var(--accent-primary);
+}
+
+/* Loading states */
+.form-submit:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* Mensagens de ajuda nos formulários */
+.form-help {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}

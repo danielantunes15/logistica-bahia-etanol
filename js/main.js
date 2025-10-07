@@ -11,7 +11,7 @@ class App {
 
     async init() {
         try {
-            console.log('Iniciando aplicação...');
+            console.log('🚀 Iniciando aplicação...');
             
             // Carregar componentes básicos
             await loadSidebar();
@@ -20,9 +20,10 @@ class App {
             // Inicializar views
             await initializeViews();
             
-            console.log('Aplicação inicializada com sucesso!');
+            console.log('✅ Aplicação inicializada com sucesso!');
+            
         } catch (error) {
-            console.error('Erro ao inicializar aplicação:', error);
+            console.error('❌ Erro ao inicializar aplicação:', error);
         }
     }
 }

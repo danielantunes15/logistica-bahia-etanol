@@ -1,3 +1,4 @@
+// js/components/modal.js
 export async function loadModal() {
     const modalContainer = document.getElementById('modal-container');
     if (!modalContainer) return;

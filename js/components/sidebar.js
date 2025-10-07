@@ -1,3 +1,4 @@
+// js/components/sidebar.js
 export async function loadSidebar() {
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
@@ -71,6 +72,8 @@ function addSidebarEventListeners() {
             if (e.target.closest('.nav-button-group')) return;
             
             const view = button.dataset.view;
+            console.log('Clicou no botão:', view);
+            
             if (view) {
                 switchView(view);
             }
@@ -89,13 +92,18 @@ function addSidebarEventListeners() {
 }
 
 function switchView(viewName) {
+    console.log('Tentando mudar para view:', viewName);
+    
     // Remover classe active de todos os botões
     document.querySelectorAll('.nav-button').forEach(btn => {
         btn.classList.remove('active');
     });
 
     // Adicionar classe active ao botão clicado
-    document.querySelector(`[data-view="${viewName}"]`).classList.add('active');
+    const clickedButton = document.querySelector(`[data-view="${viewName}"]`);
+    if (clickedButton) {
+        clickedButton.classList.add('active');
+    }
 
     // Disparar evento de mudança de view
     window.dispatchEvent(new CustomEvent('viewChanged', { 
