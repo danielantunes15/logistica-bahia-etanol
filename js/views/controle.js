@@ -7,21 +7,23 @@ export class ControleView {
     constructor() {
         this.container = null;
         this.data = {};
-        this.statusOrder = [
-            'disponivel', 
+        // Lista de status para o ciclo principal de operação
+        this.statusCiclo = [
             'indo_carregar', 
             'carregando', 
             'retornando', 
             'patio', 
             'descarregando'
         ];
+        // Todos os status possíveis com suas legendas
         this.statusLabels = {
             disponivel: 'Disponível',
-            indo_carregar: 'Indo Carregar',
+            indo_carregar: 'Sentido Carreg.',
             carregando: 'Carregando',
-            retornando: 'Retornando p/ Usina',
+            retornando: 'Sentido Usina',
             patio: 'Pátio Externo',
-            descarregando: 'Descarregando'
+            descarregando: 'Descarregando',
+            quebrado: 'Quebrado' // Novo status
         };
     }
 
@@ -31,12 +33,9 @@ export class ControleView {
         this.addEventListeners();
     }
 
-    async hide() {
-        // Limpar recursos
-    }
+    async hide() {}
 
     async loadHTML() {
-        // O HTML base será renderizado dinamicamente, mantendo esta função simples
         const container = document.getElementById('views-container');
         container.innerHTML = `<div id="controle-view" class="view controle-view active-view"></div>`;
         this.container = container.querySelector('#controle-view');
@@ -46,7 +45,7 @@ export class ControleView {
         showLoading();
         try {
             this.data = await fetchAllData();
-            this.render(); // Chama uma função de renderização principal
+            this.render();
         } catch (error) {
             handleOperation(error);
         } finally {
@@ -54,7 +53,6 @@ export class ControleView {
         }
     }
     
-    // Função principal que renderiza toda a view
     render() {
         this.container.innerHTML = `
             <div class="controle-header">
@@ -64,6 +62,8 @@ export class ControleView {
                     Atualizar
                 </button>
             </div>
+
+            ${this.renderDashboardSummary()}
 
             <div class="controle-grid" id="frentes-grid">
                 ${this.renderFrentes()}
@@ -92,13 +92,41 @@ export class ControleView {
         `;
     }
 
+    renderDashboardSummary() {
+        const { caminhoes = [] } = this.data;
+        const statusCounts = {};
+
+        // Inicializa a contagem para todos os status de ciclo e 'quebrado'
+        [...this.statusCiclo, 'quebrado'].forEach(status => {
+            statusCounts[status] = 0;
+        });
+
+        // Conta os caminhões em cada status
+        caminhoes.forEach(caminhao => {
+            if (statusCounts.hasOwnProperty(caminhao.status)) {
+                statusCounts[caminhao.status]++;
+            }
+        });
+
+        return `
+            <div class="controle-dashboard-summary">
+                ${Object.entries(statusCounts).map(([status, count]) => `
+                    <div class="summary-card summary-${status}">
+                        <div class="summary-card-value">${count}</div>
+                        <div class="summary-card-label">${this.statusLabels[status]}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
     renderFrentes() {
         const { frentes_servico = [], caminhoes = [] } = this.data;
 
         return frentes_servico.map(frente => {
             const caminhoesDisponiveis = caminhoes.filter(c => c.status === 'disponivel');
-            const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel');
-            const fazendaAtual = frente.fazendas; // A API agora aninha a fazenda aqui
+            const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel' && c.status !== 'quebrado');
+            const fazendaAtual = frente.fazendas;
 
             return `
                 <div class="frente-card">
@@ -146,9 +174,9 @@ export class ControleView {
     
     renderCaminhaoEmOperacao(caminhao) {
         const currentStatus = caminhao.status || 'disponivel';
-        const currentIndex = this.statusOrder.indexOf(currentStatus);
-        const nextStatus = this.statusOrder[currentIndex + 1];
-        const prevStatus = currentIndex > 1 ? this.statusOrder[currentIndex - 1] : null;
+        const currentIndex = this.statusCiclo.indexOf(currentStatus);
+        const nextStatus = (currentIndex > -1 && currentIndex < this.statusCiclo.length - 1) ? this.statusCiclo[currentIndex + 1] : null;
+        const prevStatus = (currentIndex > 0) ? this.statusCiclo[currentIndex - 1] : null;
 
         return `
             <div class="caminhao-operacao-item">
@@ -160,6 +188,7 @@ export class ControleView {
                     ${prevStatus ? `<button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-frente-id="${caminhao.frente_id}" data-novo-status="${prevStatus}">&lt; Voltar</button>` : `<div></div>`}
                     ${nextStatus ? `<button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-frente-id="${caminhao.frente_id}" data-novo-status="${nextStatus}">Avançar &gt;</button>` : `<div></div>`}
                     <button class="btn-status-change full-width" data-caminhao-id="${caminhao.id}" data-novo-status="disponivel">Finalizar Ciclo</button>
+                    <button class="btn-status-change full-width btn-danger" data-caminhao-id="${caminhao.id}" data-novo-status="quebrado">Registrar Quebra</button>
                 </div>
             </div>
         `;
@@ -167,7 +196,6 @@ export class ControleView {
 
     renderHistorico() {
         const { caminhao_historico = [] } = this.data;
-        // Limita o histórico aos últimos 15 registros para não sobrecarregar a tela
         return caminhao_historico.slice(0, 15).map(log => `
             <tr>
                 <td>${new Date(log.timestamp_mudanca).toLocaleString('pt-BR')}</td>
@@ -180,30 +208,29 @@ export class ControleView {
 
     addEventListeners() {
         this.container.addEventListener('click', async (e) => {
-            const enviarBtn = e.target.closest('.btn-enviar');
-            const statusChangeBtn = e.target.closest('.btn-status-change');
-            const alterarFazendaBtn = e.target.closest('.btn-alterar-fazenda');
-            const refreshBtn = e.target.closest('#refresh-controle');
+            const btn = e.target.closest('button');
+            if (!btn) return;
 
-            if (refreshBtn) {
+            if (btn.id === 'refresh-controle') {
                 this.loadData();
             }
             
-            if (enviarBtn) {
-                const caminhaoId = enviarBtn.dataset.caminhaoId;
-                const frenteId = enviarBtn.dataset.frenteId;
+            if (btn.classList.contains('btn-enviar')) {
+                const caminhaoId = btn.dataset.caminhaoId;
+                const frenteId = btn.dataset.frenteId;
                 this.handleStatusUpdate(caminhaoId, 'indo_carregar', frenteId, 'Caminhão enviado com sucesso!');
             }
 
-            if (statusChangeBtn) {
-                const caminhaoId = statusChangeBtn.dataset.caminhaoId;
-                const novoStatus = statusChangeBtn.dataset.novoStatus;
-                const frenteId = novoStatus === 'disponivel' ? null : statusChangeBtn.dataset.frenteId;
+            if (btn.classList.contains('btn-status-change')) {
+                const caminhaoId = btn.dataset.caminhaoId;
+                const novoStatus = btn.dataset.novoStatus;
+                // Se finalizar ciclo, quebrar ou voltar a ser disponível, a frente é desassociada
+                const frenteId = (novoStatus === 'disponivel' || novoStatus === 'quebrado') ? null : btn.dataset.frenteId;
                 this.handleStatusUpdate(caminhaoId, novoStatus, frenteId, 'Status atualizado!');
             }
             
-            if (alterarFazendaBtn) {
-                const frenteId = alterarFazendaBtn.dataset.frenteId;
+            if (btn.classList.contains('btn-alterar-fazenda')) {
+                const frenteId = btn.dataset.frenteId;
                 this.showFazendaSelector(frenteId);
             }
         });

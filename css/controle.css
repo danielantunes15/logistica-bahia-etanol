@@ -17,6 +17,48 @@
     color: var(--text-primary);
 }
 
+/* --- NOVOS ESTILOS PARA O DASHBOARD DE RESUMO --- */
+.controle-dashboard-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.summary-card {
+    background-color: var(--bg-light);
+    border-radius: 12px;
+    padding: 20px;
+    border-bottom: 4px solid; /* Cor definida por status */
+    transition: transform 0.2s ease;
+}
+
+.summary-card:hover {
+    transform: translateY(-5px);
+}
+
+.summary-card-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.summary-card-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-top: 5px;
+}
+
+/* Cores dos cards */
+.summary-indo_carregar { border-color: #2B6CB0; }
+.summary-carregando { border-color: #D69E2E; }
+.summary-retornando { border-color: #805AD5; }
+.summary-patio { border-color: #D53F8C; }
+.summary-descarregando { border-color: #38A169; }
+.summary-quebrado { border-color: var(--accent-danger); }
+/* --- FIM DOS ESTILOS DO DASHBOARD --- */
+
+
 .controle-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
@@ -24,7 +66,6 @@
     margin-bottom: 32px;
 }
 
-/* Card da Frente de Serviço */
 .frente-card {
     background-color: var(--bg-light);
     border: 1px solid var(--border-color);
@@ -137,7 +178,6 @@
     font-size: 0.8rem;
 }
 
-/* Status do Caminhão */
 .caminhao-operacao-item {
     background-color: var(--bg-dark);
     padding: 12px;
@@ -166,6 +206,7 @@
 .status-patio { background-color: #D53F8C; }
 .status-descarregando { background-color: #38A169; }
 .status-disponivel { background-color: #718096; }
+.status-quebrado { background-color: var(--accent-danger); } /* Nova cor */
 
 
 .status-actions {
@@ -192,6 +233,15 @@
 }
 .status-actions button.full-width {
     grid-column: 1 / -1;
+}
+
+.status-actions button.btn-danger {
+    border-color: var(--accent-danger);
+    color: var(--accent-danger);
+}
+.status-actions button.btn-danger:hover {
+    background-color: var(--accent-danger);
+    color: white;
 }
 
 /* Tabela de Histórico */
@@ -235,7 +285,6 @@
     background-color: rgba(74, 85, 104, 0.2);
 }
 
-/* Modal de seleção de fazenda */
 .fazenda-select-form {
     display: flex;
     flex-direction: column;
