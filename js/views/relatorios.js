@@ -8,7 +8,8 @@ export class RelatoriosView {
         this.data = {};
         this.workHoursChart = null;
         this.downtimeHoursChart = null; 
-        this.utilizationChart = null; // RENOMEADO
+        this.utilizationChart = null; 
+        this.exportData = {}; // Armazena dados para exportação
     }
 
     async show() {
@@ -212,6 +213,19 @@ export class RelatoriosView {
             const utilizationData = this.calculateUtilizationRate(comparisonData);
             this.drawUtilizationChart('utilizationChart', utilizationData.labels, utilizationData.data);
             
+            // 6. ARMAZENAR DADOS PARA EXPORTAÇÃO
+            this.exportData = {
+                comparisonData: comparisonData,
+                downtimeByType: downtimeHoursByType,
+                utilizationData: utilizationData,
+                filterContext: {
+                    periodo: `${dataInicio || 'Início'} a ${dataFim || 'Fim'}`,
+                    equipamento: document.getElementById('filter-equipamento')?.options[document.getElementById('filter-equipamento')?.selectedIndex]?.text || 'Todos',
+                    frente: document.getElementById('filter-frente')?.options[document.getElementById('filter-frente')?.selectedIndex]?.text || 'Todas',
+                    proprietario: document.getElementById('filter-proprietario')?.options[document.getElementById('filter-proprietario')?.selectedIndex]?.text || 'Todos'
+                }
+            };
+            
         } catch (error) {
             showToast('Erro ao gerar os relatórios. Verifique os filtros.', 'error');
             console.error("Erro em renderReports:", error);
@@ -220,7 +234,7 @@ export class RelatoriosView {
         }
     }
 
-    // Lógica de filtragem unificada
+    // Lógica de filtragem unificada (MANTIDA)
     filterHistory(history, itemMap, start, end, itemFilter, frenteFilter, proprietarioFilter, idColumn) {
         let filtered = history;
         const numericFrenteId = frenteFilter ? parseInt(frenteFilter) : null;
@@ -277,7 +291,7 @@ export class RelatoriosView {
         return filtered;
     }
 
-    // Calcula Horas Trabalhadas por CÓDIGO de Equipamento
+    // Calcula Horas Trabalhadas por CÓDIGO de Equipamento (MANTIDA)
     calculateWorkHours(history, items, idColumn) {
         const itemMap = new Map(items.map(i => [i.id, i]));
         const productiveStatus = ['ativo', 'indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando', 'patio_vazio'];
@@ -329,7 +343,7 @@ export class RelatoriosView {
         return results;
     }
 
-    // Calcula Horas de Inatividade por CÓDIGO de Equipamento (para o comparativo)
+    // Calcula Horas de Inatividade por CÓDIGO de Equipamento (MANTIDA)
     calculateDowntimeHours(history, equipamentos) {
         const itemMap = new Map(equipamentos.map(i => [i.id, i]));
         const nonProductiveStatus = ['parado', 'quebrado'];
@@ -381,21 +395,18 @@ export class RelatoriosView {
         return results;
     }
 
-    // Função para mesclar os dados de Horas Trabalhadas e Paradas
+    // Função para mesclar os dados de Horas Trabalhadas e Paradas (MANTIDA)
     prepareComparisonData(workHours, downtimeHours) {
         const dataMap = new Map();
 
-        // Combina caminhões e equipamentos (que têm horas trabalhadas)
         workHours.forEach(item => {
             dataMap.set(item.cod_equipamento, { work: item.totalHours, downtime: 0 });
         });
 
-        // Adiciona horas paradas (apenas equipamentos têm downtime logado)
         downtimeHours.forEach(item => {
             if (dataMap.has(item.cod_equipamento)) {
                 dataMap.get(item.cod_equipamento).downtime = item.totalHours;
             } else {
-                 // Se o equipamento não tem horas trabalhadas (0), ele só aparecerá no filtro individual
                  dataMap.set(item.cod_equipamento, { work: 0, downtime: item.totalHours });
             }
         });
@@ -407,7 +418,7 @@ export class RelatoriosView {
         return { labels, workData, downtimeData };
     }
     
-    // NOVO: Calcula Taxa de Utilização com base nos dados de comparação
+    // Calcula Taxa de Utilização com base nos dados de comparação (MANTIDA)
     calculateUtilizationRate(comparisonData) {
         const labels = comparisonData.labels;
         const utilizationData = [];
@@ -424,13 +435,11 @@ export class RelatoriosView {
         return { labels, data: utilizationData };
     }
 
-    // NOVO: Função para renderizar o Gráfico de Utilização (Gráfico de Barras Simples)
+    // Função para renderizar o Gráfico de Utilização (MANTIDA)
     drawUtilizationChart(canvasId, labels, data) {
         const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-        
         if (this.utilizationChart) this.utilizationChart.destroy();
-
+        
         this.utilizationChart = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -467,11 +476,9 @@ export class RelatoriosView {
         });
     }
 
-    // Função para o Gráfico de Comparação (Multi-Dataset)
+    // Função para o Gráfico de Comparação (Multi-Dataset) (MANTIDA)
     drawComparisonChart(canvasId, labels, datasets, type) {
         const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-
         if (this.workHoursChart) this.workHoursChart.destroy();
 
         this.workHoursChart = new Chart(ctx, {
@@ -563,9 +570,7 @@ export class RelatoriosView {
     // Função para renderizar gráficos simples (usada no Gráfico 2)
     drawChart(canvasId, labels, data, type, label, color = 'rgba(56, 161, 105, 0.6)') {
         const ctx = document.getElementById(canvasId);
-        if (!ctx) return;
-        
-        if (canvasId === 'downtimeHoursChart' && this.downtimeHoursChart) this.downtimeHoursChart.destroy();
+        if (this.downtimeHoursChart) this.downtimeHoursChart.destroy();
 
         const newChart = new Chart(ctx, {
             type: type,
@@ -604,6 +609,141 @@ export class RelatoriosView {
         if (canvasId === 'downtimeHoursChart') this.downtimeHoursChart = newChart;
     }
 
+    // FUNÇÃO DE EXPORTAÇÃO DE RELATÓRIO PDF (NOVA)
+    async exportToPDF() {
+        if (!this.container || !window.html2canvas || !window.jspdf) {
+            showToast('Erro: Bibliotecas de exportação (html2canvas/jspdf) não carregadas. Verifique o index.html.', 'error');
+            return;
+        }
+        
+        showLoading();
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const margin = 10;
+            let y = margin;
+            
+            // Título e Contexto
+            doc.setFontSize(22);
+            doc.setTextColor(56, 161, 105); // Cor primária (RGB de #38A169)
+            doc.text("Relatório Gerencial de Operações", margin, y);
+            y += 10;
+            
+            doc.setFontSize(10);
+            doc.setTextColor(160, 174, 192); // Cor secundária (RGB de #A0AEC0)
+            doc.text(`Período: ${this.exportData.filterContext.periodo}`, margin, y);
+            y += 5;
+            doc.text(`Filtros: Equipamento=${this.exportData.filterContext.equipamento} | Frente=${this.exportData.filterContext.frente} | Proprietário=${this.exportData.filterContext.proprietario}`, margin, y);
+            y += 10;
+            
+            const chartContainers = this.container.querySelectorAll('.chart-container');
+            
+            for (const container of chartContainers) {
+                const canvas = container.querySelector('canvas');
+                if (!canvas) continue;
+
+                const chartTitle = container.querySelector('h3')?.textContent || 'Gráfico';
+                
+                // 1. Capturar imagem do gráfico
+                const canvasImage = await html2canvas(canvas, {
+                    scale: 2,
+                    useCORS: true,
+                    backgroundColor: '#1A202C' // Usando bg-dark para PDF
+                });
+                
+                const imgData = canvasImage.toDataURL('image/png');
+                const imgWidth = 180; // Largura em mm
+                const imgHeight = canvasImage.height * imgWidth / canvasImage.width / canvasImage.scale;
+                
+                // 2. Verificar quebra de página
+                if (y + imgHeight + 10 > doc.internal.pageSize.height) {
+                    doc.addPage();
+                    y = margin;
+                }
+                
+                // 3. Adicionar título do gráfico e imagem
+                doc.setFontSize(14);
+                doc.setTextColor(247, 250, 252); // Cor primária (RGB de #F7FAFC)
+                doc.text(chartTitle, margin, y);
+                y += 5;
+
+                doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+                y += imgHeight + 10;
+            }
+            
+            doc.save(`Relatorio_Logistica_BEL_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
+            showToast('Relatório exportado para PDF com sucesso!', 'success');
+            
+        } catch (error) {
+            showToast('Erro ao exportar PDF. Verifique se as bibliotecas foram carregadas.', 'error');
+            console.error("Erro na exportação PDF:", error);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // FUNÇÃO DE EXPORTAÇÃO DE RELATÓRIO EXCEL/CSV (NOVA)
+    exportToExcel() {
+        if (!this.exportData || !this.exportData.comparisonData) {
+            showToast('Erro: Dados para exportação não disponíveis. Filtre o relatório primeiro.', 'error');
+            return;
+        }
+
+        try {
+            const data = this.exportData;
+            const labels = data.comparisonData.labels;
+            
+            let csvContent = "";
+            
+            // Informações de Contexto
+            csvContent += `Relatorio Gerencial de Operacoes\r\n`;
+            csvContent += `Periodo: ${data.filterContext.periodo}\r\n`;
+            csvContent += `Filtros: Equipamento=${data.filterContext.equipamento}, Frente=${data.filterContext.frente}, Proprietario=${data.filterContext.proprietario}\r\n\r\n`;
+
+            // Tabela 1: Comparativo Individual (Horas Trabalhadas vs Paradas)
+            csvContent += `--- Comparativo Individual (Horas) ---\r\n`;
+            let header1 = "Equipamento/Caminhao;Horas Trabalhadas;Horas Paradas;Total Horas;Taxa de Utilizacao (%)\r\n";
+            csvContent += header1;
+
+            labels.forEach((label, index) => {
+                const work = data.comparisonData.workData[index];
+                const downtime = data.comparisonData.downtimeData[index];
+                const utilization = data.utilizationData.data[index];
+                const total = work + downtime;
+                
+                // Usando ponto para decimal e ponto-e-vírgula para separador CSV
+                csvContent += `${label};${work.toFixed(2).replace('.', ',')};${downtime.toFixed(2).replace('.', ',')};${total.toFixed(2).replace('.', ',')};${utilization.toFixed(1).replace('.', ',')}\r\n`;
+            });
+
+            // Tabela 2: Inatividade por Tipo de Equipamento
+            csvContent += `\r\n--- Inatividade por Tipo de Equipamento (Horas) ---\r\n`;
+            let header2 = "Tipo de Equipamento;Horas Inativas\r\n";
+            csvContent += header2;
+
+            data.downtimeByType.forEach(item => {
+                csvContent += `${item.cod_equipamento};${item.totalHours.replace('.', ',')}\r\n`;
+            });
+
+            // Cria e baixa o arquivo CSV
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Relatorio_Logistica_BEL_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('Relatório exportado para Excel/CSV com sucesso!', 'success');
+            
+        } catch (error) {
+            showToast('Erro ao exportar Excel. Tente gerar o relatório novamente.', 'error');
+            console.error("Erro na exportação Excel:", error);
+        }
+    }
+
+
     addEventListeners() {
         const filterBtn = document.getElementById('apply-report-filters');
         if (filterBtn) {
@@ -612,9 +752,205 @@ export class RelatoriosView {
         }
         
         const exportPdfBtn = document.getElementById('export-pdf');
-        if (exportPdfBtn) exportPdfBtn.addEventListener('click', () => showToast('Funcionalidade de Exportar PDF (Em Desenvolvimento)', 'info'));
+        if (exportPdfBtn) {
+            exportPdfBtn.removeEventListener('click', this.exportToPDF.bind(this));
+            exportPdfBtn.addEventListener('click', this.exportToPDF.bind(this));
+        }
         
         const exportExcelBtn = document.getElementById('export-excel');
-        if (exportExcelBtn) exportExcelBtn.addEventListener('click', () => showToast('Funcionalidade de Exportar Excel (Em Desenvolvimento)', 'info'));
+        if (exportExcelBtn) {
+            exportExcelBtn.removeEventListener('click', this.exportToExcel.bind(this));
+            exportExcelBtn.addEventListener('click', this.exportToExcel.bind(this));
+        }
+    }
+    
+    // Funções de cálculo (MANTIDAS)
+    calculateUtilizationRate(comparisonData) {
+        const labels = comparisonData.labels;
+        const utilizationData = [];
+
+        labels.forEach((label, index) => {
+            const work = comparisonData.workData[index];
+            const downtime = comparisonData.downtimeData[index];
+            const total = work + downtime;
+            
+            const utilization = total > 0 ? (work / total) * 100 : 0;
+            utilizationData.push(parseFloat(utilization.toFixed(1)));
+        });
+
+        return { labels, data: utilizationData };
+    }
+
+    drawUtilizationChart(canvasId, labels, data) {
+        const ctx = document.getElementById(canvasId);
+        if (this.utilizationChart) this.utilizationChart.destroy();
+        
+        this.utilizationChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Taxa de Utilização (%)',
+                    data: data,
+                    backgroundColor: data.map(v => v >= 80 ? 'rgba(56, 161, 105, 0.8)' : v >= 50 ? 'rgba(214, 158, 46, 0.8)' : 'rgba(197, 48, 48, 0.8)'),
+                    borderColor: data.map(v => v >= 80 ? 'rgba(56, 161, 105, 1)' : v >= 50 ? 'rgba(214, 158, 46, 1)' : 'rgba(197, 48, 48, 1)'),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        max: 100,
+                        ticks: { color: '#A0AEC0', callback: (value) => value + "%" }, 
+                        grid: { color: '#4A5568' } 
+                    }, 
+                    x: { 
+                        ticks: { color: '#A0AEC0' }, 
+                        grid: { color: '#4A5568' } 
+                    } 
+                },
+                plugins: { 
+                    legend: { 
+                        labels: { color: '#F7FAFC' } 
+                    } 
+                }
+            }
+        });
+    }
+
+    drawComparisonChart(canvasId, labels, datasets, type) {
+        const ctx = document.getElementById(canvasId);
+        if (this.workHoursChart) this.workHoursChart.destroy();
+
+        this.workHoursChart = new Chart(ctx, {
+            type: type,
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        ticks: { color: '#A0AEC0' }, 
+                        grid: { color: '#4A5568' } 
+                    }, 
+                    x: { 
+                        ticks: { color: '#A0AEC0' }, 
+                        grid: { color: '#4A5568' } 
+                    } 
+                },
+                plugins: { 
+                    legend: { 
+                        labels: { color: '#F7FAFC' } 
+                    } 
+                }
+            }
+        });
+    }
+
+    calculateDowntimeHoursByType(history, equipamentos) {
+        const itemMap = new Map(equipamentos.map(i => [i.id, i]));
+        const nonProductiveStatus = ['parado', 'quebrado'];
+        const itemDowntimeLogs = {};
+        history.forEach(log => {
+            const id = log.equipamento_id;
+            const item = itemMap.get(id);
+            if (!id || !item) return;
+            if (!itemDowntimeLogs[id]) {
+                itemDowntimeLogs[id] = { groupKey: item.finalidade, sessions: [] };
+            }
+            itemDowntimeLogs[id].sessions.push({ status: log.status_novo, time: new Date(log.timestamp_mudanca) });
+        });
+        const groupedResults = {};
+        for (const id in itemDowntimeLogs) {
+            let totalMillis = 0;
+            const { sessions, groupKey } = itemDowntimeLogs[id];
+            const sortedSessions = sessions.sort((a, b) => a.time - b.time);
+            for(let i = 0; i < sortedSessions.length - 1; i++) {
+                if (nonProductiveStatus.includes(sortedSessions[i].status)) { totalMillis += sortedSessions[i+1].time - sortedSessions[i].time; }
+            }
+            const lastSession = sortedSessions[sortedSessions.length - 1];
+            if (lastSession && nonProductiveStatus.includes(lastSession.status)) { totalMillis += new Date() - lastSession.time; }
+            if (!groupedResults[groupKey]) { groupedResults[groupKey] = 0; }
+            groupedResults[groupKey] += totalMillis;
+        }
+        const finalResults = Object.keys(groupedResults).map(groupKey => ({ cod_equipamento: groupKey, totalHours: (groupedResults[groupKey] / (1000 * 60 * 60)).toFixed(2) }));
+        return finalResults;
+    }
+    
+    calculateWorkHours(history, items, idColumn) {
+        const itemMap = new Map(items.map(i => [i.id, i]));
+        const productiveStatus = ['ativo', 'indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando', 'patio_vazio'];
+        const itemWorkLogs = {};
+        history.forEach(log => {
+            const id = log[idColumn];
+            const item = itemMap.get(id);
+            if (!id || !item) return;
+            if (!itemWorkLogs[id]) { itemWorkLogs[id] = { cod_equipamento: item.cod_equipamento, sessions: [] }; }
+            itemWorkLogs[id].sessions.push({ status: log.status_novo, time: new Date(log.timestamp_mudanca) });
+        });
+        const results = [];
+        for (const id in itemWorkLogs) {
+            let totalMillis = 0;
+            const { sessions, cod_equipamento } = itemWorkLogs[id];
+            const sortedSessions = sessions.sort((a, b) => a.time - b.time);
+            for(let i = 0; i < sortedSessions.length - 1; i++) {
+                if (productiveStatus.includes(sortedSessions[i].status)) { totalMillis += sortedSessions[i+1].time - sortedSessions[i].time; }
+            }
+            const lastSession = sortedSessions[sortedSessions.length - 1];
+            if (lastSession && productiveStatus.includes(lastSession.status)) { totalMillis += new Date() - lastSession.time; }
+            results.push({ cod_equipamento: cod_equipamento, totalHours: parseFloat((totalMillis / (1000 * 60 * 60)).toFixed(2)) });
+        }
+        return results;
+    }
+    
+    calculateDowntimeHours(history, equipamentos) {
+        const itemMap = new Map(equipamentos.map(i => [i.id, i]));
+        const nonProductiveStatus = ['parado', 'quebrado'];
+        const itemDowntimeLogs = {};
+        history.forEach(log => {
+            const id = log.equipamento_id;
+            const item = itemMap.get(id);
+            if (!id || !item) return;
+            if (!itemDowntimeLogs[id]) { itemDowntimeLogs[id] = { cod_equipamento: item.cod_equipamento, sessions: [] }; }
+            itemDowntimeLogs[id].sessions.push({ status: log.status_novo, time: new Date(log.timestamp_mudanca) });
+        });
+        const results = [];
+        for (const id in itemDowntimeLogs) {
+            let totalMillis = 0;
+            const { sessions, cod_equipamento } = itemDowntimeLogs[id];
+            const sortedSessions = sessions.sort((a, b) => a.time - b.time);
+            for(let i = 0; i < sortedSessions.length - 1; i++) {
+                if (nonProductiveStatus.includes(sortedSessions[i].status)) { totalMillis += sortedSessions[i+1].time - sortedSessions[i].time; }
+            }
+            const lastSession = sortedSessions[sessions.length - 1];
+            if (lastSession && nonProductiveStatus.includes(lastSession.status)) { totalMillis += new Date() - lastSession.time; }
+            results.push({ cod_equipamento: cod_equipamento, totalHours: parseFloat((totalMillis / (1000 * 60 * 60)).toFixed(2)) });
+        }
+        return results;
+    }
+    
+    prepareComparisonData(workHours, downtimeHours) {
+        const dataMap = new Map();
+        workHours.forEach(item => {
+            dataMap.set(item.cod_equipamento, { work: item.totalHours, downtime: 0 });
+        });
+        downtimeHours.forEach(item => {
+            if (dataMap.has(item.cod_equipamento)) {
+                dataMap.get(item.cod_equipamento).downtime = item.totalHours;
+            } else {
+                 dataMap.set(item.cod_equipamento, { work: 0, downtime: item.totalHours });
+            }
+        });
+        const labels = Array.from(dataMap.keys()).sort();
+        const workData = labels.map(label => dataMap.get(label).work);
+        const downtimeData = labels.map(label => dataMap.get(label).downtime);
+        return { labels, workData, downtimeData };
     }
 }
