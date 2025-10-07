@@ -1,11 +1,27 @@
 // js/views/controle.js
-import { fetchAllData } from '../api.js';
-import { showToast } from '../helpers.js';
+import { fetchAllData, updateCaminhaoStatus } from '../api.js';
+import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 
 export class ControleView {
     constructor() {
         this.container = null;
         this.data = {};
+        this.statusOrder = [
+            'disponivel', 
+            'indo_carregar', 
+            'carregando', 
+            'retornando', 
+            'patio', 
+            'descarregando'
+        ];
+        this.statusLabels = {
+            disponivel: 'Disponível',
+            indo_carregar: 'Indo Carregar',
+            carregando: 'Carregando',
+            retornando: 'Retornando p/ Usina',
+            patio: 'Pátio Externo',
+            descarregando: 'Descarregando'
+        };
     }
 
     async show() {
@@ -15,267 +31,180 @@ export class ControleView {
     }
 
     async hide() {
-        // Limpar recursos
+        // Limpar recursos se necessário
     }
 
     async loadHTML() {
         const container = document.getElementById('views-container');
-        container.innerHTML = this.getHTML();
-        this.container = container;
-    }
-
-    getHTML() {
-        return `
-            <div id="controle-view" class="view">
+        container.innerHTML = `
+            <div id="controle-view" class="view controle-view active-view">
                 <div class="controle-header">
-                    <h1>Painel de Controle - Frentes de Colheita</h1>
-                    <div class="controle-actions">
-                        <button class="btn-primary" id="refresh-controle">
-                            <i class="ph-fill ph-arrows-clockwise"></i>
-                            Atualizar Dados
-                        </button>
-                        <button class="btn-secondary" id="export-controle">
-                            <i class="ph-fill ph-file-pdf"></i>
-                            Exportar Relatório
-                        </button>
-                    </div>
+                    <h1>Painel de Controle de Frota</h1>
+                    <button class="btn-primary" id="refresh-controle">
+                        <i class="ph-fill ph-arrows-clockwise"></i>
+                        Atualizar
+                    </button>
                 </div>
 
-                <div class="frentes-container">
-                    <div class="frentes-grid" id="frentes-grid">
-                        </div>
-                    
-                    <div class="controle-sidebar">
-                        <div class="controle-card">
-                            <h3>Resumo das Operações</h3>
-                            <div class="resumo-stats" id="resumo-stats">
-                                </div>
-                        </div>
-                        
-                        <div class="controle-card">
-                            <h3>Fazendas Ativas</h3>
-                            <div class="fazendas-ativas" id="fazendas-ativas">
-                                </div>
-                        </div>
+                <div class="controle-grid" id="frentes-grid">
+                    </div>
+
+                <div class="historico-container">
+                    <div class="historico-header">
+                        <h2>Histórico de Movimentação da Frota</h2>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table-modern" id="historico-table">
+                            <thead>
+                                <tr>
+                                    <th>Horário</th>
+                                    <th>Caminhão</th>
+                                    <th>Status Anterior</th>
+                                    <th>Status Novo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         `;
+        this.container = container;
     }
 
     async loadData() {
+        showLoading();
         try {
             this.data = await fetchAllData();
             this.renderFrentes();
-            this.renderResumo();
-            this.renderFazendasAtivas();
+            this.renderHistorico();
         } catch (error) {
-            console.error('Erro ao carregar dados do controle:', error);
-            showToast('Erro ao carregar dados do painel de controle', 'error');
+            handleOperation(error);
+        } finally {
+            hideLoading();
         }
     }
 
     renderFrentes() {
-        const container = document.getElementById('frentes-grid');
-        if (!container) return;
-
-        // --- CORREÇÃO AQUI ---
-        // Alterado de 'frentes' para 'frentes_servico'
-        const { frentes_servico, equipamentos, fazendas } = this.data;
-        
-        if (!frentes_servico || frentes_servico.length === 0) {
-            container.innerHTML = '<div class="no-frentes"><p>Nenhuma frente de serviço cadastrada</p></div>';
-            return;
-        }
+        const grid = document.getElementById('frentes-grid');
+        const { frentes_servico = [], caminhoes = [] } = this.data;
 
         const frentesHTML = frentes_servico.map(frente => {
-            // Equipamentos desta frente
-            const equipamentosFrente = (equipamentos || []).filter(e => 
-                e.frente_id === frente.id && e.status === 'ativo'
-            );
-            
-            // Fazendas associadas (via equipamentos)
-            const fazendasFrente = this.getFazendasDaFrente(frente.id, equipamentosFrente, fazendas);
+            const caminhoesDisponiveis = caminhoes.filter(c => c.status === 'disponivel');
+            const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel');
 
             return `
-                <div class="frente-card ${frente.status === 'ativa' ? 'active' : 'inactive'}">
+                <div class="frente-card">
                     <div class="frente-header">
+                        <i class="ph-fill ph-users-three"></i>
                         <h3>${frente.nome}</h3>
-                        <span class="frente-status ${frente.status}">${frente.status}</span>
                     </div>
-                    
-                    <div class="frente-info">
-                        <div class="info-item">
-                            <i class="ph-fill ph-tractor"></i>
-                            <span>${equipamentosFrente.length} equipamentos</span>
+                    <div class="frente-body">
+                        <div class="caminhoes-coluna">
+                            <h4>Disponíveis p/ Envio</h4>
+                            <div class="caminhoes-disponiveis-list">
+                                ${caminhoesDisponiveis.map(c => `
+                                    <div class="caminhao-item">
+                                        <span class="caminhao-item-info">${c.cod_equipamento}</span>
+                                        <button class="btn-primary btn-enviar" data-caminhao-id="${c.id}" data-frente-id="${frente.id}">
+                                            <i class="ph-fill ph-arrow-circle-right"></i> Enviar
+                                        </button>
+                                    </div>
+                                `).join('') || '<p class="text-secondary">Nenhum</p>'}
+                            </div>
                         </div>
-                        <div class="info-item">
-                            <i class="ph-fill ph-tree-evergreen"></i>
-                            <span>${fazendasFrente.length} fazendas</span>
+                        <div class="caminhoes-coluna">
+                            <h4>Em Operação na Frente</h4>
+                            <div class="caminhoes-em-operacao-list">
+                                ${caminhoesEmOperacao.map(c => this.renderCaminhaoEmOperacao(c)).join('') || '<p class="text-secondary">Nenhum</p>'}
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="frente-equipamentos">
-                        <h4>Equipamentos Ativos</h4>
-                        ${equipamentosFrente.length > 0 ? 
-                            equipamentosFrente.map(equip => `
-                                <div class="equipamento-item">
-                                    <span class="equip-codigo">${equip.cod_equipamento}</span>
-                                    <span class="equip-tipo">${equip.finalidade}</span>
-                                    <span class="equip-status ${equip.status}">${equip.status}</span>
-                                </div>
-                            `).join('') :
-                            '<p class="no-equipamentos">Nenhum equipamento ativo</p>'
-                        }
-                    </div>
-
-                    <div class="frente-fazendas">
-                        <h4>Fazendas em Operação</h4>
-                        ${fazendasFrente.length > 0 ? 
-                            fazendasFrente.map(fazenda => `
-                                <div class="fazenda-item">
-                                    <span class="fazenda-nome">${fazenda.nome}</span>
-                                    <span class="fazenda-status ${fazenda.status}">${fazenda.status}</span>
-                                </div>
-                            `).join('') :
-                            '<p class="no-fazendas">Nenhuma fazenda em operação</p>'
-                        }
-                    </div>
-
-                    <div class="frente-actions">
-                        <button class="btn-small btn-primary" data-frente="${frente.id}">
-                            <i class="ph-fill ph-play"></i>
-                            Iniciar Operação
-                        </button>
-                        <button class="btn-small btn-secondary" data-frente="${frente.id}">
-                            <i class="ph-fill ph-chart-line"></i>
-                            Detalhes
-                        </button>
                     </div>
                 </div>
             `;
         }).join('');
 
-        container.innerHTML = frentesHTML;
+        grid.innerHTML = frentesHTML;
     }
-
-    getFazendasDaFrente(frenteId, equipamentosFrente, fazendas) {
-        if (!fazendas || !equipamentosFrente) return [];
+    
+    renderCaminhaoEmOperacao(caminhao) {
+        const currentStatus = caminhao.status || 'disponivel';
+        const currentIndex = this.statusOrder.indexOf(currentStatus);
         
-        // Para simplificar, retornar fazendas que estão colhendo
-        return fazendas.filter(fazenda => 
-            fazenda.status === 'colhendo'
-        ).slice(0, 3); // Limitar a 3 fazendas por frente para demonstração
-    }
+        const nextStatus = this.statusOrder[currentIndex + 1];
+        const prevStatus = currentIndex > 1 ? this.statusOrder[currentIndex - 1] : null;
 
-    renderResumo() {
-        const container = document.getElementById('resumo-stats');
-        if (!container) return;
-
-        // --- CORREÇÃO AQUI ---
-        // Alterado de 'frentes' para 'frentes_servico'
-        const { frentes_servico, equipamentos, caminhoes, fazendas } = this.data;
-        
-        const stats = {
-            frentesAtivas: (frentes_servico || []).filter(f => f.status === 'ativa').length,
-            totalFrentes: (frentes_servico || []).length,
-            equipamentosAtivos: (equipamentos || []).filter(e => e.status === 'ativo').length,
-            caminhoesAtivos: (caminhoes || []).filter(c => c.status === 'ativo').length,
-            fazendasColhendo: (fazendas || []).filter(f => f.status === 'colhendo').length
-        };
-
-        container.innerHTML = `
-            <div class="stat-item">
-                <div class="stat-value">${stats.frentesAtivas}/${stats.totalFrentes}</div>
-                <div class="stat-label">Frentes Ativas</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${stats.equipamentosAtivos}</div>
-                <div class="stat-label">Equipamentos</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${stats.caminhoesAtivos}</div>
-                <div class="stat-label">Caminhões</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">${stats.fazendasColhendo}</div>
-                <div class="stat-label">Fazendas Colhendo</div>
+        return `
+            <div class="caminhao-operacao-item">
+                <div class="caminhao-operacao-header">
+                    <strong>${caminhao.cod_equipamento}</strong>
+                    <span class="caminhao-status-badge status-${currentStatus}">
+                        ${this.statusLabels[currentStatus]}
+                    </span>
+                </div>
+                <div class="status-actions">
+                    ${prevStatus ? `<button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-frente-id="${caminhao.frente_id}" data-novo-status="${prevStatus}">&lt; ${this.statusLabels[prevStatus]}</button>` : `<div></div>`}
+                    ${nextStatus ? `<button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-frente-id="${caminhao.frente_id}" data-novo-status="${nextStatus}">${this.statusLabels[nextStatus]} &gt;</button>` : `<div></div>`}
+                    <button class="btn-status-change full-width" data-caminhao-id="${caminhao.id}" data-novo-status="disponivel">Finalizar (Disponível)</button>
+                </div>
             </div>
         `;
     }
 
-    renderFazendasAtivas() {
-        const container = document.getElementById('fazendas-ativas');
-        if (!container) return;
+    renderHistorico() {
+        const tbody = document.getElementById('historico-table')?.querySelector('tbody');
+        if (!tbody) return;
 
-        const { fazendas } = this.data;
-        const fazendasAtivas = (fazendas || []).filter(f => f.status === 'colhendo');
-
-        if (fazendasAtivas.length === 0) {
-            container.innerHTML = '<p class="no-fazendas">Nenhuma fazenda ativa</p>';
-            return;
-        }
-
-        const fazendasHTML = fazendasAtivas.map(fazenda => `
-            <div class="fazenda-ativa-item">
-                <div class="fazenda-info">
-                    <strong>${fazenda.nome}</strong>
-                    <span>${fazenda.hectares || 'N/A'} hectares</span>
-                    <small>${fazenda.fornecedores?.nome || 'N/A'}</small>
-                </div>
-                <div class="fazenda-progress">
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${Math.random() * 100}%"></div>
-                    </div>
-                    <span class="progress-text">${Math.floor(Math.random() * 100)}%</span>
-                </div>
-            </div>
+        const { caminhao_historico = [] } = this.data;
+        tbody.innerHTML = caminhao_historico.slice(0, 10).map(log => `
+            <tr>
+                <td>${new Date(log.timestamp_mudanca).toLocaleString('pt-BR')}</td>
+                <td>${log.caminhoes?.cod_equipamento || 'N/A'}</td>
+                <td><span class="caminhao-status-badge status-${log.status_anterior}">${this.statusLabels[log.status_anterior]}</span></td>
+                <td><span class="caminhao-status-badge status-${log.status_novo}">${this.statusLabels[log.status_novo]}</span></td>
+            </tr>
         `).join('');
-
-        container.innerHTML = fazendasHTML;
     }
 
     addEventListeners() {
-        // Botão de atualizar
-        const refreshBtn = document.getElementById('refresh-controle');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', () => {
-                this.loadData();
-                showToast('Dados do painel atualizados', 'success');
-            });
-        }
+        this.container.addEventListener('click', async (e) => {
+            if (e.target.closest('.btn-enviar')) {
+                const btn = e.target.closest('.btn-enviar');
+                const caminhaoId = btn.dataset.caminhaoId;
+                const frenteId = btn.dataset.frenteId;
+                
+                showLoading();
+                try {
+                    await updateCaminhaoStatus(caminhaoId, 'indo_carregar', frenteId);
+                    showToast('Caminhão enviado com sucesso!', 'success');
+                    await this.loadData();
+                } catch (error) {
+                    handleOperation(error);
+                } finally {
+                    hideLoading();
+                }
+            }
 
-        // Botão de exportar
-        const exportBtn = document.getElementById('export-controle');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => {
-                showToast('Relatório exportado com sucesso', 'success');
-            });
-        }
+            if (e.target.closest('.btn-status-change')) {
+                const btn = e.target.closest('.btn-status-change');
+                const caminhaoId = btn.dataset.caminhaoId;
+                const novoStatus = btn.dataset.novoStatus;
+                const frenteId = novoStatus === 'disponivel' ? null : btn.dataset.frenteId;
 
-        // Ações das frentes
-        this.container.addEventListener('click', (e) => {
-            if (e.target.closest('[data-frente]')) {
-                const button = e.target.closest('[data-frente]');
-                const frenteId = button.dataset.frente;
-                this.handleFrenteAction(frenteId, button.textContent.trim());
+                showLoading();
+                try {
+                    await updateCaminhaoStatus(caminhaoId, novoStatus, frenteId);
+                    showToast('Status atualizado!', 'success');
+                    await this.loadData();
+                } catch (error) {
+                    handleOperation(error);
+                } finally {
+                    hideLoading();
+                }
             }
         });
-    }
-
-    handleFrenteAction(frenteId, action) {
-        // --- CORREÇÃO AQUI ---
-        // Alterado de 'frentes' para 'frentes_servico'
-        const frente = (this.data.frentes_servico || []).find(f => f.id == frenteId);
-        if (!frente) return;
-
-        switch(action) {
-            case 'Iniciar Operação':
-                showToast(`Operação iniciada na frente ${frente.nome}`, 'success');
-                break;
-            case 'Detalhes':
-                showToast(`Mostrando detalhes da frente ${frente.nome}`, 'info');
-                break;
-        }
+        
+        document.getElementById('refresh-controle').addEventListener('click', () => this.loadData());
     }
 }

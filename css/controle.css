@@ -1,0 +1,191 @@
+/* css/controle.css */
+
+.controle-view {
+    padding: 24px;
+    background-color: var(--bg-dark);
+}
+
+.controle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.controle-header h1 {
+    font-size: 1.8rem;
+    color: var(--text-primary);
+}
+
+.controle-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+/* Card da Frente de Serviço */
+.frente-card {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.frente-header {
+    background-color: #374151;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.frente-header i {
+    font-size: 24px;
+    color: var(--accent-primary);
+}
+
+.frente-header h3 {
+    font-size: 1.2rem;
+    color: var(--text-primary);
+}
+
+.frente-body {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.caminhoes-coluna h4 {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.caminhoes-disponiveis-list, .caminhoes-em-operacao-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 100px;
+}
+
+.caminhao-item {
+    background-color: var(--bg-dark);
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid var(--border-color);
+}
+
+.caminhao-item-info {
+    font-weight: 500;
+}
+
+.caminhao-item .btn-primary {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+}
+
+/* Status do Caminhão */
+.caminhao-operacao-item {
+    background-color: var(--bg-dark);
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.caminhao-operacao-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.caminhao-status-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+}
+
+.status-indo_carregar { background-color: #2B6CB0; }
+.status-carregando { background-color: #D69E2E; }
+.status-retornando { background-color: #805AD5; }
+.status-patio { background-color: #D53F8C; }
+.status-descarregando { background-color: #38A169; }
+.status-disponivel { background-color: #718096; }
+
+
+.status-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.status-actions button {
+    background-color: #374151;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    font-size: 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.status-actions button:hover {
+    background-color: var(--accent-primary);
+    color: white;
+}
+.status-actions button.full-width {
+    grid-column: 1 / -1;
+}
+
+
+/* Tabela de Histórico */
+.historico-container {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.historico-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.historico-header h2 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.data-table-modern {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table-modern th, .data-table-modern td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table-modern th {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.data-table-modern tbody tr:hover {
+    background-color: rgba(74, 85, 104, 0.2);
+}
