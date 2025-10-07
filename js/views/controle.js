@@ -43,22 +43,19 @@ export class ControleView {
 
                 <div class="frentes-container">
                     <div class="frentes-grid" id="frentes-grid">
-                        <!-- Frentes serão carregadas aqui -->
-                    </div>
+                        </div>
                     
                     <div class="controle-sidebar">
                         <div class="controle-card">
                             <h3>Resumo das Operações</h3>
                             <div class="resumo-stats" id="resumo-stats">
-                                <!-- Estatísticas serão carregadas aqui -->
-                            </div>
+                                </div>
                         </div>
                         
                         <div class="controle-card">
                             <h3>Fazendas Ativas</h3>
                             <div class="fazendas-ativas" id="fazendas-ativas">
-                                <!-- Fazendas ativas serão carregadas aqui -->
-                            </div>
+                                </div>
                         </div>
                     </div>
                 </div>
@@ -82,14 +79,16 @@ export class ControleView {
         const container = document.getElementById('frentes-grid');
         if (!container) return;
 
-        const { frentes, equipamentos, fazendas } = this.data;
+        // --- CORREÇÃO AQUI ---
+        // Alterado de 'frentes' para 'frentes_servico'
+        const { frentes_servico, equipamentos, fazendas } = this.data;
         
-        if (!frentes || frentes.length === 0) {
+        if (!frentes_servico || frentes_servico.length === 0) {
             container.innerHTML = '<div class="no-frentes"><p>Nenhuma frente de serviço cadastrada</p></div>';
             return;
         }
 
-        const frentesHTML = frentes.map(frente => {
+        const frentesHTML = frentes_servico.map(frente => {
             // Equipamentos desta frente
             const equipamentosFrente = (equipamentos || []).filter(e => 
                 e.frente_id === frente.id && e.status === 'ativo'
@@ -173,11 +172,13 @@ export class ControleView {
         const container = document.getElementById('resumo-stats');
         if (!container) return;
 
-        const { frentes, equipamentos, caminhoes, fazendas } = this.data;
+        // --- CORREÇÃO AQUI ---
+        // Alterado de 'frentes' para 'frentes_servico'
+        const { frentes_servico, equipamentos, caminhoes, fazendas } = this.data;
         
         const stats = {
-            frentesAtivas: (frentes || []).filter(f => f.status === 'ativa').length,
-            totalFrentes: (frentes || []).length,
+            frentesAtivas: (frentes_servico || []).filter(f => f.status === 'ativa').length,
+            totalFrentes: (frentes_servico || []).length,
             equipamentosAtivos: (equipamentos || []).filter(e => e.status === 'ativo').length,
             caminhoesAtivos: (caminhoes || []).filter(c => c.status === 'ativo').length,
             fazendasColhendo: (fazendas || []).filter(f => f.status === 'colhendo').length
@@ -263,7 +264,9 @@ export class ControleView {
     }
 
     handleFrenteAction(frenteId, action) {
-        const frente = (this.data.frentes || []).find(f => f.id == frenteId);
+        // --- CORREÇÃO AQUI ---
+        // Alterado de 'frentes' para 'frentes_servico'
+        const frente = (this.data.frentes_servico || []).find(f => f.id == frenteId);
         if (!frente) return;
 
         switch(action) {

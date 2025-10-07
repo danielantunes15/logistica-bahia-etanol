@@ -223,7 +223,9 @@ export class DashboardView {
     }
 
     updateDashboardStats() {
-        const { caminhoes, frentes, equipamentos, fazendas } = this.data;
+        // --- CORREÇÃO AQUI ---
+        // Alterado de 'frentes' para 'frentes_servico'
+        const { caminhoes, frentes_servico, equipamentos, fazendas } = this.data;
 
         // Estatísticas de Caminhões
         const totalCaminhoes = caminhoes ? caminhoes.length : 0;
@@ -233,8 +235,8 @@ export class DashboardView {
         const caminhoesParados = totalCaminhoes - caminhoesAtivos;
 
         // Estatísticas de Frentes
-        const totalFrentes = frentes ? frentes.length : 0;
-        const frentesAtivas = frentes ? frentes.filter(f => f.status === 'ativa').length : 0;
+        const totalFrentes = frentes_servico ? frentes_servico.length : 0;
+        const frentesAtivas = frentes_servico ? frentes_servico.filter(f => f.status === 'ativa').length : 0;
         const frentesInativas = totalFrentes - frentesAtivas;
 
         // Estatísticas de Equipamentos

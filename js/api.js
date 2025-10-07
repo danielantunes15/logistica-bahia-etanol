@@ -45,7 +45,9 @@ export async function updateCaminhao(id, data) {
 
 export async function fetchAllData() {
     try {
-        const [fazendas, caminhoes, equipamentos, frentes, fornecedores, proprietarios, terceiros] = await Promise.all([
+        // --- CORREÇÃO AQUI ---
+        // A variável 'frentes' foi renomeada para 'frentes_servico' para corresponder ao nome da tabela.
+        const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros] = await Promise.all([
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
             fetchTable('caminhoes', '*, proprietarios(id, nome), caminhao_terceiros(terceiros(*))'),
             fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome), equipamento_terceiros(terceiros(*))'),
@@ -59,13 +61,15 @@ export async function fetchAllData() {
             fazendas: fazendas?.length,
             caminhoes: caminhoes?.length,
             equipamentos: equipamentos?.length,
-            frentes: frentes?.length,
+            frentes_servico: frentes_servico?.length, // Log atualizado
             fornecedores: fornecedores?.length,
             proprietarios: proprietarios?.length,
             terceiros: terceiros?.length
         });
         
-        return { fazendas, caminhoes, equipamentos, frentes, fornecedores, proprietarios, terceiros };
+        // --- E AQUI ---
+        // O objeto retornado agora usa a chave 'frentes_servico'.
+        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros };
     } catch (error) {
         console.error('Erro ao buscar todos os dados:', error);
         throw error;
