@@ -37,17 +37,17 @@ export class ControleView {
 
     async show() {
         await this.loadData();
-        this.addEventListeners();
+        // Antiga localização do addEventListeners, agora movida para loadData
     }
 
     async hide() {}
 
-    // --- MUDANÇA AQUI: Removido showLoading/hideLoading para evitar aninhamento ---
     async loadData() {
         showLoading(); // Chamada inicial de loading para o show()
         try {
             this.data = await fetchAllData();
             this.render();
+            this.addEventListeners(); // CORREÇÃO: Rebind listeners após renderizar o HTML
         } catch (error) {
             handleOperation(error);
         } finally {
@@ -234,16 +234,22 @@ export class ControleView {
     }
 
     async handleFrenteStatusUpdate(frenteId, newStatus) {
-        showLoading();
+        showLoading(); // INICIA AQUI
         try {
+            // 1. Atualiza o DB
             await updateFrenteStatus(frenteId, newStatus);
+            
+            // 2. Feedback RÁPIDO para o usuário
             showToast(`Status da frente atualizado para ${this.frenteStatusLabels[newStatus]}!`, 'success');
             closeModal();
-            await this.loadData();
+            
+            // 3. Recarrega os DADOS (a parte LENTA)
+            await this.loadData(); 
+            
         } catch (error) {
             handleOperation(error);
         } finally {
-            hideLoading();
+            hideLoading(); // FINALIZA APÓS O loadData() (ou após o erro)
         }
     }
     // --- FIM NOVO MODAL ---
