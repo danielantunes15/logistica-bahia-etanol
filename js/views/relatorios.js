@@ -67,7 +67,7 @@ export class RelatoriosView {
 
                 <div class="charts-grid">
                     <div class="chart-container">
-                        <h3>Horas Trabalhadas por Tipo de Equipamento</h3>
+                        <h3>Horas Trabalhadas vs. Paradas (Por Equipamento)</h3>
                         <div class="chart-wrapper">
                             <canvas id="workHoursChart"></canvas>
                         </div>
@@ -115,34 +115,28 @@ export class RelatoriosView {
         }
     }
 
-    // NOVO: Popula todos os selects de filtro
     populateFilters() {
         const selectEquipamento = document.getElementById('filter-equipamento');
         const selectFrente = document.getElementById('filter-frente');
         const selectProprietario = document.getElementById('filter-proprietario');
         if (!selectEquipamento || !selectFrente || !selectProprietario) return;
         
-        // 1. Coleta todos os equipamentos e caminhões em uma lista única
         const allItems = [
             ...(this.data.caminhoes || []).map(c => ({ id: `c-${c.id}`, cod: c.cod_equipamento, tipo: 'Caminhão' })),
             ...(this.data.equipamentos || []).map(e => ({ id: `e-${e.id}`, cod: e.cod_equipamento, tipo: e.finalidade }))
         ];
 
-        // 2. Preenche o select de equipamentos
         selectEquipamento.innerHTML = '<option value="">Todos os Equipamentos/Caminhões</option>' +
             allItems.map(item => `<option value="${item.id}">${item.cod} (${item.tipo})</option>`).join('');
 
-        // 3. Preenche o select de Frentes
         const frentes = this.data.frentes_servico || [];
         selectFrente.innerHTML = '<option value="">Todas as Frentes</option>' + 
             frentes.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
             
-        // 4. Preenche o select de Proprietários
         const proprietarios = this.data.proprietarios || [];
         selectProprietario.innerHTML = '<option value="">Todos os Proprietários</option>' + 
             proprietarios.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
 
-        // 5. Define a data inicial e final padrão (Ex: Últimos 7 dias)
         const dateEnd = new Date();
         const dateStart = new Date();
         dateStart.setDate(dateEnd.getDate() - 7); 
@@ -167,35 +161,55 @@ export class RelatoriosView {
             const caminhoesMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
             const equipamentosMap = new Map((this.data.equipamentos || []).map(e => [e.id, e]));
 
-            // Filtra o histórico de caminhões
+            // 1. FILTRAGEM
             let filteredWorkHistory = this.filterHistory(
-                this.data.caminhao_historico, 
-                caminhoesMap, 
-                dataInicio, dataFim, equipamentoFilter, frenteFilter, proprietarioFilter, 'caminhao_id'
+                this.data.caminhao_historico, caminhoesMap, dataInicio, dataFim, 
+                equipamentoFilter, frenteFilter, proprietarioFilter, 'caminhao_id'
             );
-            
-            // Filtra o histórico de equipamentos
             let filteredDowntimeHistory = this.filterHistory(
-                this.data.equipamento_historico, 
-                equipamentosMap, 
-                dataInicio, dataFim, equipamentoFilter, frenteFilter, proprietarioFilter, 'equipamento_id'
+                this.data.equipamento_historico, equipamentosMap, dataInicio, dataFim, 
+                equipamentoFilter, frenteFilter, proprietarioFilter, 'equipamento_id'
             );
 
-            // Renderiza Gráfico 1: Horas Trabalhadas (Agrupado por TIPO)
-            const workHours = this.calculateWorkHours(filteredWorkHistory, this.data.caminhoes, 'caminhao_id')
-                            .concat(this.calculateWorkHours(filteredDowntimeHistory, this.data.equipamentos, 'equipamento_id'));
-                            
-            const workLabels = workHours.map(item => item.cod_equipamento);
-            const workData = workHours.map(item => item.totalHours);
-            this.drawChart('workHoursChart', workLabels, workData, 'bar', 'Horas Trabalhadas (H)');
+            // 2. CÁLCULO DE HORAS (GRÁFICO 1: INDIVIDUAL)
+            const workHoursCaminhoes = this.calculateWorkHours(filteredWorkHistory, this.data.caminhoes, 'caminhao_id');
+            const workHoursEquipamentos = this.calculateWorkHours(filteredDowntimeHistory, this.data.equipamentos, 'equipamento_id');
+            const allWorkHours = [...workHoursCaminhoes, ...workHoursEquipamentos];
 
-            // Renderiza Gráfico 2: Horas de Inatividade (Agrupado por TIPO)
             const downtimeHours = this.calculateDowntimeHours(filteredDowntimeHistory, this.data.equipamentos);
-            const downtimeLabels = downtimeHours.map(item => item.cod_equipamento);
-            const downtimeData = downtimeHours.map(item => item.totalHours);
-            this.drawChart('downtimeHoursChart', downtimeLabels, downtimeData, 'bar', 'Horas de Inatividade (H)', 'rgba(197, 48, 48, 0.6)');
+            
+            // 3. PREPARAÇÃO DO GRÁFICO COMPARATIVO
+            const comparisonData = this.prepareComparisonData(allWorkHours, downtimeHours);
+            
+            const workChartLabels = comparisonData.labels;
+            const workChartDatasets = [
+                {
+                    label: 'Horas Trabalhadas (H)',
+                    data: comparisonData.workData,
+                    backgroundColor: 'rgba(56, 161, 105, 0.8)', // Verde
+                    borderColor: 'rgba(56, 161, 105, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Horas Paradas (H)',
+                    data: comparisonData.downtimeData,
+                    backgroundColor: 'rgba(197, 48, 48, 0.8)', // Vermelho (Danger)
+                    borderColor: 'rgba(197, 48, 48, 1)',
+                    borderWidth: 1
+                }
+            ];
 
-            // Renderiza Gráfico 3: Produtividade (MOCK)
+            // Renderiza Gráfico 1: Comparativo por EQUIPAMENTO (CÓDIGO)
+            this.drawComparisonChart('workHoursChart', workChartLabels, workChartDatasets, 'bar');
+
+
+            // 4. CÁLCULO DE HORAS (GRÁFICO 2: POR TIPO)
+            const downtimeHoursByType = this.calculateDowntimeHoursByType(filteredDowntimeHistory, this.data.equipamentos);
+            const downtimeLabels = downtimeHoursByType.map(item => item.cod_equipamento);
+            const downtimeData = downtimeHoursByType.map(item => item.totalHours);
+            this.drawChart('downtimeHoursChart', downtimeLabels, downtimeData, 'bar', 'Total de Horas de Inatividade (H)', 'rgba(197, 48, 48, 0.6)');
+
+            // 5. GRÁFICO 3 (MOCK)
             this.drawChart('productivityChart', ['Frente A', 'Frente B'], [450, 320], 'line', 'Produtividade (t/ha)', 'rgba(49, 130, 206, 0.6)');
             
         } catch (error) {
@@ -206,13 +220,12 @@ export class RelatoriosView {
         }
     }
 
-    // Lógica de filtragem unificada para todos os históricos
+    // Lógica de filtragem unificada
     filterHistory(history, itemMap, start, end, itemFilter, frenteFilter, proprietarioFilter, idColumn) {
         let filtered = history;
         const numericFrenteId = frenteFilter ? parseInt(frenteFilter) : null;
         const numericProprietarioId = proprietarioFilter ? parseInt(proprietarioFilter) : null;
 
-        // 1. Filtro de Data
         if (start) {
             const startDate = new Date(start).getTime();
             filtered = filtered.filter(log => new Date(log.timestamp_mudanca).getTime() >= startDate);
@@ -224,7 +237,6 @@ export class RelatoriosView {
             filtered = filtered.filter(log => new Date(log.timestamp_mudanca).getTime() < endDateTimestamp);
         }
         
-        // 2. Filtro por Item (Caminhão ou Equipamento)
         if (itemFilter) {
             const [type, id] = itemFilter.split('-');
             const numericId = parseInt(id);
@@ -240,7 +252,6 @@ export class RelatoriosView {
             }
         }
         
-        // 3. Filtro por Frente e Proprietário (Aplica-se ao item associado ao log)
         if (numericFrenteId || numericProprietarioId) {
             filtered = filtered.filter(log => {
                 const itemId = log[idColumn];
@@ -266,25 +277,21 @@ export class RelatoriosView {
         return filtered;
     }
 
-    // MUDANÇA: Calcula Horas Trabalhadas AGRUPADO POR TIPO
+    // NOVA LÓGICA: Calcula Horas Trabalhadas por CÓDIGO de Equipamento
     calculateWorkHours(history, items, idColumn) {
         const itemMap = new Map(items.map(i => [i.id, i]));
         const productiveStatus = ['ativo', 'indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando', 'patio_vazio'];
         
-        // PASSO 1: Agrupar sessões por ITEM ID
         const itemWorkLogs = {};
         
         history.forEach(log => {
             const id = log[idColumn];
             const item = itemMap.get(id);
             if (!id || !item) return;
-
-            // Define o rótulo do grupo (tipo): 'Caminhão' ou a finalidade do equipamento
-            const groupKey = idColumn === 'caminhao_id' ? 'Caminhão' : item.finalidade;
             
             if (!itemWorkLogs[id]) {
                 itemWorkLogs[id] = { 
-                    groupKey: groupKey,
+                    cod_equipamento: item.cod_equipamento, 
                     sessions: [] 
                 };
             }
@@ -295,12 +302,11 @@ export class RelatoriosView {
             });
         });
 
-        // PASSO 2: Calcular o total de horas para cada ITEM e AGREGAR pelo TIPO.
-        const groupedResults = {};
+        const results = [];
 
         for (const id in itemWorkLogs) {
             let totalMillis = 0;
-            const { sessions, groupKey } = itemWorkLogs[id];
+            const { sessions, cod_equipamento } = itemWorkLogs[id];
             const sortedSessions = sessions.sort((a, b) => a.time - b.time);
             
             for(let i = 0; i < sortedSessions.length - 1; i++) {
@@ -314,28 +320,20 @@ export class RelatoriosView {
                 totalMillis += new Date() - lastSession.time; 
             }
             
-            // Acumula no grupo
-            if (!groupedResults[groupKey]) {
-                groupedResults[groupKey] = 0;
-            }
-            groupedResults[groupKey] += totalMillis;
+            results.push({
+                cod_equipamento: cod_equipamento, 
+                totalHours: parseFloat((totalMillis / (1000 * 60 * 60)).toFixed(2))
+            });
         }
-
-        // PASSO 3: Formatar o resultado final
-        const finalResults = Object.keys(groupedResults).map(groupKey => ({
-            cod_equipamento: groupKey, 
-            totalHours: (groupedResults[groupKey] / (1000 * 60 * 60)).toFixed(2)
-        }));
         
-        return finalResults;
+        return results;
     }
 
-    // MUDANÇA: Calcula Horas de Inatividade AGRUPADO POR TIPO
+    // NOVA LÓGICA: Calcula Horas de Inatividade por CÓDIGO de Equipamento (para o comparativo)
     calculateDowntimeHours(history, equipamentos) {
         const itemMap = new Map(equipamentos.map(i => [i.id, i]));
         const nonProductiveStatus = ['parado', 'quebrado'];
         
-        // PASSO 1: Agrupar sessões por ITEM ID primeiro.
         const itemDowntimeLogs = {};
         
         history.forEach(log => {
@@ -345,7 +343,7 @@ export class RelatoriosView {
             
             if (!itemDowntimeLogs[id]) {
                 itemDowntimeLogs[id] = { 
-                    groupKey: item.finalidade, // Finalidade é o tipo do equipamento
+                    cod_equipamento: item.cod_equipamento,
                     sessions: [] 
                 };
             }
@@ -356,7 +354,119 @@ export class RelatoriosView {
             });
         });
 
-        // PASSO 2: Calcular o total de horas de inatividade para cada ITEM e AGREGAR pelo TIPO.
+        const results = [];
+
+        for (const id in itemDowntimeLogs) {
+            let totalMillis = 0;
+            const { sessions, cod_equipamento } = itemDowntimeLogs[id];
+            const sortedSessions = sessions.sort((a, b) => a.time - b.time);
+            
+            for(let i = 0; i < sortedSessions.length - 1; i++) {
+                if (nonProductiveStatus.includes(sortedSessions[i].status)) {
+                    totalMillis += sortedSessions[i+1].time - sortedSessions[i].time;
+                }
+            }
+            
+            const lastSession = sortedSessions[sessions.length - 1];
+            if (lastSession && nonProductiveStatus.includes(lastSession.status)) {
+                totalMillis += new Date() - lastSession.time; 
+            }
+
+            results.push({
+                cod_equipamento: cod_equipamento, 
+                totalHours: parseFloat((totalMillis / (1000 * 60 * 60)).toFixed(2))
+            });
+        }
+        
+        return results;
+    }
+
+    // NOVO: Função para mesclar os dados de Horas Trabalhadas e Paradas
+    prepareComparisonData(workHours, downtimeHours) {
+        const dataMap = new Map();
+
+        workHours.forEach(item => {
+            dataMap.set(item.cod_equipamento, { work: item.totalHours, downtime: 0 });
+        });
+
+        downtimeHours.forEach(item => {
+            if (dataMap.has(item.cod_equipamento)) {
+                dataMap.get(item.cod_equipamento).downtime = item.totalHours;
+            } else {
+                dataMap.set(item.cod_equipamento, { work: 0, downtime: item.totalHours });
+            }
+        });
+
+        const labels = Array.from(dataMap.keys()).sort();
+        const workData = labels.map(label => dataMap.get(label).work);
+        const downtimeData = labels.map(label => dataMap.get(label).downtime);
+        
+        return { labels, workData, downtimeData };
+    }
+
+    // NOVO: Função para o Gráfico de Comparação (Multi-Dataset)
+    drawComparisonChart(canvasId, labels, datasets, type) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+
+        if (this.workHoursChart) this.workHoursChart.destroy();
+
+        this.workHoursChart = new Chart(ctx, {
+            type: type,
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        stacked: true, // Empilhamento para a visualização desejada
+                        ticks: { color: '#A0AEC0' }, 
+                        grid: { color: '#4A5568' } 
+                    }, 
+                    x: { 
+                        stacked: true, // Empilhamento para a visualização desejada
+                        ticks: { color: '#A0AEC0' }, 
+                        grid: { color: '#4A5568' } 
+                    } 
+                },
+                plugins: { 
+                    legend: { 
+                        labels: { color: '#F7FAFC' } 
+                    } 
+                }
+            }
+        });
+    }
+
+    // LÓGICA ANTIGA (MANTIDA PARA O GRÁFICO 2: AGRUPAMENTO POR TIPO)
+    calculateDowntimeHoursByType(history, equipamentos) {
+        const itemMap = new Map(equipamentos.map(i => [i.id, i]));
+        const nonProductiveStatus = ['parado', 'quebrado'];
+        
+        const itemDowntimeLogs = {};
+        
+        history.forEach(log => {
+            const id = log.equipamento_id;
+            const item = itemMap.get(id);
+            if (!id || !item) return;
+            
+            if (!itemDowntimeLogs[id]) {
+                itemDowntimeLogs[id] = { 
+                    groupKey: item.finalidade,
+                    sessions: [] 
+                };
+            }
+            
+            itemDowntimeLogs[id].sessions.push({ 
+                status: log.status_novo, 
+                time: new Date(log.timestamp_mudanca) 
+            });
+        });
+
         const groupedResults = {};
 
         for (const id in itemDowntimeLogs) {
@@ -375,14 +485,12 @@ export class RelatoriosView {
                 totalMillis += new Date() - lastSession.time; 
             }
             
-            // Acumula no grupo
             if (!groupedResults[groupKey]) {
                 groupedResults[groupKey] = 0;
             }
             groupedResults[groupKey] += totalMillis;
         }
 
-        // PASSO 3: Formatar o resultado final
         const finalResults = Object.keys(groupedResults).map(groupKey => ({
             cod_equipamento: groupKey, 
             totalHours: (groupedResults[groupKey] / (1000 * 60 * 60)).toFixed(2)
@@ -390,12 +498,12 @@ export class RelatoriosView {
         
         return finalResults;
     }
-
+    
+    // Função para renderizar gráficos simples (usada no Gráfico 2 e 3)
     drawChart(canvasId, labels, data, type, label, color = 'rgba(56, 161, 105, 0.6)') {
         const ctx = document.getElementById(canvasId);
         if (!ctx) return;
         
-        if (canvasId === 'workHoursChart' && this.workHoursChart) this.workHoursChart.destroy();
         if (canvasId === 'downtimeHoursChart' && this.downtimeHoursChart) this.downtimeHoursChart.destroy();
         if (canvasId === 'productivityChart' && this.productivityChart) this.productivityChart.destroy();
 
@@ -433,7 +541,6 @@ export class RelatoriosView {
             }
         });
         
-        if (canvasId === 'workHoursChart') this.workHoursChart = newChart;
         if (canvasId === 'downtimeHoursChart') this.downtimeHoursChart = newChart;
         if (canvasId === 'productivityChart') this.productivityChart = newChart;
     }
