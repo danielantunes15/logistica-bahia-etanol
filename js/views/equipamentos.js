@@ -232,7 +232,9 @@ export class EquipamentosView {
                                         <td><strong>${e.cod_equipamento}</strong></td>
                                         <td>${e.finalidade}</td>
                                         <td><span class="caminhao-status-badge status-${e.status}">${this.statusLabels[e.status] || 'N/A'}</span></td>
-                                        <td><button class="btn-primary btn-status-modal" style="font-size: 0.8rem; padding: 6px 10px;" data-equipamento-id="${e.id}" data-frente-id="${frente.id}">Alterar Status</button></td>
+                                        <td>
+                                            <button class="btn-primary btn-move-status" style="font-size: 0.8rem; padding: 6px 10px;" data-equipamento-id="${e.id}" data-frente-id="${frente.id}">Mover / Status</button>
+                                        </td>
                                     </tr>
                                 `).join('') : '<tr><td colspan="4">Nenhum equipamento nesta frente.</td></tr>'}
                                 
@@ -379,12 +381,12 @@ export class EquipamentosView {
         
         // Cria um manipulador de eventos único e armazena a referência
         this._boundClickHandler = (e) => {
-            const btnStatus = e.target.closest('.btn-status-modal');
             const btnRefresh = e.target.closest('#refresh-equipamentos');
             const btnAssign = e.target.closest('.btn-assign-modal');
             const btnParadosAction = e.target.closest('.btn-parados-action');
+            const btnMoveStatus = e.target.closest('.btn-move-status'); // NEW HANDLER
 
-            if (btnStatus) this.showStatusUpdateModal(btnStatus.dataset.equipamentoId, btnStatus.dataset.frenteId);
+            if (btnMoveStatus) this.showMoveEquipmentModal(btnMoveStatus.dataset.equipamentoId, btnMoveStatus.dataset.frenteId); // NEW ACTION
             if (btnRefresh) this.loadData();
             if (btnAssign) this.showAssignmentModal(btnAssign.dataset.frenteId);
             if (btnParadosAction) this.showParadosActionModal(btnParadosAction.dataset.equipamentoId, btnParadosAction.dataset.frenteId);
@@ -395,10 +397,88 @@ export class EquipamentosView {
             this.container.addEventListener('click', this._boundClickHandler);
         }
     }
+    
+    // --- NOVA FUNÇÃO: Mover para outra frente ou disponibilizar ---
+    showMoveEquipmentModal(equipamentoId, currentFrenteId) {
+        const equipamento = this.data.equipamentos.find(e => e.id == equipamentoId);
+        if (!equipamento) return;
+        
+        // Frentes ativas ou cata, excluindo a frente atual. Filtra frentes que têm fazenda associada.
+        const currentFrenteIntId = parseInt(currentFrenteId);
+        const frentesDisponiveis = this.data.frentes_servico.filter(f => 
+            f.id !== currentFrenteIntId && (f.status === 'ativa' || f.status === 'fazendo_cata') && f.fazenda_id
+        );
+
+        // Prepara as opções do seletor de frente
+        const optionsHTML = frentesDisponiveis.map(f => 
+            `<option value="${f.id}">${f.nome} (${f.status === 'ativa' ? 'Colheita' : 'Cata'})</option>`
+        ).join('');
+        
+        const currentFrenteName = this.frentesMap.get(currentFrenteIntId) || 'Nenhuma (Disponível)';
+
+        const modalContent = `
+            <p>Equipamento: <strong>${equipamento.cod_equipamento} (${equipamento.finalidade})</strong></p>
+            <p>Frente Atual: <strong>${currentFrenteName}</strong></p>
+            
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+            
+            <form id="move-equipment-form" class="action-modal-form" style="margin-bottom: 20px;">
+                <h4>Mover para Outra Frente</h4>
+                <div class="form-group">
+                    <label>Frente de Destino</label>
+                    <select name="new_frente_id" class="form-select" required>
+                        <option value="">Selecione a Frente...</option>
+                        ${optionsHTML}
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary">Mover Equipamento (Manter Ativo)</button>
+            </form>
+
+            <form id="unassign-equipment-form" class="action-modal-form">
+                <h4>Disponibilizar (Tornar Livre)</h4>
+                <p class="form-help">Remove o equipamento da Frente ${currentFrenteName}, mantendo o status 'Em Operação' (ativo) para ser usado por outra frente.</p>
+                <button type="submit" class="btn-secondary">Disponibilizar</button>
+            </form>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+
+            <button class="btn-danger" id="btn-status-parada-quebra">Registrar Parada / Quebra</button>
+        `;
+        
+        openModal('Gerenciar Movimentação e Status', modalContent);
+
+        // Handler para Mover para Outra Frente
+        document.getElementById('move-equipment-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newFrenteId = e.target.new_frente_id.value;
+            const newFrenteName = this.frentesMap.get(parseInt(newFrenteId));
+            if (newFrenteId) {
+                // Status permanece 'ativo', apenas a frente é trocada.
+                await this.handleStatusUpdate(equipamento.id, 'ativo', newFrenteId, new Date().toISOString(), `Equipamento movido para Frente ${newFrenteName}!`, 'Movido para nova frente');
+            }
+        });
+
+        // Handler para Tornar Disponível (Unassign)
+        document.getElementById('unassign-equipment-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            // Mantém status 'ativo', mas frente_id = null
+            await this.handleStatusUpdate(equipamento.id, 'ativo', null, new Date().toISOString(), `Equipamento ${equipamento.cod_equipamento} disponibilizado!`, 'Disponibilizado/desassociado da frente');
+        });
+        
+        // Handler para Parada/Quebra (Redireciona para o modal existente)
+        document.getElementById('btn-status-parada-quebra').addEventListener('click', () => {
+            closeModal();
+            // Chama a função que contém o formulário com o status e o motivo
+            this.showStatusUpdateModal(equipamentoId, currentFrenteId); 
+        });
+    }
+
+    // --- FIM DA NOVA FUNÇÃO ---
 
     showAssignmentModal(frenteId) {
         const { equipamentos = [] } = this.data;
         // Equipamentos que não estão associados a nenhuma frente e não estão quebrados
+        // Note: Agora 'ativo' com frente_id=null é um disponível.
         const equipamentosDisponiveis = equipamentos.filter(e => !e.frente_id && e.status !== 'quebrado');
         
         const modalContent = `
@@ -423,7 +503,7 @@ export class EquipamentosView {
             showLoading();
             try {
                 // Ao designar, o status é 'ativo' e a frente é associada
-                await updateEquipamentoStatus(equipamentoId, 'ativo', frenteId);
+                await updateEquipamentoStatus(equipamentoId, 'ativo', frenteId, new Date().toISOString(), 'Designado para frente');
                 showToast('Equipamento designado com sucesso!', 'success');
                 closeModal();
                 await this.loadData();
@@ -435,7 +515,7 @@ export class EquipamentosView {
         });
     }
 
-    // --- NOVO: Modal para Ações no Painel de Parados (Finalizar / Mudar Status) ---
+    // --- Modal para Ações no Painel de Parados (Finalizar / Mudar Status) ---
     showParadosActionModal(equipamentoId, frenteId) {
         const equipamento = this.data.equipamentos.find(e => e.id == equipamentoId);
         if (!equipamento) return;
@@ -498,7 +578,7 @@ export class EquipamentosView {
             }
             
             // O handleStatusUpdate cuida de passar a nova frente_id para o updateEquipamentoStatus
-            this.handleStatusUpdate(equipamento.id, 'ativo', novaFrenteId, new Date(horaFim).toISOString(), 'Parada Finalizada! Equipamento Ativo.');
+            this.handleStatusUpdate(equipamento.id, 'ativo', novaFrenteId, new Date(horaFim).toISOString(), 'Parada Finalizada! Equipamento Ativo.', 'Fim de parada: Ativado para nova frente');
         });
         
         // Listener para Mudar Status Inativo
@@ -507,7 +587,7 @@ export class EquipamentosView {
             const novoStatus = e.target.status_mudanca.value;
             const motivo = e.target.motivo_mudanca.value;
             
-            // Note: Manter a frente_id existente, pois a máquina continua inativa
+            // Note: Manter a frente_id existente (que é null para parados/quebrados), pois a máquina continua inativa
             this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, new Date().toISOString(), `Status alterado para ${this.statusLabels[novoStatus]}!`, motivo);
         });
     }
@@ -524,7 +604,7 @@ export class EquipamentosView {
         let modalContent;
 
         if (equipamento.status === 'ativo') {
-            // Se estiver ativo, só pode ir para parado/quebrado
+            // Se estiver ativo, só pode ir para parado/quebrado. Este é o formulário de REGISTRO DE PARADA.
             modalContent = `
                 <p>Equipamento: <strong>${equipamento.cod_equipamento} (${equipamento.finalidade})</strong></p>
                 <form id="parada-equipamento-form" class="action-modal-form">
@@ -567,8 +647,8 @@ export class EquipamentosView {
     async handleStatusUpdate(equipamentoId, novoStatus, frenteId, timestamp, successMessage, motivoParada = null) {
         showLoading();
         try {
-            // Se o novo status for ativo, a Frente_id deve ser a frente de destino (frontId), senão é nulo (newFrenteId)
-            const newFrenteId = novoStatus === 'ativo' ? frenteId : null; 
+            // Se o novo status for ativo, a Frente_id deve ser a frente de destino (frontId ou null se for disponibilizar)
+            const newFrenteId = novoStatus === 'ativo' ? (frenteId || null) : null; 
             
             await updateEquipamentoStatus(equipamentoId, novoStatus, newFrenteId, timestamp, motivoParada);
             showToast(successMessage, 'success');
