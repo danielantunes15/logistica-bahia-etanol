@@ -38,7 +38,7 @@ export class DescargaView {
                     </button>
                 </div>
                 <div id="descarga-grid" class="descarga-grid">
-                    <div class="empty-state-descarga">
+                    <div class="empty-state-descarga" style="grid-column: 1 / -1;">
                         <i class="ph-fill ph-info"></i>
                         <p>Carregando dados...</p>
                     </div>
@@ -62,7 +62,6 @@ export class DescargaView {
     }
 
     async loadData() {
-        // showLoading() e hideLoading() estão desativados (conforme sua solicitação anterior)
         try {
             this.data = await fetchAllData();
             this.processAndRender();
@@ -75,96 +74,97 @@ export class DescargaView {
     processAndRender() {
         const { caminhoes = [], frentes_servico = [], caminhao_historico = [] } = this.data;
 
-        // 1. Filtrar caminhões que estão descarregando e associados a uma frente
+        // 1. Define Fixed Groups with initial empty data
+        const fixedGroups = [
+            {
+                columnName: 'AGRO UNIONE',
+                frentes: ['AGRO UNIONE - MANUAL 01', 'AGRO UNIONE - MANUAL 02', 'AGRO UNIONE - MECANIZADA'],
+                data: [], 
+            },
+            {
+                columnName: 'CANA INTEIRA BEL',
+                frentes: ['RG TRANSPORTE', 'CASTRO SERVIÇOS AGRI', 'GM AGRONEGÓCIO E SER'],
+                data: [],
+            },
+            {
+                columnName: 'CANA MECANIZADA BEL',
+                frentes: ['PEDRO EPSON', 'AGROTERRA MECANIZADA', 'VALE DO ARAGUAIA', 'E. DOS SANTOS'],
+                data: [],
+            }
+        ];
+
+        // 2. Filter trucks and find entry time
         const caminhoesEmDescarga = caminhoes.filter(c => c.status === this.statusToMonitor && c.frente_id);
-
-        if (caminhoesEmDescarga.length === 0) {
-            this.renderEmptyState();
-            return;
-        }
-
-        // 2. Encontrar o timestamp de entrada para o status 'descarregando' para cada caminhão
-        const entradaDescargaMap = new Map();
-        
-        // Ordena o histórico do mais novo para o mais antigo para encontrar o último log de 'descarregando'
         const sortedHistory = caminhao_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
+        const entradaDescargaMap = new Map();
 
         caminhoesEmDescarga.forEach(caminhao => {
-            // Encontra o log mais recente onde o status_novo foi 'descarregando'
             const latestLog = sortedHistory.find(log => log.caminhao_id === caminhao.id && log.status_novo === this.statusToMonitor);
             
-            if (latestLog) {
-                entradaDescargaMap.set(caminhao.id, {
-                    timestamp: new Date(latestLog.timestamp_mudanca),
-                    logId: latestLog.id
-                });
-            } else {
-                 // Fallback (embora improvável para status ativo)
-                 entradaDescargaMap.set(caminhao.id, {
-                    timestamp: new Date(caminhao.created_at),
-                    logId: null
-                });
-            }
+            entradaDescargaMap.set(caminhao.id, {
+                timestamp: new Date(latestLog ? latestLog.timestamp_mudanca : caminhao.created_at),
+                logId: latestLog ? latestLog.id : null
+            });
         });
         
-        // 3. Agrupar por Frente e adicionar a hora de entrada
-        const descargaPorFrente = new Map();
+        // 3. Group trucks into fixed columns
         const frentesMap = new Map(frentes_servico.map(f => [f.id, f]));
 
         caminhoesEmDescarga.forEach(caminhao => {
             const frente = frentesMap.get(caminhao.frente_id);
+            const frenteNome = frente ? frente.nome : null;
             const entradaInfo = entradaDescargaMap.get(caminhao.id);
-            
-            if (frente && entradaInfo) {
-                if (!descargaPorFrente.has(frente.id)) {
-                    descargaPorFrente.set(frente.id, {
-                        frenteNome: frente.nome,
-                        caminhoes: []
-                    });
-                }
-                
-                descargaPorFrente.get(frente.id).caminhoes.push({
+
+            if (frenteNome && entradaInfo) {
+                const truckData = {
                     cod_equipamento: caminhao.cod_equipamento,
                     entrada: entradaInfo.timestamp,
                     id: caminhao.id
-                });
+                };
+
+                // Find which fixed group this truck belongs to
+                for (const group of fixedGroups) {
+                    if (group.frentes.includes(frenteNome)) {
+                        group.data.push(truckData);
+                        break;
+                    }
+                }
             }
         });
 
-        // 4. Ordenar caminhões dentro de cada frente por hora de entrada (mais antigos primeiro = ordem de chegada)
-        descargaPorFrente.forEach(grupo => {
-            grupo.caminhoes.sort((a, b) => a.entrada - b.entrada);
+        // 4. Order trucks within each fixed group by entry time (oldest first)
+        fixedGroups.forEach(group => {
+            group.data.sort((a, b) => a.entrada - b.entrada);
         });
 
-        // 5. Renderizar o grid de colunas
-        this.renderGrid(descargaPorFrente);
+        // 5. Render the grid
+        this.renderGrid(fixedGroups);
     }
     
-    renderEmptyState() {
-        const grid = document.getElementById('descarga-grid');
-        if (grid) {
-             grid.innerHTML = `
-                <div class="empty-state-descarga" style="grid-column: 1 / -1;">
-                    <i class="ph-fill ph-check-square-offset" style="color: var(--accent-primary);"></i>
-                    <p>Nenhum caminhão atualmente no status 'Descarregando'.</p>
-                </div>
-            `;
-             grid.style.gridTemplateColumns = '1fr';
-        }
-    }
-
-    renderGrid(descargaPorFrente) {
+    renderGrid(fixedGroups) {
         const grid = document.getElementById('descarga-grid');
         if (!grid) return;
         
-        // 1. Configurar o número de colunas dinamicamente
-        const numColunas = Math.max(1, descargaPorFrente.size); // Mínimo de 1
-        grid.style.gridTemplateColumns = `repeat(${numColunas}, 1fr)`;
+        // Always set 3 columns
+        grid.style.gridTemplateColumns = `repeat(3, 1fr)`;
 
-        // 2. Gerar o HTML para cada coluna
+        // Check for empty state across all groups
+        const allEmpty = fixedGroups.every(group => group.data.length === 0);
+        
+        if (allEmpty) {
+             grid.innerHTML = `
+                <div class="empty-state-descarga" style="grid-column: 1 / -1; height: 300px;">
+                    <i class="ph-fill ph-check-square-offset" style="color: var(--accent-primary);"></i>
+                    <p>Nenhum caminhão atualmente no status 'Descarregando' nas frentes monitoradas.</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Generate HTML for each column
         let gridHTML = '';
-        descargaPorFrente.forEach(grupo => {
-            const listaCaminhoesHTML = grupo.caminhoes.map(caminhao => `
+        fixedGroups.forEach(group => {
+            const listaCaminhoesHTML = group.data.map(caminhao => `
                 <div class="descarga-card">
                     <div class="descarga-cod">#${caminhao.cod_equipamento}</div>
                     <div class="descarga-time">${formatDateTime(caminhao.entrada)}</div>
@@ -173,9 +173,9 @@ export class DescargaView {
 
             gridHTML += `
                 <div class="descarga-coluna">
-                    <h2 class="descarga-frente-title">${grupo.frenteNome}</h2>
+                    <h2 class="descarga-frente-title">${group.columnName}</h2>
                     <div class="descarga-list">
-                        ${listaCaminhoesHTML}
+                        ${group.data.length > 0 ? listaCaminhoesHTML : '<div class="empty-state-list"><i class="ph-fill ph-info"></i><p>Nenhum caminhão nesta categoria.</p></div>'}
                     </div>
                 </div>
             `;
