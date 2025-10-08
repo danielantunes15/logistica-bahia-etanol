@@ -28,6 +28,9 @@ export async function loadSidebar() {
             <button class="nav-button" data-view="fila-estacionamento"> <i class="ph-fill ph-hourglass-simple"></i>
                 <span>Fila no Estacionamento</span>
             </button>
+            <button class="nav-button" data-view="fila-descarga"> <i class="ph-fill ph-factory"></i>
+                <span>Fila de Descarga</span>
+            </button>
             <button class="nav-button" data-view="relatorios">
                 <i class="ph-fill ph-chart-bar"></i>
                 <span>Relatórios</span>
