@@ -193,7 +193,7 @@ export class MapManager {
             if (fazenda.latitude && fazenda.longitude) {
                 const coords = [parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)];
                 
-                // Definir cor baseada no status da FRENTE (ativa/fazendo_cata)
+                // Definir cor baseada no status da FRENTE (ativa/fazendo_cata/inativa)
                 let color;
                 let statusLabel;
                 switch(fazenda.status) {
@@ -202,11 +202,15 @@ export class MapManager {
                         statusLabel = 'Colhendo';
                         break;
                     case 'fazendo_cata':
-                        color = '#D69E2E'; // Amarelo (Cata)
+                        color = '#ED8936'; // Laranja para Cata
                         statusLabel = 'Fazendo Cata';
                         break;
+                    case 'inativa':
+                        color = '#D69E2E'; // Amarelo para Inativa (Atenção)
+                        statusLabel = 'Com Atenção';
+                        break;
                     default:
-                        // Deve ser filtrado no dashboard.js, mas como fallback
+                        // Se houver status inesperado, usa cinza como fallback
                         color = '#718096'; 
                         statusLabel = 'N/A';
                 }

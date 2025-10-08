@@ -170,11 +170,15 @@ export class DashboardView {
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color colhendo"></div>
-                                <span>Colhendo / Cata</span>
+                                <span>Colhendo</span>
                             </div>
                             <div class="legend-item">
-                                <div class="legend-color disponivel"></div>
-                                <span>Disponível</span>
+                                <div class="legend-color fazendo_cata"></div>
+                                <span>Cata</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color atencao"></div>
+                                <span>Frentes com Atenção</span>
                             </div>
                         </div>
                     </div>
@@ -366,22 +370,23 @@ export class DashboardView {
             return;
         }
 
-        // Lógica para filtrar APENAS as fazendas que estão ATIVAS (colhendo ou cata)
+        // Lógica para filtrar APENAS as fazendas que estão ATIVAS (colhendo/cata) OU INATIVAS (atenção)
         const activeFrenteMap = new Map();
-        frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
+        // Inclui 'ativa', 'fazendo_cata' E 'inativa' para serem mapeadas
+        frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata' || f.status === 'inativa'))
                        .forEach(frente => {
                            activeFrenteMap.set(frente.fazenda_id, frente.status); 
                        });
 
-        const fazendasAtivasNoMapa = fazendas.filter(f => activeFrenteMap.has(f.id)).map(f => ({
+        const fazendasNoMapa = fazendas.filter(f => activeFrenteMap.has(f.id)).map(f => ({
             ...f,
             status: activeFrenteMap.get(f.id) 
         }));
 
-        if (fazendasAtivasNoMapa.length > 0) {
-            mapManager.updateFazendaMarkersWithStatus(fazendasAtivasNoMapa);
+        if (fazendasNoMapa.length > 0) {
+            mapManager.updateFazendaMarkersWithStatus(fazendasNoMapa);
             // Passa apenas as ativas, mas calculateBounds inclui a Usina
-            this.adjustMapToShowFazendas(fazendasAtivasNoMapa); 
+            this.adjustMapToShowFazendas(fazendasNoMapa); 
         } else {
             // Se não há fazendas ativas, limpa os marcadores e centraliza na usina (zoom distante)
             mapManager.clearMarkers('dashboard-fazendas');

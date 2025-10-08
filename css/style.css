@@ -466,11 +466,11 @@ body {
 }
 
 .legend-color.fazendo_cata {
-    background-color: #D69E2E;
+    background-color: #ED8936; /* Laranja para Cata */
 }
 
-.legend-color.disponivel {
-    background-color: #3182CE;
+.legend-color.atencao {
+    background-color: #D69E2E; /* Amarelo para Atenção/Inativa */
 }
 
 .legend-color.finalizada {
@@ -615,18 +615,13 @@ body {
 }
 
 .popup-status.fazendo_cata {
+    background: rgba(237, 137, 54, 0.2);
+    color: #ED8936; /* Laranja para Cata */
+}
+
+.popup-status.inativa {
     background: rgba(214, 158, 46, 0.2);
-    color: #D69E2E;
-}
-
-.popup-status.disponível {
-    background: rgba(49, 130, 206, 0.2);
-    color: #3182CE;
-}
-
-.popup-status.finalizada {
-    background: rgba(113, 128, 150, 0.2);
-    color: #718096;
+    color: #D69E2E; /* Amarelo para Atenção/Inativa */
 }
 
 .popup-status i {
