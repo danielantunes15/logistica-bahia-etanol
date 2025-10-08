@@ -57,7 +57,7 @@ export class FilaEstacionamentoView {
                         
                         <div class="fila-queue-panel">
                             <h2>Cana Mecanizada - Fila de Carregamento</h2>
-                            <div id="queue-mechanized-list" class="truck-list queue-list drop-target" data-queue-type="mechanized">
+                            <div id="queue-mechanized-list" class="truck-list queue-list drop-target" data-queue-type="mecanizada">
                                 </div>
                             <p class="queue-status-hint">Arraste os caminhões para ordenar a fila de carregamento mecanizado.</p>
                         </div>
@@ -106,9 +106,11 @@ export class FilaEstacionamentoView {
 
     renderAllPanels() {
         const queueIds = new Set([...this.manualQueue.map(c => c.id), ...this.mechanizedQueue.map(c => c.id)]);
+        // Filtra os disponíveis: aqueles que vieram do DB E NÃO estão em nenhuma fila
         const currentAvailable = this.availableTrucks.filter(c => !queueIds.has(c.id));
         
-        this.renderList('disponiveis-list', currentAvailable, true, false);
+        // Renders
+        this.renderList('disponiveis-list', currentAvailable, true, false); 
         this.renderList('queue-manual-list', this.manualQueue, true, true);
         this.renderList('queue-mechanized-list', this.mechanizedQueue, true, true);
     }
@@ -173,20 +175,19 @@ export class FilaEstacionamentoView {
             
             target.addEventListener('dragover', (e) => {
                 e.preventDefault(); 
-                const list = target.closest('.drop-target').querySelector('.truck-list');
+                
+                const list = target;
                 const draggable = document.querySelector('.dragging');
                 if (!draggable || !list) return;
 
                 const isComingFromAvailable = draggable.closest('.drag-source-list');
                 const isGoingToQueue = target.dataset.queueType !== 'disponivel';
                 
-                // Só mostra placeholder/reordenamento se estiver indo para uma fila ou voltando para disponíveis
-                if ((isComingFromAvailable && isGoingToQueue) || (draggable.closest('.queue-list'))) {
+                if (isComingFromAvailable && isGoingToQueue || draggable.closest('.queue-list') || target.dataset.queueType === 'disponivel') {
                     
                     const afterElement = this.getDragAfterElement(list, e.clientY);
                     let placeholder = document.getElementById('drag-placeholder');
                     
-                    // Lógica para criar/mover placeholder
                     if (!placeholder) {
                         placeholder = document.createElement('div');
                         placeholder.id = 'drag-placeholder';
@@ -195,27 +196,17 @@ export class FilaEstacionamentoView {
                         placeholder.style.height = `${draggable.offsetHeight}px`;
                     }
                     
-                    // Se o item vem da lista de disponíveis E está indo para uma fila, move placeholder
-                    // OU se o item já está em uma fila, move o próprio item para reordenar
-                    if (isComingFromAvailable && isGoingToQueue) {
+                    if (isComingFromAvailable && isGoingToQueue || target.dataset.queueType === 'disponivel') {
                         if (afterElement == null) {
                             list.appendChild(placeholder);
                         } else {
                             list.insertBefore(placeholder, afterElement);
                         }
                     } else if (draggable.closest('.queue-list')) {
-                         // Reordenamento interno: apenas move o item
                          if (afterElement == null) {
                             list.appendChild(draggable);
                         } else {
                             list.insertBefore(draggable, afterElement);
-                        }
-                    } else if (target.dataset.queueType === 'disponivel') {
-                        // Voltando para disponíveis: usa placeholder
-                        if (afterElement == null) {
-                            list.appendChild(placeholder);
-                        } else {
-                            list.insertBefore(placeholder, afterElement);
                         }
                     }
 
@@ -223,8 +214,7 @@ export class FilaEstacionamentoView {
             });
             
             target.addEventListener('dragleave', (e) => {
-                 // Remove o placeholder se sair do alvo
-                if (!e.currentTarget.contains(e.relatedTarget)) {
+                 if (!e.currentTarget.contains(e.relatedTarget)) {
                     const placeholder = document.getElementById('drag-placeholder');
                     if (placeholder) placeholder.remove();
                 }
@@ -247,7 +237,6 @@ export class FilaEstacionamentoView {
 
     // Função auxiliar para encontrar o elemento após o qual o arrastado deve ser inserido
     getDragAfterElement(container, y) {
-        // Encontra todos os cartões que não estão sendo arrastados e não são o placeholder
         const draggableElements = [...container.querySelectorAll('.truck-card:not(.dragging):not(.drag-placeholder)')];
 
         return draggableElements.reduce((closest, child) => {
@@ -263,23 +252,43 @@ export class FilaEstacionamentoView {
     
     // Lógica para manipular o drop e atualizar as filas (estrutura de dados)
     handleDrop(truckId, targetQueueType, dropY) {
-        // Encontra o caminhão em qualquer lista
+        
+        // 1. Encontra e remove o caminhão de todas as listas (available, manual, mechanized)
         let truck = this.availableTrucks.find(c => c.id == truckId) ||
                     this.manualQueue.find(c => c.id == truckId) || 
                     this.mechanizedQueue.find(c => c.id == truckId);
         
         if (!truck) return;
 
-        // 2. Remove o caminhão de todas as listas
+        // Remove de onde estiver
         this.availableTrucks = this.availableTrucks.filter(c => c.id != truckId);
         this.manualQueue = this.manualQueue.filter(c => c.id != truckId);
         this.mechanizedQueue = this.mechanizedQueue.filter(c => c.id != truckId);
         
-        // 3. Adiciona na lista de destino e simula a reordenação (se for uma fila)
-        if (targetQueueType === 'manual' || targetQueueType === 'mechanized') {
-            const targetQueue = targetQueueType === 'manual' ? this.manualQueue : this.mechanizedQueue;
+        // 2. Determina o array de destino e mensagem
+        let targetQueue = null;
+        let successMessage = '';
+
+        if (targetQueueType === 'manual') {
+            targetQueue = this.manualQueue;
+            successMessage = 'Manual';
+        } else if (targetQueueType === 'mecanizada') {
+            targetQueue = this.mechanizedQueue;
+            successMessage = 'Mecanizada';
+        } else if (targetQueueType === 'disponivel') {
+             // Caso de retorno para o pool de disponíveis
+             this.availableTrucks.push(truck);
+             this.availableTrucks.sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
+             showToast(`Caminhão #${truck.cod} voltou para Disponíveis no Pátio!`, 'info');
+             this.renderAllPanels(); 
+             return;
+        }
+        
+        // 3. Adiciona o caminhão na fila correta (manual ou mecanizada)
+        if (targetQueue) {
             const targetListElement = document.getElementById(`queue-${targetQueueType}-list`);
             
+            // Reordenamento: encontra a posição de inserção
             const afterElement = this.getDragAfterElement(targetListElement, dropY);
             const cardElements = [...targetListElement.querySelectorAll('.truck-card')];
             
@@ -288,16 +297,15 @@ export class FilaEstacionamentoView {
                 newIndex = cardElements.findIndex(child => child.dataset.truckId == afterElement.dataset.truckId);
             }
             
+            // Insere na posição correta
             targetQueue.splice(newIndex, 0, truck);
-            showToast(`Caminhão #${truck.cod} movido para a Fila ${targetQueueType === 'manual' ? 'Manual' : 'Mecanizada'}!`, 'info');
-        } else if (targetQueueType === 'disponivel') {
-            // Volta para a lista de disponíveis (não reordenável, apenas adiciona)
-             this.availableTrucks.push(truck);
-             this.availableTrucks.sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime)); // Reordena por tempo de entrada
-             showToast(`Caminhão #${truck.cod} voltou para Disponíveis no Pátio!`, 'info');
+            showToast(`Caminhão #${truck.cod} movido para a Fila ${successMessage}!`, 'info');
+        } else {
+            // Se o destino não foi reconhecido, coloca de volta no pool de disponíveis para evitar perda
+            this.availableTrucks.push(truck);
         }
         
-        // 4. Re-renderiza todos os painéis para refletir a mudança
-        this.renderAllPanels();
+        // 4. Re-renderiza para refletir o estado correto
+        this.renderAllPanels(); 
     }
 }
