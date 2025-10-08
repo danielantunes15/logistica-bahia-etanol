@@ -1,7 +1,9 @@
 // js/views/controle.js
-import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus } from '../api.js';
+import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
+
+const ESTACIONAMENTO_STATUS = ['disponivel', 'patio_vazio']; // Status que indicam que o caminhão está na fila/pátio
 
 export class ControleView {
     constructor() {
@@ -271,7 +273,7 @@ export class ControleView {
     showAssignmentModal() {
         const { caminhoes = [], frentes_servico = [] } = this.data;
         // --- CORREÇÃO AQUI: Mostra caminhões 'disponivel' OU sem status definido (null) ---
-        const caminhoesDisponiveis = caminhoes.filter(c => c.status === 'disponivel' || !c.status);
+        const caminhoesDisponiveis = caminhoes.filter(c => c.status === 'disponivel' || c.status === 'patio_vazio' || !c.status);
         
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -326,7 +328,12 @@ export class ControleView {
 
             showLoading();
             try {
+                // 1. Designa o caminhão e atualiza status no DB
                 await assignCaminhaoToFrente(caminhaoId, frenteId, status, new Date(hora).toISOString());
+                
+                // 2. Remove da fila de estacionamento persistida
+                await removeCaminhaoFromFila(caminhaoId); 
+                
                 showToast('Caminhão designado com sucesso!', 'success');
                 closeModal();
                 await this.loadData();
@@ -347,7 +354,8 @@ export class ControleView {
             <form id="status-update-form" class="action-modal-form">
                 <div class="form-group">
                     <label>Selecione o Novo Status</label>
-                    ${[...this.statusCiclo, 'quebrado'].map(s => `<option value="${s}" ${caminhao.status === s ? 'selected' : ''}>${this.statusLabels[s]}</option>`).join('')}
+                    <select name="status" class="form-select" required>
+                    ${[...this.statusCiclo, 'quebrado', 'disponivel'].map(s => `<option value="${s}" ${caminhao.status === s ? 'selected' : ''}>${this.statusLabels[s]}</option>`).join('')}
                     </select>
                 </div>
                 <button type="submit" class="btn-primary">Atualizar Status</button>
@@ -370,14 +378,20 @@ export class ControleView {
     async handleStatusUpdate(caminhaoId, novoStatus, frenteId, successMessage) {
         showLoading(); // INICIA AQUI
         try {
-            // 1. Atualiza o DB
+            // 1. Atualiza o DB (o API.js já cuida de desassociar a frente se for 'disponivel' ou 'quebrado')
             await updateCaminhaoStatus(caminhaoId, novoStatus, frenteId);
             
-            // 2. Feedback RÁPIDO para o usuário
+            // 2. NOVO: Se o caminhão saiu do pátio/fila (status não é de estacionamento), remove da tabela fila_carregamento
+            if (!ESTACIONAMENTO_STATUS.includes(novoStatus)) {
+                 await removeCaminhaoFromFila(caminhaoId);
+            }
+            // OBS: Se o status for 'disponivel' ou 'patio_vazio', o caminhão deve permanecer no pool de ordenação
+            
+            // 3. Feedback RÁPIDO para o usuário
             showToast(successMessage, 'success');
             closeModal();
             
-            // 3. Recarrega os DADOS (a parte LENTA)
+            // 4. Recarrega os DADOS (a parte LENTA)
             await this.loadData(); 
             
         } catch (error) {

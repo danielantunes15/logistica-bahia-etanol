@@ -1,5 +1,5 @@
 // js/views/filaEstacionamento.js
-import { fetchAllData } from '../api.js';
+import { fetchAllData, fetchFila, updateFilaCarregamento } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
 
 // Status que indicam que o caminhão está no estacionamento
@@ -72,7 +72,9 @@ export class FilaEstacionamentoView {
         showLoading();
         try {
             this.data = await fetchAllData();
-            this.prepareAvailableTrucks();
+            // 1. Busca os dados de persistência da fila
+            const filaPersistida = await fetchFila();
+            this.prepareAvailableTrucks(filaPersistida);
         } catch (error) {
             handleOperation(error);
         } finally {
@@ -80,10 +82,11 @@ export class FilaEstacionamentoView {
         }
     }
 
-    prepareAvailableTrucks() {
+    prepareAvailableTrucks(filaPersistida = []) {
         const { caminhoes = [], caminhao_historico = [] } = this.data;
         const historyMap = new Map();
-
+        const caminhaoMap = new Map(caminhoes.map(c => [c.id, c]));
+        
         caminhao_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
         
         for (const log of caminhao_historico) {
@@ -91,19 +94,52 @@ export class FilaEstacionamentoView {
                 historyMap.set(log.caminhao_id, log.timestamp_mudanca);
             }
         }
+        
+        // Mapeia a fila persistida para fácil lookup
+        const filaMap = new Map(filaPersistida.map(item => [item.caminhao_id, item]));
+        // A ordem já está correta, pois é ordenada na função fetchFila
+        const filaOrdenada = filaPersistida; 
 
-        // Garante que os caminhões nas filas manuais e mecanizadas não apareçam mais nos disponíveis
-        const queuedIds = new Set([...this.manualQueue, ...this.mechanizedQueue].map(c => c.id));
+        // Inicializa as filas
+        this.manualQueue = [];
+        this.mechanizedQueue = [];
+        this.availableTrucks = [];
 
-        this.availableTrucks = caminhoes
-            .filter(c => ESTACIONAMENTO_STATUS.includes(c.status) && c.status !== 'quebrado' && !queuedIds.has(c.id))
+        // 1. Preenche as filas com base na persistência
+        filaOrdenada.forEach(item => {
+            const caminhao = caminhaoMap.get(item.caminhao_id);
+            // Só adiciona se o caminhão existir e não estiver quebrado
+            if (caminhao && caminhao.status !== 'quebrado') {
+                 const truckObject = {
+                    id: caminhao.id,
+                    cod: caminhao.cod_equipamento,
+                    status: caminhao.status,
+                    entryTime: historyMap.get(caminhao.id) || caminhao.created_at,
+                };
+
+                if (item.tipo_fila === 'manual') {
+                    this.manualQueue.push(truckObject);
+                } else if (item.tipo_fila === 'mecanizada') {
+                    this.mechanizedQueue.push(truckObject);
+                } else if (item.tipo_fila === 'disponivel_ordenado') {
+                    this.availableTrucks.push(truckObject);
+                }
+            }
+        });
+        
+        // 2. Adiciona caminhões recém-disponíveis (que não estão em nenhuma fila persistida)
+        const recemDisponiveis = caminhoes
+            .filter(c => ESTACIONAMENTO_STATUS.includes(c.status) && c.status !== 'quebrado' && !filaMap.has(c.id))
             .map(c => ({
                 id: c.id,
                 cod: c.cod_equipamento,
                 status: c.status,
                 entryTime: historyMap.get(c.id) || c.created_at,
             }))
-            .sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
+            .sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime)); // Ordena por tempo de entrada
+            
+        // Adiciona ao final da lista de disponíveis (mantendo a ordem salva primeiro)
+        this.availableTrucks.push(...recemDisponiveis);
             
         this.renderAllPanels();
     }
@@ -158,8 +194,6 @@ export class FilaEstacionamentoView {
                 e.dataTransfer.setData('text/plain', card.dataset.truckId);
                 e.dataTransfer.setData('source-queue', card.closest('.drop-target').dataset.queueType);
                 setTimeout(() => card.classList.add('dragging'), 0);
-                // LOG DE DEBUG
-                console.log('DRAG START: Arrancando Caminhão ID:', card.dataset.truckId);
             }
         });
 
@@ -171,8 +205,6 @@ export class FilaEstacionamentoView {
             }
             const placeholder = document.getElementById('drag-placeholder');
             if (placeholder) placeholder.remove();
-             // LOG DE DEBUG
-            console.log('DRAG END: Limpando estado de arrasto.');
         });
 
         // --- DROP TARGETS: Gerencia o arrastar sobre e o soltar ---
@@ -206,8 +238,6 @@ export class FilaEstacionamentoView {
                     } else {
                         list.insertBefore(placeholder, afterElement);
                     }
-                    // LOG DE DEBUG
-                    // console.log(`DRAG OVER: Inserindo placeholder em ${list.dataset.queueType}. Antes de: ${afterElement ? afterElement.dataset.cod : 'Final'}`);
                 }
             });
             
@@ -216,8 +246,6 @@ export class FilaEstacionamentoView {
                  if (!e.currentTarget.contains(e.relatedTarget)) {
                     const placeholder = document.getElementById('drag-placeholder');
                     if (placeholder) placeholder.remove();
-                     // LOG DE DEBUG
-                     // console.log('DRAG LEAVE: Removendo placeholder.');
                 }
             });
 
@@ -235,10 +263,7 @@ export class FilaEstacionamentoView {
                 }
                 
                 if (truckId) {
-                    // LOG DE DEBUG CRÍTICO
-                    console.log(`DROP EVENT: ID: ${truckId}, Destino: ${targetQueue}, Índice de Inserção Calculado: ${insertIndex}`);
-                    
-                    // CORREÇÃO CRÍTICA: Passa truckId como string (UUID)
+                    // Passa truckId como string (UUID)
                     this.handleDrop(truckId, targetQueue, insertIndex); 
                 } else {
                     console.error('ERRO DROP: truckId não encontrado no dataTransfer.');
@@ -266,10 +291,9 @@ export class FilaEstacionamentoView {
     }
     
     // Lógica para manipular o drop e atualizar as filas (estrutura de dados)
-    handleDrop(truckId, targetQueueType, insertIndex) {
+    async handleDrop(truckId, targetQueueType, insertIndex) {
         
         // 1. Encontra e remove o caminhão de todas as listas (available, manual, mechanized)
-        // c.id é a string UUID do objeto Caminhão
         let truck = this.availableTrucks.find(c => c.id == truckId) ||
                     this.manualQueue.find(c => c.id == truckId) || 
                     this.mechanizedQueue.find(c => c.id == truckId);
@@ -279,8 +303,7 @@ export class FilaEstacionamentoView {
              return;
         }
         
-        // LOG DE DEBUG
-        console.log(`HANDLE DROP: Movendo caminhão #${truck.cod} para ${targetQueueType}. Índice: ${insertIndex}`);
+        showLoading();
 
         // Remove de onde estiver
         this.availableTrucks = this.availableTrucks.filter(c => c.id != truckId);
@@ -299,18 +322,14 @@ export class FilaEstacionamentoView {
             targetQueue = this.mechanizedQueue;
             successMessage = 'Mecanizada';
         } else if (normalizedTargetType === 'disponivel') {
-             // Caso de retorno para o pool de disponíveis
-             this.availableTrucks.push(truck);
-             this.availableTrucks.sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
-             showToast(`Caminhão #${truck.cod} voltou para Disponíveis no Pátio!`, 'info');
-             this.renderAllPanels(); 
-             return;
+             // Caso de retorno para o pool de disponíveis (agora ordenável)
+             targetQueue = this.availableTrucks; 
+             successMessage = 'Disponíveis no Pátio';
         }
         
-        // 3. Adiciona o caminhão na fila correta (manual ou mecanizada)
+        // 2. Adiciona o caminhão na fila correta (manual, mecanizada ou disponível)
         if (targetQueue) { 
             // O índice de inserção é baseado na posição do placeholder.
-            // Se insertIndex é -1, usa o tamanho atual da fila (final).
             const newIndex = insertIndex >= 0 ? insertIndex : targetQueue.length;
             
             // Insere na posição correta
@@ -319,12 +338,56 @@ export class FilaEstacionamentoView {
         } else {
              // Se o drop falhou em identificar o destino
              console.error(`ERRO HANDLE DROP: Falha ao identificar o destino: ${targetQueueType}. Caminhão ${truckId} removido de todas as listas.`);
+             hideLoading();
+             return;
         }
         
-        // LOG DE DEBUG
-        console.log(`HANDLE DROP SUCESSO: Filas atuais - Manual: ${this.manualQueue.length}, Mecanizada: ${this.mechanizedQueue.length}, Disponíveis: ${this.availableTrucks.length}`);
-
-        // 4. Re-renderiza para refletir o estado correto
+        // 3. Persiste o novo estado das filas
+        await this.persistFila();
+        
+        // 4. Re-renderiza para refletir o estado correto e oculta o loading
         this.renderAllPanels(); 
+        hideLoading();
+    }
+    
+    /**
+     * Mapeia todas as filas e envia o estado completo para o Supabase.
+     */
+    async persistFila() {
+        const filasParaPersistir = [];
+        
+        // Mapeia fila manual
+        this.manualQueue.forEach((truck, index) => {
+            filasParaPersistir.push({
+                caminhao_id: truck.id,
+                tipo_fila: 'manual',
+                ordem: index
+            });
+        });
+        
+        // Mapeia fila mecanizada
+        this.mechanizedQueue.forEach((truck, index) => {
+            filasParaPersistir.push({
+                caminhao_id: truck.id,
+                tipo_fila: 'mecanizada',
+                ordem: index
+            });
+        });
+        
+        // Mapeia lista de disponíveis (para manter a ordem)
+        this.availableTrucks.forEach((truck, index) => {
+            filasParaPersistir.push({
+                caminhao_id: truck.id,
+                tipo_fila: 'disponivel_ordenado',
+                ordem: index
+            });
+        });
+        
+        try {
+            await updateFilaCarregamento(filasParaPersistir);
+        } catch (error) {
+            showToast('Erro ao salvar a ordem da fila: ' + error.message, 'error');
+            console.error(error);
+        }
     }
 }

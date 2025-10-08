@@ -149,7 +149,17 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
     return { data };
 }
 
-// --- FUNÇÃO: Atualiza status do Equipamento e registra histórico ---
+// --- FUNÇÃO: Remove um caminhão da tabela de persistência de filas ---
+export async function removeCaminhaoFromFila(caminhaoId) {
+    const { error } = await supabase
+        .from('fila_carregamento')
+        .delete()
+        .eq('caminhao_id', caminhaoId);
+    if (error) throw error;
+    return { error: null };
+}
+// ------------------------------------------------------------------------
+
 export async function updateEquipamentoStatus(equipamentoId, novoStatus, frenteId = null, timestamp = new Date().toISOString(), motivoParada = null) {
     const { data: equipamentoAtual, error: fetchError } = await supabase
         .from('equipamentos')
@@ -215,6 +225,52 @@ export async function updateFrenteStatus(frenteId, newStatus) {
     if (error) throw error;
     return { data };
 }
+
+// --- FUNÇÕES PARA PERSISTÊNCIA DA FILA ---
+
+export async function fetchFila() {
+    const { data, error } = await supabase
+        .from('fila_carregamento')
+        .select('caminhao_id, tipo_fila, ordem')
+        .order('ordem', { ascending: true });
+        
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Atualiza o estado completo da fila, incluindo remoção e inserção de todos os itens.
+ * @param {Array} filasData - Array de objetos: [{ caminhao_id, tipo_fila, ordem }]
+ */
+export async function updateFilaCarregamento(filasData) {
+    
+    // 1. Apaga todos os registros de fila existentes
+    const { error: deleteError } = await supabase
+        .from('fila_carregamento')
+        .delete()
+        .neq('caminhao_id', '00000000-0000-0000-0000-000000000000'); // Deleta TUDO
+
+    if (deleteError) {
+        console.error('Erro ao limpar tabela fila_carregamento:', deleteError);
+        throw deleteError;
+    }
+
+    // 2. Insere todos os novos registros de uma vez
+    if (filasData.length > 0) {
+        const { error: insertError } = await supabase
+            .from('fila_carregamento')
+            .insert(filasData);
+
+        if (insertError) {
+            console.error('Erro ao inserir novos registros de fila:', insertError);
+            throw insertError;
+        }
+    }
+    
+    return { error: null };
+}
+
+// ----------------------------------------------------------------
 
 export async function insertItem(tableName, dataToInsert) {
     if (tableName === 'equipamentos') return await insertEquipment(dataToInsert);
