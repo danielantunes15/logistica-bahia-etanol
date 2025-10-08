@@ -30,6 +30,7 @@ export class FilaEstacionamentoView {
     }
 
     getHTML() {
+        // CORREÇÃO: data-queue-type="mecanizada" (minúsculo e sem acento)
         return `
             <div id="fila-estacionamento-view" class="view active-view fila-estacionamento-view">
                 <div class="controle-header">
@@ -105,12 +106,8 @@ export class FilaEstacionamentoView {
     }
 
     renderAllPanels() {
-        const queueIds = new Set([...this.manualQueue.map(c => c.id), ...this.mechanizedQueue.map(c => c.id)]);
-        // Filtra os disponíveis: aqueles que vieram do DB E NÃO estão em nenhuma fila
-        const currentAvailable = this.availableTrucks.filter(c => !queueIds.has(c.id));
-        
-        // Renders
-        this.renderList('disponiveis-list', currentAvailable, true, false); 
+        // CORREÇÃO: Remove a filtragem redundante. A lista this.availableTrucks é renderizada diretamente.
+        this.renderList('disponiveis-list', this.availableTrucks, true, false); 
         this.renderList('queue-manual-list', this.manualQueue, true, true);
         this.renderList('queue-mechanized-list', this.mechanizedQueue, true, true);
     }
@@ -265,17 +262,18 @@ export class FilaEstacionamentoView {
         this.manualQueue = this.manualQueue.filter(c => c.id != truckId);
         this.mechanizedQueue = this.mechanizedQueue.filter(c => c.id != truckId);
         
-        // 2. Determina o array de destino e mensagem
+        const normalizedTargetType = targetQueueType.toLowerCase().trim();
+        
         let targetQueue = null;
         let successMessage = '';
 
-        if (targetQueueType === 'manual') {
+        if (normalizedTargetType === 'manual') {
             targetQueue = this.manualQueue;
             successMessage = 'Manual';
-        } else if (targetQueueType === 'mecanizada') {
+        } else if (normalizedTargetType === 'mecanizada') {
             targetQueue = this.mechanizedQueue;
             successMessage = 'Mecanizada';
-        } else if (targetQueueType === 'disponivel') {
+        } else if (normalizedTargetType === 'disponivel') {
              // Caso de retorno para o pool de disponíveis
              this.availableTrucks.push(truck);
              this.availableTrucks.sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
@@ -285,8 +283,8 @@ export class FilaEstacionamentoView {
         }
         
         // 3. Adiciona o caminhão na fila correta (manual ou mecanizada)
-        if (targetQueue) {
-            const targetListElement = document.getElementById(`queue-${targetQueueType}-list`);
+        if (targetQueue) { 
+            const targetListElement = document.getElementById(`queue-${normalizedTargetType}-list`);
             
             // Reordenamento: encontra a posição de inserção
             const afterElement = this.getDragAfterElement(targetListElement, dropY);
@@ -301,8 +299,8 @@ export class FilaEstacionamentoView {
             targetQueue.splice(newIndex, 0, truck);
             showToast(`Caminhão #${truck.cod} movido para a Fila ${successMessage}!`, 'info');
         } else {
-            // Se o destino não foi reconhecido, coloca de volta no pool de disponíveis para evitar perda
-            this.availableTrucks.push(truck);
+             // Se o drop falhou em identificar o destino, o caminhão fica fora de todas as listas até a próxima atualização
+             console.error(`Falha ao identificar o destino: ${targetQueueType}. Caminhão ${truckId} removido de todas as listas.`);
         }
         
         // 4. Re-renderiza para refletir o estado correto
