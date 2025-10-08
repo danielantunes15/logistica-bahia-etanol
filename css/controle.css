@@ -53,9 +53,10 @@
 .summary-carregando { border-color: #D69E2E; }
 .summary-retornando { border-color: #805AD5; }
 .summary-patio_carregado { border-color: #D53F8C; }
-.summary-patio_vazio { border-color: #718096; }
+.summary-patio_vazio { border-color: #A0AEC0; }
 .summary-descarregando { border-color: #38A169; }
 .summary-quebrado { border-color: var(--accent-danger); }
+.summary-disponivel { border-color: var(--accent-primary); } /* Cor para o novo card de Disponíveis */
 
 
 .controle-grid {
@@ -179,4 +180,142 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+}
+
+/* --- ESTILOS PARA FILA NO ESTACIONAMENTO (DRAG AND DROP) --- */
+
+.fila-main-grid {
+    display: grid;
+    grid-template-columns: 350px 1fr; /* Lista de disponíveis e painéis de fila */
+    gap: 24px;
+    padding: 24px;
+}
+
+.fila-queues-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.fila-disponiveis-panel,
+.fila-queue-panel {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 150px); /* Altura base para caber na tela */
+    overflow: hidden;
+}
+
+.fila-disponiveis-panel h2,
+.fila-queue-panel h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--accent-primary);
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.truck-list {
+    flex-grow: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 5px; /* Espaço para a scrollbar */
+}
+
+.truck-card {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    padding: 12px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: grab; /* Mãozinha para indicar que é arrastável */
+    transition: all 0.2s ease;
+}
+
+.truck-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.98);
+    border-color: var(--accent-primary);
+    box-shadow: 0 5px 15px rgba(56, 161, 105, 0.3);
+}
+
+.truck-card.drag-placeholder {
+    border: 2px dashed var(--accent-primary);
+    background-color: rgba(56, 161, 105, 0.1);
+    color: var(--accent-primary);
+    text-align: center;
+    font-weight: 600;
+    line-height: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 60px;
+    cursor: default;
+}
+
+.truck-cod {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.truck-details {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-size: 0.8rem;
+}
+
+.truck-entry-time {
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+.drag-icon {
+    font-size: 1.2rem;
+    color: var(--border-color);
+}
+
+.queue-status-hint {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 10px;
+    text-align: center;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 10px;
+}
+
+.empty-state-list {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+}
+
+.empty-state-list i {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    opacity: 0.5;
+}
+
+/* Responsividade */
+@media (max-width: 1200px) {
+    .fila-main-grid {
+        grid-template-columns: 1fr;
+    }
+    .fila-queues-grid {
+        grid-template-columns: 1fr;
+    }
+    .fila-disponiveis-panel,
+    .fila-queue-panel {
+        height: auto;
+        min-height: 300px;
+    }
 }

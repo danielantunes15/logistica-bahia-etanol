@@ -9,7 +9,7 @@ export class FilaEstacionamentoView {
     constructor() {
         this.container = null;
         this.data = {};
-        this.availableTrucks = []; // Caminhões na lista de disponíveis
+        this.availableTrucks = []; 
         this.manualQueue = [];
         this.mechanizedQueue = [];
     }
@@ -43,21 +43,21 @@ export class FilaEstacionamentoView {
                 <div class="fila-main-grid">
                     <div class="fila-disponiveis-panel">
                         <h2>Caminhões Disponíveis no Pátio</h2>
-                        <div id="disponiveis-list" class="truck-list drag-source-list">
+                        <div id="disponiveis-list" class="truck-list drag-source-list drop-target" data-queue-type="disponivel">
                             </div>
                     </div>
                     
                     <div class="fila-queues-grid">
-                        <div class="fila-queue-panel drop-target" data-queue-type="manual">
+                        <div class="fila-queue-panel">
                             <h2>Cana Manual - Fila de Carregamento</h2>
-                            <div id="queue-manual-list" class="truck-list queue-list" data-queue-type="manual">
+                            <div id="queue-manual-list" class="truck-list queue-list drop-target" data-queue-type="manual">
                                 </div>
                             <p class="queue-status-hint">Arraste os caminhões para ordenar a fila de carregamento manual.</p>
                         </div>
                         
-                        <div class="fila-queue-panel drop-target" data-queue-type="mechanized">
+                        <div class="fila-queue-panel">
                             <h2>Cana Mecanizada - Fila de Carregamento</h2>
-                            <div id="queue-mechanized-list" class="truck-list queue-list" data-queue-type="mechanized">
+                            <div id="queue-mechanized-list" class="truck-list queue-list drop-target" data-queue-type="mechanized">
                                 </div>
                             <p class="queue-status-hint">Arraste os caminhões para ordenar a fila de carregamento mecanizado.</p>
                         </div>
@@ -83,49 +83,44 @@ export class FilaEstacionamentoView {
         const { caminhoes = [], caminhao_historico = [] } = this.data;
         const historyMap = new Map();
 
-        // 1. Mapear o último log de entrada no estacionamento (disponivel ou patio_vazio)
         caminhao_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
         
         for (const log of caminhao_historico) {
-            // Se o status NOVO for um status de estacionamento E ainda não mapeamos o caminhão
             if (ESTACIONAMENTO_STATUS.includes(log.status_novo) && !historyMap.has(log.caminhao_id)) {
                 historyMap.set(log.caminhao_id, log.timestamp_mudanca);
             }
         }
 
-        // 2. Filtrar caminhões e adicionar informações de tempo
         this.availableTrucks = caminhoes
-            .filter(c => ESTACIONAMENTO_STATUS.includes(c.status) && c.status !== 'quebrado') // Apenas disponivel ou patio_vazio
+            .filter(c => ESTACIONAMENTO_STATUS.includes(c.status) && c.status !== 'quebrado')
             .map(c => ({
                 id: c.id,
                 cod: c.cod_equipamento,
                 status: c.status,
-                // Busca a hora do log ou usa created_at como fallback (caso o histórico esteja vazio)
-                entryTime: historyMap.get(c.id) || c.created_at, 
+                entryTime: historyMap.get(c.id) || c.created_at,
             }))
-            .sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime)); // Ordena por tempo de entrada (mais antigo primeiro)
+            .sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime));
             
         this.renderAllPanels();
     }
 
     renderAllPanels() {
-        // Filtra a lista de disponíveis para remover itens que já estão nas filas
         const queueIds = new Set([...this.manualQueue.map(c => c.id), ...this.mechanizedQueue.map(c => c.id)]);
         const currentAvailable = this.availableTrucks.filter(c => !queueIds.has(c.id));
         
-        this.renderList('disponiveis-list', currentAvailable, true);
-        this.renderList('queue-manual-list', this.manualQueue, false);
-        this.renderList('queue-mechanized-list', this.mechanizedQueue, false);
+        this.renderList('disponiveis-list', currentAvailable, true, false);
+        this.renderList('queue-manual-list', this.manualQueue, true, true);
+        this.renderList('queue-mechanized-list', this.mechanizedQueue, true, true);
     }
     
-    renderList(elementId, list, isDragSource) {
+    renderList(elementId, list, isDraggable, isReorderable) {
         const listElement = document.getElementById(elementId);
         if (!listElement) return;
 
         listElement.innerHTML = list.map(c => `
             <div 
-                class="truck-card ${isDragSource ? 'draggable' : 'queue-item'}" 
-                draggable="true" 
+                class="truck-card ${isReorderable ? 'queue-item' : 'draggable'}" 
+                draggable="${isDraggable}" 
                 data-truck-id="${c.id}" 
                 data-cod="${c.cod}"
                 data-entry-time="${c.entryTime}"
@@ -140,7 +135,7 @@ export class FilaEstacionamentoView {
         `).join('');
 
         if (list.length === 0) {
-            listElement.innerHTML = `<div class="empty-state-list"><i class="ph-fill ph-info"></i><p>${isDragSource ? 'Nenhum caminhão disponível no pátio.' : 'A fila está vazia.'}</p></div>`;
+            listElement.innerHTML = `<div class="empty-state-list"><i class="ph-fill ph-info"></i><p>${elementId === 'disponiveis-list' ? 'Nenhum caminhão disponível no pátio.' : 'A fila está vazia.'}</p></div>`;
         }
     }
 
@@ -156,10 +151,9 @@ export class FilaEstacionamentoView {
         // --- DRAG START: Captura o item sendo arrastado ---
         container.addEventListener('dragstart', (e) => {
             const card = e.target.closest('.truck-card');
-            if (card) {
+            if (card && card.getAttribute('draggable') === 'true') {
                 draggedItem = card;
                 e.dataTransfer.setData('text/plain', card.dataset.truckId);
-                // Adiciona a classe 'dragging' para fins visuais
                 setTimeout(() => card.classList.add('dragging'), 0);
             }
         });
@@ -170,49 +164,61 @@ export class FilaEstacionamentoView {
                 draggedItem.classList.remove('dragging');
                 draggedItem = null;
             }
+            const placeholder = document.getElementById('drag-placeholder');
+            if (placeholder) placeholder.remove();
         });
 
         // --- DROP TARGETS: Gerencia o arrastar sobre e o soltar ---
-        container.querySelectorAll('.fila-queue-panel').forEach(target => {
+        container.querySelectorAll('.drop-target').forEach(target => {
             
             target.addEventListener('dragover', (e) => {
                 e.preventDefault(); 
-                const list = target.querySelector('.truck-list');
+                const list = target.closest('.drop-target').querySelector('.truck-list');
                 const draggable = document.querySelector('.dragging');
                 if (!draggable || !list) return;
 
-                // Remove placeholder se for reordenamento interno e já houver
-                if (!draggable.closest('.drag-source-list')) {
-                    const placeholder = document.getElementById('drag-placeholder');
-                    if(placeholder) placeholder.remove();
-                }
+                const isComingFromAvailable = draggable.closest('.drag-source-list');
+                const isGoingToQueue = target.dataset.queueType !== 'disponivel';
                 
-                // Cálcula a posição para reordenar (para itens que já estão na fila)
-                const afterElement = this.getDragAfterElement(list, e.clientY);
-
-                if (draggable.closest('.drag-source-list')) {
-                    // Se vem da lista de disponíveis, mostra o placeholder
+                // Só mostra placeholder/reordenamento se estiver indo para uma fila ou voltando para disponíveis
+                if ((isComingFromAvailable && isGoingToQueue) || (draggable.closest('.queue-list'))) {
+                    
+                    const afterElement = this.getDragAfterElement(list, e.clientY);
                     let placeholder = document.getElementById('drag-placeholder');
+                    
+                    // Lógica para criar/mover placeholder
                     if (!placeholder) {
                         placeholder = document.createElement('div');
                         placeholder.id = 'drag-placeholder';
                         placeholder.className = 'truck-card drag-placeholder';
-                        placeholder.innerHTML = 'Solte para adicionar na fila';
+                        placeholder.innerHTML = 'Solte para inserir/reordenar';
                         placeholder.style.height = `${draggable.offsetHeight}px`;
-                        list.appendChild(placeholder);
                     }
-                    if (afterElement == null) {
-                        list.appendChild(placeholder);
-                    } else {
-                        list.insertBefore(placeholder, afterElement);
+                    
+                    // Se o item vem da lista de disponíveis E está indo para uma fila, move placeholder
+                    // OU se o item já está em uma fila, move o próprio item para reordenar
+                    if (isComingFromAvailable && isGoingToQueue) {
+                        if (afterElement == null) {
+                            list.appendChild(placeholder);
+                        } else {
+                            list.insertBefore(placeholder, afterElement);
+                        }
+                    } else if (draggable.closest('.queue-list')) {
+                         // Reordenamento interno: apenas move o item
+                         if (afterElement == null) {
+                            list.appendChild(draggable);
+                        } else {
+                            list.insertBefore(draggable, afterElement);
+                        }
+                    } else if (target.dataset.queueType === 'disponivel') {
+                        // Voltando para disponíveis: usa placeholder
+                        if (afterElement == null) {
+                            list.appendChild(placeholder);
+                        } else {
+                            list.insertBefore(placeholder, afterElement);
+                        }
                     }
-                } else {
-                    // Se já está na fila, move o item (reordenamento)
-                    if (afterElement == null) {
-                        list.appendChild(draggable);
-                    } else {
-                        list.insertBefore(draggable, afterElement);
-                    }
+
                 }
             });
             
@@ -227,9 +233,8 @@ export class FilaEstacionamentoView {
             target.addEventListener('drop', (e) => {
                 e.preventDefault();
                 const truckId = e.dataTransfer.getData('text/plain');
-                const queueType = target.dataset.queueType;
+                const queueType = target.closest('.drop-target').dataset.queueType;
                 
-                // Remove o placeholder
                 const placeholder = document.getElementById('drag-placeholder');
                 if (placeholder) placeholder.remove();
 
@@ -242,7 +247,8 @@ export class FilaEstacionamentoView {
 
     // Função auxiliar para encontrar o elemento após o qual o arrastado deve ser inserido
     getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll('.truck-card:not(.dragging)')];
+        // Encontra todos os cartões que não estão sendo arrastados e não são o placeholder
+        const draggableElements = [...container.querySelectorAll('.truck-card:not(.dragging):not(.drag-placeholder)')];
 
         return draggableElements.reduce((closest, child) => {
             const box = child.getBoundingClientRect();
@@ -257,39 +263,41 @@ export class FilaEstacionamentoView {
     
     // Lógica para manipular o drop e atualizar as filas (estrutura de dados)
     handleDrop(truckId, targetQueueType, dropY) {
-        const targetListElement = document.getElementById(`queue-${targetQueueType}-list`);
+        // Encontra o caminhão em qualquer lista
+        let truck = this.availableTrucks.find(c => c.id == truckId) ||
+                    this.manualQueue.find(c => c.id == truckId) || 
+                    this.mechanizedQueue.find(c => c.id == truckId);
         
-        // 1. Encontra o caminhão
-        let truck = this.availableTrucks.find(c => c.id == truckId);
-        
-        // Se o caminhão não estiver na lista de disponíveis, ele já está em alguma fila.
-        if (!truck) {
-             truck = this.manualQueue.find(c => c.id == truckId) || this.mechanizedQueue.find(c => c.id == truckId);
-             if (!truck) return; // Erro, não encontrou o caminhão
-        }
+        if (!truck) return;
 
-        // 2. Remove o caminhão de todas as listas onde ele pode estar (disponíveis, manual, mecanizada)
+        // 2. Remove o caminhão de todas as listas
         this.availableTrucks = this.availableTrucks.filter(c => c.id != truckId);
         this.manualQueue = this.manualQueue.filter(c => c.id != truckId);
         this.mechanizedQueue = this.mechanizedQueue.filter(c => c.id != truckId);
         
-        // 3. Simula a inserção na posição de drop na estrutura de dados
-        const targetQueue = targetQueueType === 'manual' ? this.manualQueue : this.mechanizedQueue;
-        
-        // Recalcula o índice de drop com base no estado atual do DOM após o reordenamento visual
-        const cardElements = [...targetListElement.querySelectorAll('.truck-card')];
-        let newIndex = cardElements.length;
-        
-        const afterElement = this.getDragAfterElement(targetListElement, dropY);
-        if (afterElement) {
-             newIndex = cardElements.findIndex(child => child.dataset.truckId == afterElement.dataset.truckId);
+        // 3. Adiciona na lista de destino e simula a reordenação (se for uma fila)
+        if (targetQueueType === 'manual' || targetQueueType === 'mechanized') {
+            const targetQueue = targetQueueType === 'manual' ? this.manualQueue : this.mechanizedQueue;
+            const targetListElement = document.getElementById(`queue-${targetQueueType}-list`);
+            
+            const afterElement = this.getDragAfterElement(targetListElement, dropY);
+            const cardElements = [...targetListElement.querySelectorAll('.truck-card')];
+            
+            let newIndex = cardElements.length;
+            if (afterElement) {
+                newIndex = cardElements.findIndex(child => child.dataset.truckId == afterElement.dataset.truckId);
+            }
+            
+            targetQueue.splice(newIndex, 0, truck);
+            showToast(`Caminhão #${truck.cod} movido para a Fila ${targetQueueType === 'manual' ? 'Manual' : 'Mecanizada'}!`, 'info');
+        } else if (targetQueueType === 'disponivel') {
+            // Volta para a lista de disponíveis (não reordenável, apenas adiciona)
+             this.availableTrucks.push(truck);
+             this.availableTrucks.sort((a, b) => new Date(a.entryTime) - new Date(b.entryTime)); // Reordena por tempo de entrada
+             showToast(`Caminhão #${truck.cod} voltou para Disponíveis no Pátio!`, 'info');
         }
-
-        targetQueue.splice(newIndex, 0, truck);
         
         // 4. Re-renderiza todos os painéis para refletir a mudança
         this.renderAllPanels();
-
-        showToast(`Caminhão #${truck.cod} adicionado/movido para a Fila ${targetQueueType === 'manual' ? 'Manual' : 'Mecanizada'}!`, 'info');
     }
 }
