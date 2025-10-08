@@ -119,7 +119,8 @@ export class DescargaView {
                 const truckData = {
                     cod_equipamento: caminhao.cod_equipamento,
                     entrada: entradaInfo.timestamp,
-                    id: caminhao.id
+                    id: caminhao.id,
+                    frente_nome_origem: frenteNome, // NOVO CAMPO
                 };
 
                 // Find which fixed group this truck belongs to
@@ -166,7 +167,9 @@ export class DescargaView {
         fixedGroups.forEach(group => {
             const listaCaminhoesHTML = group.data.map(caminhao => `
                 <div class="descarga-card">
-                    <div class="descarga-cod">#${caminhao.cod_equipamento}</div>
+                    <div class="descarga-info-main">
+                        <div class="descarga-cod">#${caminhao.cod_equipamento}</div>
+                        <div class="descarga-frente-origem">${caminhao.frente_nome_origem}</div> </div>
                     <div class="descarga-time">${formatDateTime(caminhao.entrada)}</div>
                 </div>
             `).join('');

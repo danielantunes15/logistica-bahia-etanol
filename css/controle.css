@@ -368,10 +368,24 @@
     transform: translateY(-1px);
 }
 
+/* NOVO: Container para código e frente de origem */
+.descarga-info-main {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
 .descarga-cod {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+/* NOVO: Estilo para o nome da Frente de Origem */
+.descarga-frente-origem {
+    font-size: 0.75rem; /* Menor que o código */
+    color: var(--text-secondary);
+    font-weight: 400;
 }
 
 .descarga-time {
