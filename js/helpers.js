@@ -51,14 +51,16 @@ export function handleOperation(error, successMessage) {
     }
 }
 
+// MODIFICADO: Esta função agora está vazia para desativar a tela de loading.
 export function showLoading() {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = 'flex';
+    // const overlay = document.getElementById('loading-overlay');
+    // if (overlay) overlay.style.display = 'flex';
 }
 
+// MODIFICADO: Esta função agora está vazia para desativar a tela de loading.
 export function hideLoading() {
-    const overlay = document.getElementById('loading-overlay');
-    if (overlay) overlay.style.display = 'none';
+    // const overlay = document.getElementById('loading-overlay');
+    // if (overlay) overlay.style.display = 'none';
 }
 
 export function formatDate(date) {
