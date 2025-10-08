@@ -103,7 +103,10 @@ export class ControleView {
         const statusCounts = {};
         const statusesToCount = [...this.statusCiclo, 'quebrado'];
         
-        statusesToCount.forEach(status => { statusCounts[status] = 0; });
+        // Contagem de todos os status (incluindo 'disponivel', que não está no statusCiclo, mas pode estar no objeto)
+        const allStatuses = [...statusesToCount, 'disponivel'];
+        allStatuses.forEach(status => { statusCounts[status] = 0; });
+
 
         caminhoes.forEach(caminhao => {
             if (statusCounts.hasOwnProperty(caminhao.status)) {
@@ -111,14 +114,25 @@ export class ControleView {
             }
         });
 
+        // --- CÁLCULO PARA O NOVO CARD DE DISPONIBILIDADE ---
+        const disponiveisParaUso = (statusCounts['disponivel'] || 0) + (statusCounts['patio_vazio'] || 0);
+        
+        const summaryCards = `
+            <div class="summary-card summary-disponivel" style="border-color: var(--accent-primary);">
+                <div class="summary-card-value">${disponiveisParaUso}</div>
+                <div class="summary-card-label">Caminhões Disponíveis</div>
+            </div>
+            ${statusesToCount.map(status => `
+                <div class="summary-card summary-${status}">
+                    <div class="summary-card-value">${statusCounts[status]}</div>
+                    <div class="summary-card-label">${this.statusLabels[status]}</div>
+                </div>
+            `).join('')}
+        `;
+
         return `
             <div class="controle-dashboard-summary">
-                ${statusesToCount.map(status => `
-                    <div class="summary-card summary-${status}">
-                        <div class="summary-card-value">${statusCounts[status]}</div>
-                        <div class="summary-card-label">${this.statusLabels[status]}</div>
-                    </div>
-                `).join('')}
+                ${summaryCards}
             </div>
         `;
     }
@@ -333,8 +347,7 @@ export class ControleView {
             <form id="status-update-form" class="action-modal-form">
                 <div class="form-group">
                     <label>Selecione o Novo Status</label>
-                    <select name="status" class="form-select" required>
-                        ${[...this.statusCiclo, 'quebrado'].map(s => `<option value="${s}" ${caminhao.status === s ? 'selected' : ''}>${this.statusLabels[s]}</option>`).join('')}
+                    ${[...this.statusCiclo, 'quebrado'].map(s => `<option value="${s}" ${caminhao.status === s ? 'selected' : ''}>${this.statusLabels[s]}</option>`).join('')}
                     </select>
                 </div>
                 <button type="submit" class="btn-primary">Atualizar Status</button>

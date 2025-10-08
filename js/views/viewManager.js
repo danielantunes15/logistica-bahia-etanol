@@ -5,6 +5,7 @@ import { RelatoriosView } from './relatorios.js';
 import { CadastrosView } from './cadastros.js';
 import { FrotaView } from './frota.js';
 import { EquipamentosView } from './equipamentos.js'; // NOVO
+import { FilaEstacionamentoView } from './filaEstacionamento.js'; // NOVO
 
 export class ViewManager {
     constructor() {
@@ -26,6 +27,7 @@ export class ViewManager {
         this.views.set('controle', new ControleView());
         this.views.set('frota', new FrotaView());
         this.views.set('equipamentos', new EquipamentosView()); // NOVO
+        this.views.set('fila-estacionamento', new FilaEstacionamentoView()); // NOVO
         this.views.set('relatorios', new RelatoriosView());
         
         this.views.set('cadastro-fazendas', new CadastrosView('fazendas'));

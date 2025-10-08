@@ -125,9 +125,22 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
     
     if (historyError) throw historyError;
 
+    // --- Lógica de Desassociação Automática (NOVO/CORRIGIDO) ---
+    let frenteParaAtualizar = frenteId;
+
+    // Se o novo status é 'disponivel' (fim de ciclo) ou 'quebrado', desassocia da frente.
+    if (novoStatus === 'disponivel' || novoStatus === 'quebrado') {
+        frenteParaAtualizar = null; 
+    }
+    // O valor de frenteParaAtualizar será o frenteId original apenas se o status for de ciclo (ex: patio_vazio, carregando)
+    // ------------------------------------------
+
     const { data, error } = await supabase
         .from('caminhoes')
-        .update({ status: novoStatus, frente_id: frenteId })
+        .update({ 
+            status: novoStatus, 
+            frente_id: frenteParaAtualizar // Usa a variável corrigida
+        })
         .eq('id', caminhaoId)
         .select()
         .single();
