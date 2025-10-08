@@ -92,8 +92,11 @@ export class FilaEstacionamentoView {
             }
         }
 
+        // Garante que os caminhões nas filas manuais e mecanizadas não apareçam mais nos disponíveis
+        const queuedIds = new Set([...this.manualQueue, ...this.mechanizedQueue].map(c => c.id));
+
         this.availableTrucks = caminhoes
-            .filter(c => ESTACIONAMENTO_STATUS.includes(c.status) && c.status !== 'quebrado')
+            .filter(c => ESTACIONAMENTO_STATUS.includes(c.status) && c.status !== 'quebrado' && !queuedIds.has(c.id))
             .map(c => ({
                 id: c.id,
                 cod: c.cod_equipamento,
@@ -153,7 +156,10 @@ export class FilaEstacionamentoView {
             if (card && card.getAttribute('draggable') === 'true') {
                 draggedItem = card;
                 e.dataTransfer.setData('text/plain', card.dataset.truckId);
+                e.dataTransfer.setData('source-queue', card.closest('.drop-target').dataset.queueType);
                 setTimeout(() => card.classList.add('dragging'), 0);
+                // LOG DE DEBUG
+                console.log('DRAG START: Arrancando Caminhão ID:', card.dataset.truckId);
             }
         });
 
@@ -165,6 +171,8 @@ export class FilaEstacionamentoView {
             }
             const placeholder = document.getElementById('drag-placeholder');
             if (placeholder) placeholder.remove();
+             // LOG DE DEBUG
+            console.log('DRAG END: Limpando estado de arrasto.');
         });
 
         // --- DROP TARGETS: Gerencia o arrastar sobre e o soltar ---
@@ -176,57 +184,64 @@ export class FilaEstacionamentoView {
                 const list = target;
                 const draggable = document.querySelector('.dragging');
                 if (!draggable || !list) return;
-
-                const isComingFromAvailable = draggable.closest('.drag-source-list');
-                const isGoingToQueue = target.dataset.queueType !== 'disponivel';
                 
-                if (isComingFromAvailable && isGoingToQueue || draggable.closest('.queue-list') || target.dataset.queueType === 'disponivel') {
-                    
-                    const afterElement = this.getDragAfterElement(list, e.clientY);
-                    let placeholder = document.getElementById('drag-placeholder');
-                    
-                    if (!placeholder) {
-                        placeholder = document.createElement('div');
-                        placeholder.id = 'drag-placeholder';
-                        placeholder.className = 'truck-card drag-placeholder';
-                        placeholder.innerHTML = 'Solte para inserir/reordenar';
-                        placeholder.style.height = `${draggable.offsetHeight}px`;
-                    }
-                    
-                    if (isComingFromAvailable && isGoingToQueue || target.dataset.queueType === 'disponivel') {
-                        if (afterElement == null) {
-                            list.appendChild(placeholder);
-                        } else {
-                            list.insertBefore(placeholder, afterElement);
-                        }
-                    } else if (draggable.closest('.queue-list')) {
-                         if (afterElement == null) {
-                            list.appendChild(draggable);
-                        } else {
-                            list.insertBefore(draggable, afterElement);
-                        }
-                    }
+                const afterElement = this.getDragAfterElement(list, e.clientY);
+                let placeholder = document.getElementById('drag-placeholder');
+                
+                if (!placeholder) {
+                    placeholder = document.createElement('div');
+                    placeholder.id = 'drag-placeholder';
+                    placeholder.className = 'truck-card drag-placeholder';
+                    placeholder.innerHTML = 'Solte para inserir/reordenar';
+                    placeholder.style.height = `${draggable.offsetHeight}px`;
+                }
 
+                if (!list.contains(placeholder)) {
+                    // Remove placeholder de qualquer outro lugar antes de inserir
+                    document.getElementById('drag-placeholder')?.remove();
+                    
+                    // Adiciona o placeholder na posição correta
+                    if (afterElement == null) {
+                        list.appendChild(placeholder);
+                    } else {
+                        list.insertBefore(placeholder, afterElement);
+                    }
+                    // LOG DE DEBUG
+                    // console.log(`DRAG OVER: Inserindo placeholder em ${list.dataset.queueType}. Antes de: ${afterElement ? afterElement.dataset.cod : 'Final'}`);
                 }
             });
             
             target.addEventListener('dragleave', (e) => {
+                 // Remove o placeholder se o mouse sair da área do target (e não estiver entrando em um filho)
                  if (!e.currentTarget.contains(e.relatedTarget)) {
                     const placeholder = document.getElementById('drag-placeholder');
                     if (placeholder) placeholder.remove();
+                     // LOG DE DEBUG
+                     // console.log('DRAG LEAVE: Removendo placeholder.');
                 }
             });
 
             target.addEventListener('drop', (e) => {
                 e.preventDefault();
                 const truckId = e.dataTransfer.getData('text/plain');
-                const queueType = target.closest('.drop-target').dataset.queueType;
+                const targetQueue = target.closest('.drop-target').dataset.queueType;
                 
                 const placeholder = document.getElementById('drag-placeholder');
-                if (placeholder) placeholder.remove();
-
+                // Calcula o índice de inserção *antes* de remover o placeholder
+                let insertIndex = -1;
+                if (placeholder) {
+                    insertIndex = Array.from(target.children).indexOf(placeholder);
+                    placeholder.remove();
+                }
+                
                 if (truckId) {
-                    this.handleDrop(parseInt(truckId), queueType, e.clientY);
+                    // LOG DE DEBUG CRÍTICO
+                    console.log(`DROP EVENT: ID: ${truckId}, Destino: ${targetQueue}, Índice de Inserção Calculado: ${insertIndex}`);
+                    
+                    // CORREÇÃO CRÍTICA: Passa truckId como string (UUID)
+                    this.handleDrop(truckId, targetQueue, insertIndex); 
+                } else {
+                    console.error('ERRO DROP: truckId não encontrado no dataTransfer.');
                 }
             });
         });
@@ -234,11 +249,14 @@ export class FilaEstacionamentoView {
 
     // Função auxiliar para encontrar o elemento após o qual o arrastado deve ser inserido
     getDragAfterElement(container, y) {
+        // Filtra o item sendo arrastado e o placeholder
         const draggableElements = [...container.querySelectorAll('.truck-card:not(.dragging):not(.drag-placeholder)')];
 
         return draggableElements.reduce((closest, child) => {
             const box = child.getBoundingClientRect();
+            // Calcula o ponto central vertical do elemento
             const offset = y - box.top - box.height / 2;
+            // Se o offset for negativo e o mais próximo de zero, é o elemento "depois"
             if (offset < 0 && offset > closest.offset) {
                 return { offset: offset, element: child };
             } else {
@@ -248,14 +266,21 @@ export class FilaEstacionamentoView {
     }
     
     // Lógica para manipular o drop e atualizar as filas (estrutura de dados)
-    handleDrop(truckId, targetQueueType, dropY) {
+    handleDrop(truckId, targetQueueType, insertIndex) {
         
         // 1. Encontra e remove o caminhão de todas as listas (available, manual, mechanized)
+        // c.id é a string UUID do objeto Caminhão
         let truck = this.availableTrucks.find(c => c.id == truckId) ||
                     this.manualQueue.find(c => c.id == truckId) || 
                     this.mechanizedQueue.find(c => c.id == truckId);
         
-        if (!truck) return;
+        if (!truck) {
+             console.error(`ERRO HANDLE DROP: Caminhão com ID ${truckId} não encontrado em nenhuma lista.`);
+             return;
+        }
+        
+        // LOG DE DEBUG
+        console.log(`HANDLE DROP: Movendo caminhão #${truck.cod} para ${targetQueueType}. Índice: ${insertIndex}`);
 
         // Remove de onde estiver
         this.availableTrucks = this.availableTrucks.filter(c => c.id != truckId);
@@ -284,25 +309,21 @@ export class FilaEstacionamentoView {
         
         // 3. Adiciona o caminhão na fila correta (manual ou mecanizada)
         if (targetQueue) { 
-            const targetListElement = document.getElementById(`queue-${normalizedTargetType}-list`);
-            
-            // Reordenamento: encontra a posição de inserção
-            const afterElement = this.getDragAfterElement(targetListElement, dropY);
-            const cardElements = [...targetListElement.querySelectorAll('.truck-card')];
-            
-            let newIndex = cardElements.length;
-            if (afterElement) {
-                newIndex = cardElements.findIndex(child => child.dataset.truckId == afterElement.dataset.truckId);
-            }
+            // O índice de inserção é baseado na posição do placeholder.
+            // Se insertIndex é -1, usa o tamanho atual da fila (final).
+            const newIndex = insertIndex >= 0 ? insertIndex : targetQueue.length;
             
             // Insere na posição correta
             targetQueue.splice(newIndex, 0, truck);
-            showToast(`Caminhão #${truck.cod} movido para a Fila ${successMessage}!`, 'info');
+            showToast(`Caminhão #${truck.cod} movido para a Fila ${successMessage}!`, 'success');
         } else {
-             // Se o drop falhou em identificar o destino, o caminhão fica fora de todas as listas até a próxima atualização
-             console.error(`Falha ao identificar o destino: ${targetQueueType}. Caminhão ${truckId} removido de todas as listas.`);
+             // Se o drop falhou em identificar o destino
+             console.error(`ERRO HANDLE DROP: Falha ao identificar o destino: ${targetQueueType}. Caminhão ${truckId} removido de todas as listas.`);
         }
         
+        // LOG DE DEBUG
+        console.log(`HANDLE DROP SUCESSO: Filas atuais - Manual: ${this.manualQueue.length}, Mecanizada: ${this.mechanizedQueue.length}, Disponíveis: ${this.availableTrucks.length}`);
+
         // 4. Re-renderiza para refletir o estado correto
         this.renderAllPanels(); 
     }
