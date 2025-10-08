@@ -401,9 +401,10 @@ export class DashboardView {
 
         const bounds = this.calculateBounds(fazendas);
         if (bounds.isValid()) {
-            // AJUSTADO: maxZoom reduzido para 12 para uma visão mais distante/ampla.
+            // AJUSTADO: Adiciona padding na lateral esquerda e topo para desviar do painel de status
             map.fitBounds(bounds, { 
-                padding: [50, 50],
+                paddingTopLeft: [50, 200], // 50px de cima, 200px da esquerda
+                paddingBottomRight: [50, 50],
                 maxZoom: 12 // MUDANÇA AQUI: Visão mais distante (mais zoom out)
             });
         }
