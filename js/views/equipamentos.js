@@ -442,7 +442,7 @@ export class EquipamentosView {
 
             <hr style="margin: 20px 0; border-color: var(--border-color);">
 
-            <button class="btn-danger" id="btn-status-parada-quebra">Registrar Parada / Quebra</button>
+            <button class="btn-primary btn-danger" style="width: 100%; margin-top: 10px;" id="btn-status-parada-quebra">Registrar Parada / Quebra</button>
         `;
         
         openModal('Gerenciar Movimentação e Status', modalContent);
