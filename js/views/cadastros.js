@@ -1,5 +1,5 @@
 // js/views/cadastros.js
-import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading, validateCPFCNPJ, validatePhone } from '../helpers.js';
 import { mapManager } from '../maps.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { fetchAllData, insertItem, deleteItem, fetchItemById, updateItem } from '../api.js';
@@ -129,18 +129,18 @@ export class CadastrosView {
             fornecedores: [
                 { name: 'cod_equipamento', label: 'Código do Fornecedor', type: 'text', required: true },
                 { name: 'nome', label: 'Nome do Fornecedor', type: 'text', required: true },
-                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true },
-                { name: 'telefone', label: 'Telefone', type: 'text', required: false }
+                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, // ADD VALIDAÇÃO
+                { name: 'telefone', label: 'Telefone', type: 'text', required: false, validation: 'phone' } // ADD VALIDAÇÃO
             ],
             proprietarios: [
                 { name: 'cod_equipamento', label: 'Código do Proprietário', type: 'text', required: true },
                 { name: 'nome', label: 'Nome do Proprietário', type: 'text', required: true },
-                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true },
-                { name: 'telefone', label: 'Telefone', type: 'text', required: false }
+                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, // ADD VALIDAÇÃO
+                { name: 'telefone', label: 'Telefone', type: 'text', required: false, validation: 'phone' } // ADD VALIDAÇÃO
             ],
             terceiros: [
                 { name: 'nome', label: 'Nome', type: 'text', required: true },
-                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true },
+                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, // ADD VALIDAÇÃO
                 // NOVO: Campo Atividade como Select com opções fixas
                 { 
                     name: 'descricao_atividade', 
@@ -203,7 +203,7 @@ export class CadastrosView {
                 inputHTML += `</select>`;
                 if (field.type === 'select-multiple') inputHTML += `<div class="select-multiple-hint"><i class="ph-fill ph-info"></i> Mantenha Ctrl pressionado</div>`;
             } else {
-                inputHTML += `<input type="${field.type}" name="${field.name}" id="${id}" class="form-input" value="${value}" ${requiredAttr}>`;
+                inputHTML += `<input type="${field.type}" name="${field.name}" id="${id}" class="form-input" value="${value}" ${requiredAttr} data-validation="${field.validation || ''}">`; // ADD data-validation
             }
             inputHTML += `</div>`;
             return inputHTML;
@@ -270,7 +270,7 @@ export class CadastrosView {
 
     addEventListeners() {
         const form = document.getElementById(`form-${this.tipo}`);
-        if (form) form.addEventListener('submit', (e) => this.handleFormSubmit(e));
+        if (form) form.addEventListener('submit', (e) => this.handleFormSubmit(e, false)); // ADD 'false' para isEdit
 
         this.container.addEventListener('click', (e) => {
             const editBtn = e.target.closest('.edit-btn-modern');
@@ -280,26 +280,48 @@ export class CadastrosView {
         });
     }
 
-    async handleFormSubmit(e) {
+    // --- NOVA FUNÇÃO GENÉRICA DE SAVE ---
+    async handleFormSubmit(e, isEdit = false, id = null) {
         e.preventDefault();
-        const formData = new FormData(e.target);
+        const form = e.target;
+        const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
+        
+        // 1. Validação de campos específicos (CPF/CNPJ e Telefone)
+        for (const field of this.formFields) {
+            const value = data[field.name];
+            if (field.validation === 'cpfcnpj' && value && !validateCPFCNPJ(value)) {
+                return showToast(`CPF/CNPJ inválido para o campo ${field.label}.`, 'error');
+            }
+            if (field.validation === 'phone' && value && !validatePhone(value)) {
+                return showToast(`Telefone inválido para o campo ${field.label}.`, 'error');
+            }
+        }
 
-        // --- CORREÇÃO APLICADA AQUI: Separar o tratamento de motoristas e operadores ---
+        // 2. Tratamento de campos de múltiplas opções
         if (this.tipo === 'caminhoes') {
             data.motoristas = formData.getAll('motoristas');
         }
         if (this.tipo === 'equipamentos') {
             data.operadores = formData.getAll('operadores');
         }
-        // -------------------------------------------------------------------------------
         
         showLoading();
         try {
-            const { error } = await insertItem(this.tipo, data);
-            handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} cadastrado!`);
+            let error;
+            if (isEdit && id) {
+                // Modo Edição
+                ({ error } = await updateItem(this.tipo, id, data));
+                handleOperation(error, 'Item atualizado com sucesso!');
+                if (!error) closeModal();
+            } else {
+                // Modo Cadastro
+                ({ error } = await insertItem(this.tipo, data));
+                handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} cadastrado!`);
+                if (!error) form.reset();
+            }
+            
             if (!error) {
-                e.target.reset();
                 await this.loadData();
             }
         } catch (err) {
@@ -308,6 +330,7 @@ export class CadastrosView {
             hideLoading();
         }
     }
+    // --- FIM NOVA FUNÇÃO GENÉRICA DE SAVE ---
 
     async handleEdit(id) {
         showLoading();
@@ -324,31 +347,8 @@ export class CadastrosView {
         openModal(`Editar ${this.getTipoDisplayName().slice(0, -1)}`, formHTML);
         
         const editForm = document.getElementById(`form-edit-${this.tipo}`);
-        if (editForm) editForm.addEventListener('submit', (e) => this.handleUpdateSubmit(e, id));
-    }
-
-    async handleUpdateSubmit(e, id) {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-    
-        // --- CORREÇÃO APLICADA AQUI: Separar o tratamento de motoristas e operadores ---
-        if (this.tipo === 'caminhoes') {
-            data.motoristas = formData.getAll('motoristas');
-        }
-        if (this.tipo === 'equipamentos') {
-            data.operadores = formData.getAll('operadores');
-        }
-        // -------------------------------------------------------------------------------
-    
-        showLoading();
-        const { error } = await updateItem(this.tipo, id, data);
-        hideLoading();
-        handleOperation(error, 'Item atualizado com sucesso!');
-        if (!error) {
-            closeModal();
-            await this.loadData();
-        }
+        // USANDO NOVA FUNÇÃO: isEdit=true, id=id
+        if (editForm) editForm.addEventListener('submit', (e) => this.handleFormSubmit(e, true, id)); 
     }
 
     async handleDelete(id) {

@@ -51,16 +51,16 @@ export function handleOperation(error, successMessage) {
     }
 }
 
-// MODIFICADO: Esta função agora está vazia para desativar a tela de loading.
+// MODIFICADO: Esta função agora está ATIVA.
 export function showLoading() {
-    // const overlay = document.getElementById('loading-overlay');
-    // if (overlay) overlay.style.display = 'flex';
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'flex';
 }
 
-// MODIFICADO: Esta função agora está vazia para desativar a tela de loading.
+// MODIFICADO: Esta função agora está ATIVA.
 export function hideLoading() {
-    // const overlay = document.getElementById('loading-overlay');
-    // if (overlay) overlay.style.display = 'none';
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) overlay.style.display = 'none';
 }
 
 export function formatDate(date) {
@@ -119,3 +119,11 @@ export function validateCPFCNPJ(value) {
     const cleaned = value.replace(/\D/g, '');
     return cleaned.length === 11 || cleaned.length === 14;
 }
+
+// --- NOVO: Função de validação de telefone ---
+export function validatePhone(value) {
+    const cleaned = value.replace(/\D/g, '');
+    // Aceita 10 (DD + 8 dígitos) ou 11 (DD + 9 dígitos)
+    return cleaned.length >= 10 && cleaned.length <= 11; 
+}
+// ---------------------------------------------

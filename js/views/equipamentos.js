@@ -91,37 +91,46 @@ export class EquipamentosView {
 
     // --- PAINEL DE MAQUINÁRIO PARADO/QUEBRADO GERAL (COM BOTÃO DE AÇÃO) ---
     renderParadosPanel() {
-        const { equipamentos = [], proprietarios = [] } = this.data;
+        const { equipamentos = [], proprietarios = [], equipamento_historico = [] } = this.data;
         
         const proprietariosMap = new Map(proprietarios.map(p => [p.id, p]));
         const parados = equipamentos.filter(e => e.status === 'parado' || e.status === 'quebrado');
 
-        const { equipamento_historico = [] } = this.data;
+        // NOVO: Lógica mais eficiente para encontrar o último motivo de parada *aberta*
         const latestDowntime = {};
+        const isDowntimeStatus = ['parado', 'quebrado'];
 
-        // Lógica para encontrar o último motivo de parada *aberta*
-        for (const log of equipamento_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca))) {
-            const isDowntimeStart = log.status_novo !== 'ativo';
-            
-            if (parados.some(e => e.id === log.equipamento_id) && isDowntimeStart && !latestDowntime[log.equipamento_id]) {
-                const hasEndLog = equipamento_historico.some(
-                    h => h.equipamento_id === log.equipamento_id && 
-                         h.status_novo === 'ativo' && 
-                         new Date(h.timestamp_mudanca) > new Date(log.timestamp_mudanca)
-                );
-                
-                if (!hasEndLog) {
-                    latestDowntime[log.equipamento_id] = {
-                        motivo: log.motivo_parada || 'Não informado',
-                        frenteNome: log.equipamentos?.frentes_servico?.nome || 'N/A' 
-                    };
-                }
+        // Ordenar os logs do mais antigo para o mais recente
+        const sortedLogs = equipamento_historico.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
+        
+        for (const log of sortedLogs) {
+            // Um log é um evento de START se o status MUDOU para inativo/quebrado
+            const isStart = isDowntimeStatus.includes(log.status_novo) && log.status_anterior === 'ativo';
+            // Um log é um evento de UPDATE se MUDOU entre inativo e quebrado
+            const isUpdate = isDowntimeStatus.includes(log.status_novo) && isDowntimeStatus.includes(log.status_anterior);
+            // Um log é um evento de END se o status MUDOU para ativo
+            const isEnd = log.status_novo === 'ativo';
+
+            if (isStart) {
+                // Início de uma parada
+                latestDowntime[log.equipamento_id] = {
+                    motivo: log.motivo_parada || 'Não informado',
+                    frenteNome: log.equipamentos?.frentes_servico?.nome || 'N/A'
+                };
+            } else if (isUpdate && latestDowntime[log.equipamento_id]) {
+                // Atualização de status/motivo durante a parada
+                latestDowntime[log.equipamento_id].motivo = log.motivo_parada || latestDowntime[log.equipamento_id].motivo;
+            } else if (isEnd && latestDowntime[log.equipamento_id]) {
+                // Fim da parada, remove o estado aberto
+                delete latestDowntime[log.equipamento_id];
             }
         }
-
+        
+        // Se o equipamento atual estiver na lista de parados, seu motivo mais recente estará em latestDowntime
+        
         const rows = parados.map(e => {
             const proprietario = proprietariosMap.get(e.proprietario_id)?.nome || 'N/A';
-            const downtimeInfo = latestDowntime[e.id] || { motivo: 'Não informado' };
+            const downtimeInfo = latestDowntime[e.id] || { motivo: 'Não informado', frenteNome: 'N/A' };
             const statusLabel = this.statusLabels[e.status];
 
             return `
@@ -284,9 +293,12 @@ export class EquipamentosView {
 
         // 2. Percorre os logs para agrupar em sessões de inatividade
         for (const log of sortedLogs) {
-            const isDowntimeStart = log.status_novo !== 'ativo' && log.status_anterior === 'ativo';
-            const isStatusChangeDowntime = log.status_novo !== 'ativo' && log.status_anterior !== 'ativo';
-            const isDowntimeEnd = log.status_novo === 'ativo' && log.status_anterior !== 'ativo';
+            // CORREÇÃO: Usar o status anterior do log para determinar se é o início/fim de uma sessão
+            const isDowntimeStatus = ['parado', 'quebrado'];
+            const isDowntimeStart = isDowntimeStatus.includes(log.status_novo) && log.status_anterior === 'ativo';
+            const isStatusChangeDowntime = isDowntimeStatus.includes(log.status_novo) && isDowntimeStatus.includes(log.status_anterior);
+            const isDowntimeEnd = log.status_novo === 'ativo' && isDowntimeStatus.includes(log.status_anterior);
+
 
             if (isDowntimeStart) {
                 // Início de uma nova parada

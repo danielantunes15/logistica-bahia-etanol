@@ -16,6 +16,8 @@ export class FrotaView {
             patio_vazio: 'Pátio Vazio',
             quebrado: 'Quebrado'
         };
+        // Armazenar referência do manipulador para remover corretamente
+        this._boundClickHandler = null;
     }
 
     async show() {
@@ -24,7 +26,14 @@ export class FrotaView {
         this.addEventListeners();
     }
 
-    async hide() {}
+    async hide() {
+        // Remove o manipulador global ao sair da view
+        if (this.container && this._boundClickHandler) {
+            this.container.removeEventListener('click', this._boundClickHandler);
+        }
+        // Remove o manipulador de clique no documento para fechar menus
+        document.removeEventListener('click', this.globalMenuCloser);
+    }
 
     async loadHTML() {
         const container = document.getElementById('views-container');
@@ -96,7 +105,7 @@ export class FrotaView {
         const status = caminhao.status;
         let actions = '';
 
-        if (status && status !== 'disponivel' && status !== 'quebrado') {
+        if (status && status !== 'disponivel' && status !== 'quebrado' && status !== 'patio_vazio') {
             actions += `
                 <button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-novo-status="disponivel">
                     <i class="ph-fill ph-check-circle"></i> Finalizar Ciclo
@@ -126,25 +135,39 @@ export class FrotaView {
             </div>
         `;
     }
+    
+    // NOVO: Função para fechar todos os menus
+    globalMenuCloser = (e) => {
+        // Encontra o botão de menu de ação clicado, se houver
+        const clickedActionMenu = e.target.closest('.action-menu');
+        
+        // Fecha todos os menus que estão abertos E que não são o menu clicado
+        this.container.querySelectorAll('.action-menu.show').forEach(menu => {
+            if (menu !== clickedActionMenu) {
+                 menu.classList.remove('show');
+            }
+        });
+    }
+
 
     addEventListeners() {
-        this.container.addEventListener('click', async (e) => {
+        // Remove listeners antigos antes de adicionar novos
+        if (this.container && this._boundClickHandler) {
+            this.container.removeEventListener('click', this._boundClickHandler);
+        }
+        // Adiciona o manipulador de clique global para fechar menus
+        document.addEventListener('click', this.globalMenuCloser); 
+        
+        // Cria um manipulador de eventos único e armazena a referência
+        this._boundClickHandler = async (e) => {
             const target = e.target;
             
             const actionMenuButton = target.closest('.action-menu-button');
             if (actionMenuButton) {
                 const menu = actionMenuButton.closest('.action-menu');
-                // CORREÇÃO: Usar this.container.querySelectorAll em vez de document.querySelectorAll
-                this.container.querySelectorAll('.action-menu.show').forEach(m => {
-                    if (m !== menu) m.classList.remove('show');
-                });
+                // Abre/Fecha o menu clicado
                 menu.classList.toggle('show');
                 return;
-            }
-
-            if (!target.closest('.action-menu')) {
-                // CORREÇÃO: Usar this.container.querySelectorAll em vez de document.querySelectorAll
-                this.container.querySelectorAll('.action-menu.show').forEach(menu => menu.classList.remove('show'));
             }
             
             if (target.closest('#refresh-frota')) {
@@ -158,8 +181,10 @@ export class FrotaView {
                 
                 showLoading();
                 try {
-                    await updateCaminhaoStatus(caminhaoId, novoStatus, null); // Sempre desassocia a frente aqui
+                    await updateCaminhaoStatus(caminhaoId, novoStatus, null); 
                     showToast('Status do caminhão atualizado!', 'success');
+                    // Fecha o menu após a ação
+                    statusChangeBtn.closest('.action-menu.show')?.classList.remove('show'); 
                     await this.loadData();
                 } catch (error) {
                     handleOperation(error);
@@ -167,6 +192,11 @@ export class FrotaView {
                     hideLoading();
                 }
             }
-        });
+        };
+
+        // Adiciona o listener ao container
+        if (this.container) {
+            this.container.addEventListener('click', this._boundClickHandler);
+        }
     }
 }

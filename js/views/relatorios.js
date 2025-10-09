@@ -2,6 +2,10 @@
 import { fetchAllData } from '../api.js';
 import { showToast, showLoading, hideLoading } from '../helpers.js';
 
+// Variáveis globais para as bibliotecas de exportação
+let html2canvas;
+let jspdf;
+
 export class RelatoriosView {
     constructor() {
         this.container = null;
@@ -609,16 +613,41 @@ export class RelatoriosView {
         if (canvasId === 'downtimeHoursChart') this.downtimeHoursChart = newChart;
     }
 
-    // FUNÇÃO DE EXPORTAÇÃO DE RELATÓRIO PDF (NOVA)
+    // FUNÇÃO DE EXPORTAÇÃO DE RELATÓRIO PDF (MODIFICADA PARA LAZY LOAD)
     async exportToPDF() {
-        if (!this.container || !window.html2canvas || !window.jspdf) {
-            showToast('Erro: Bibliotecas de exportação (html2canvas/jspdf) não carregadas. Verifique o index.html.', 'error');
-            return;
+        if (!this.container) return;
+        
+        // Lazy Load das bibliotecas de exportação
+        if (!html2canvas || !jspdf) {
+            showToast('Carregando bibliotecas de exportação...', 'info');
+            try {
+                // Carrega html2canvas globalmente
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
+                    script.onload = () => { html2canvas = window.html2canvas; resolve(); };
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+                
+                // Carrega jspdf globalmente
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                    script.onload = () => { jspdf = window.jspdf; resolve(); };
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+
+            } catch (error) {
+                 showToast('Erro ao carregar bibliotecas de exportação.', 'error');
+                 return;
+            }
         }
         
         showLoading();
         try {
-            const { jsPDF } = window.jspdf;
+            const { jsPDF } = jspdf;
             const doc = new jsPDF('p', 'mm', 'a4');
             const margin = 10;
             let y = margin;
@@ -682,7 +711,7 @@ export class RelatoriosView {
         }
     }
 
-    // FUNÇÃO DE EXPORTAÇÃO DE RELATÓRIO EXCEL/CSV (NOVA)
+    // FUNÇÃO DE EXPORTAÇÃO DE RELATÓRIO EXCEL/CSV (MANTIDA)
     exportToExcel() {
         if (!this.exportData || !this.exportData.comparisonData) {
             showToast('Erro: Dados para exportação não disponíveis. Filtre o relatório primeiro.', 'error');
