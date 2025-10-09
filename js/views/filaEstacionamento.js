@@ -1,6 +1,8 @@
 // js/views/filaEstacionamento.js
 import { fetchAllData, fetchFila, updateFilaCarregamento } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
+// NOVO: Importa dataCache
+import { dataCache } from '../dataCache.js';
 
 // Status que indicam que o caminhão está no estacionamento
 const ESTACIONAMENTO_STATUS = ['disponivel', 'patio_vazio'];
@@ -68,10 +70,10 @@ export class FilaEstacionamentoView {
         `;
     }
 
-    async loadData() {
+    async loadData(forceRefresh = false) {
         showLoading();
         try {
-            this.data = await fetchAllData();
+            this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
             // 1. Busca os dados de persistência da fila
             const filaPersistida = await fetchFila();
             this.prepareAvailableTrucks(filaPersistida);
@@ -182,7 +184,7 @@ export class FilaEstacionamentoView {
         const container = this.container;
         if (!container) return;
 
-        document.getElementById('refresh-fila').addEventListener('click', () => this.loadData());
+        document.getElementById('refresh-fila').addEventListener('click', () => this.loadData(true)); // Força refresh
         
         let draggedItem = null;
 
@@ -385,6 +387,10 @@ export class FilaEstacionamentoView {
         
         try {
             await updateFilaCarregamento(filasParaPersistir);
+            
+            // Invalida o Cache (NOVO)
+            dataCache.invalidateAllData();
+            
         } catch (error) {
             showToast('Erro ao salvar a ordem da fila: ' + error.message, 'error');
             console.error(error);

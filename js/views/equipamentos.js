@@ -2,6 +2,8 @@
 import { fetchAllData, updateEquipamentoStatus } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
+// NOVO: Importa dataCache
+import { dataCache } from '../dataCache.js';
 // NOVO: Importa constantes
 import { EQUIPAMENTO_STATUS_LABELS } from '../constants.js';
 
@@ -23,10 +25,10 @@ export class EquipamentosView {
 
     async hide() {}
 
-    async loadData() {
+    async loadData(forceRefresh = false) {
         showLoading();
         try {
-            this.data = await fetchAllData();
+            this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
             // Mapeia Frentes para fácil acesso no painel de parados
             this.frentesMap = new Map(this.data.frentes_servico.map(f => [f.id, f.nome]));
             this.render();
@@ -398,7 +400,7 @@ export class EquipamentosView {
             const btnMoveStatus = e.target.closest('.btn-move-status'); // NEW HANDLER
 
             if (btnMoveStatus) this.showMoveEquipmentModal(btnMoveStatus.dataset.equipamentoId, btnMoveStatus.dataset.frenteId); // NEW ACTION
-            if (btnRefresh) this.loadData();
+            if (btnRefresh) this.loadData(true); // Força refresh
             if (btnAssign) this.showAssignmentModal(btnAssign.dataset.frenteId);
             if (btnParadosAction) this.showParadosActionModal(btnParadosAction.dataset.equipamentoId, btnParadosAction.dataset.frenteId);
         };
@@ -515,9 +517,13 @@ export class EquipamentosView {
             try {
                 // Ao designar, o status é 'ativo' e a frente é associada
                 await updateEquipamentoStatus(equipamentoId, 'ativo', frenteId, new Date().toISOString(), 'Designado para frente');
+                
+                // Invalida o Cache (NOVO)
+                dataCache.invalidateAllData();
+
                 showToast('Equipamento designado com sucesso!', 'success');
                 closeModal();
-                await this.loadData();
+                await this.loadData(true); // Força refresh após escrita
             } catch (error) {
                 handleOperation(error);
             } finally {
@@ -662,9 +668,13 @@ export class EquipamentosView {
             const newFrenteId = novoStatus === 'ativo' ? (frenteId || null) : null; 
             
             await updateEquipamentoStatus(equipamentoId, novoStatus, newFrenteId, timestamp, motivoParada);
+            
+            // Invalida o Cache (NOVO)
+            dataCache.invalidateAllData();
+            
             showToast(successMessage, 'success');
             closeModal();
-            await this.loadData();
+            await this.loadData(true); // Força refresh após escrita
         } catch (error) {
             handleOperation(error);
         } finally {

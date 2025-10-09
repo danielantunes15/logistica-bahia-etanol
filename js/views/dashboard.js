@@ -1,7 +1,8 @@
 // js/views/dashboard.js
 import { mapManager } from '../maps.js';
 // CORRIGIDO: Usa fetchMetadata em vez de fetchAllData
-import { fetchMetadata } from '../api.js'; 
+// Adicionado: Importa dataCache
+import { dataCache } from '../dataCache.js';
 import { showToast, showLoading, hideLoading } from '../helpers.js';
 // NOVO: Importa constantes
 import { CAMINHAO_ROUTE_STATUS } from '../constants.js';
@@ -203,8 +204,8 @@ export class DashboardView {
     async loadData() {
         showLoading();
         try {
-            // CORRIGIDO: Usa a função otimizada para o Dashboard
-            this.data = await fetchMetadata(); 
+            // CORRIGIDO: Usa a função otimizada com CACHE para o Dashboard
+            this.data = await dataCache.fetchMetadata(); 
             this.updateDashboardStats();
             this.updateMap();
             this.updateLastUpdateTime();
@@ -219,6 +220,7 @@ export class DashboardView {
     startAutoRefresh() {
         // Atualizar a cada 30 segundos
         this.autoRefreshInterval = setInterval(() => {
+            // Chama loadData que usará o cache se o tempo de 10s não tiver passado.
             this.loadData();
         }, 30000);
     }
@@ -468,7 +470,8 @@ export class DashboardView {
         const refreshBtn = document.getElementById('refresh-operations');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                this.loadData();
+                // Força o refresh para ignorar o cache de 10s.
+                this.loadData(true); 
                 showToast('Operações atualizadas', 'success');
             });
         }

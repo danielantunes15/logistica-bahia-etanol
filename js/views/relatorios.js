@@ -1,6 +1,8 @@
 // js/views/relatorios.js
 import { fetchAllData } from '../api.js';
 import { showToast, showLoading, hideLoading } from '../helpers.js';
+// NOVO: Importa dataCache
+import { dataCache } from '../dataCache.js';
 
 // Variáveis globais para as bibliotecas de exportação
 let html2canvas;
@@ -110,7 +112,7 @@ export class RelatoriosView {
     async loadInitialData() {
         showLoading();
         try {
-            this.data = await fetchAllData();
+            this.data = await dataCache.fetchAllData(); // USANDO CACHE AQUI
             this.populateFilters();
         } catch (error) {
             showToast('Erro ao carregar dados iniciais dos relatórios.', 'error');

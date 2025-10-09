@@ -3,6 +3,8 @@ import { showToast, handleOperation, showLoading, hideLoading, validateCPFCNPJ, 
 import { mapManager } from '../maps.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { fetchAllData, insertItem, deleteItem, fetchItemById, updateItem } from '../api.js';
+// NOVO: Importa dataCache
+import { dataCache } from '../dataCache.js';
 
 export class CadastrosView {
     constructor(tipo) {
@@ -75,10 +77,10 @@ export class CadastrosView {
         `;
     }
 
-    async loadData() {
+    async loadData(forceRefresh = false) {
         showLoading();
         try {
-            this.data = await fetchAllData();
+            this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
             this.renderTable();
         } catch (error) {
             console.error(`Erro ao carregar dados de ${this.tipo}:`, error);
@@ -321,8 +323,11 @@ export class CadastrosView {
                 if (!error) form.reset();
             }
             
+            // Invalida o Cache (NOVO)
+            dataCache.invalidateAllData();
+
             if (!error) {
-                await this.loadData();
+                await this.loadData(true); // Força refresh após escrita
             }
         } catch (err) {
             handleOperation(err);
@@ -365,8 +370,12 @@ export class CadastrosView {
             if (error && error.message.includes('foreign key constraint')) {
                 showToast('Não é possível excluir. Este item está em uso por outro registro.', 'error');
             } else {
+                
+                // Invalida o Cache (NOVO)
+                dataCache.invalidateAllData();
+                
                 handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} excluído!`);
-                if (!error) await this.loadData();
+                if (!error) await this.loadData(true); // Força refresh após escrita
             }
         } catch (err) {
             handleOperation(err);

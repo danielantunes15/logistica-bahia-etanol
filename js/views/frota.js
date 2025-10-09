@@ -1,6 +1,8 @@
 // js/views/frota.js
 import { fetchAllData, updateCaminhaoStatus } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+// NOVO: Importa dataCache
+import { dataCache } from '../dataCache.js';
 // NOVO: Importa constantes
 import { CAMINHAO_STATUS_LABELS } from '../constants.js';
 
@@ -59,10 +61,10 @@ export class FrotaView {
         this.container = container.querySelector('#frota-view');
     }
 
-    async loadData() {
+    async loadData(forceRefresh = false) {
         showLoading();
         try {
-            this.data = await fetchAllData();
+            this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
             this.renderTable();
         } catch (error) {
             handleOperation(error);
@@ -165,7 +167,7 @@ export class FrotaView {
             }
             
             if (target.closest('#refresh-frota')) {
-                this.loadData();
+                this.loadData(true); // Força refresh
             }
 
             const statusChangeBtn = target.closest('.btn-status-change');
@@ -176,10 +178,14 @@ export class FrotaView {
                 showLoading();
                 try {
                     await updateCaminhaoStatus(caminhaoId, novoStatus, null); 
+                    
+                    // Invalida o Cache (NOVO)
+                    dataCache.invalidateAllData();
+                    
                     showToast('Status do caminhão atualizado!', 'success');
                     // Fecha o menu após a ação
                     statusChangeBtn.closest('.action-menu.show')?.classList.remove('show'); 
-                    await this.loadData();
+                    await this.loadData(true); // Força refresh após escrita
                 } catch (error) {
                     handleOperation(error);
                 } finally {

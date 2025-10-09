@@ -2,6 +2,8 @@
 import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
+// NOVO: Importa dataCache
+import { dataCache } from '../dataCache.js';
 // NOVO: Importa constantes
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS } from '../constants.js';
 
@@ -26,10 +28,10 @@ export class ControleView {
 
     async hide() {}
 
-    async loadData() {
+    async loadData(forceRefresh = false) {
         showLoading(); // Chamada inicial de loading para o show()
         try {
-            this.data = await fetchAllData();
+            this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
             this.render();
             this.addEventListeners(); // CORREÇÃO: Rebind listeners após renderizar o HTML
         } catch (error) {
@@ -237,12 +239,15 @@ export class ControleView {
             // 1. Atualiza o DB
             await updateFrenteStatus(frenteId, newStatus);
             
-            // 2. Feedback RÁPIDO para o usuário
+            // 2. Invalida o Cache (NOVO)
+            dataCache.invalidateAllData();
+            
+            // 3. Feedback RÁPIDO para o usuário
             showToast(`Status da frente atualizado para ${this.frenteStatusLabels[newStatus]}!`, 'success');
             closeModal();
             
-            // 3. Recarrega os DADOS (a parte LENTA)
-            await this.loadData(); 
+            // 4. Recarrega os DADOS (a parte LENTA)
+            await this.loadData(true); // Força refresh após escrita
             
         } catch (error) {
             handleOperation(error);
@@ -316,9 +321,12 @@ export class ControleView {
                 // 2. Remove da fila de estacionamento persistida
                 await removeCaminhaoFromFila(caminhaoId); 
                 
+                // 3. Invalida o Cache (NOVO)
+                dataCache.invalidateAllData();
+
                 showToast('Caminhão designado com sucesso!', 'success');
                 closeModal();
-                await this.loadData();
+                await this.loadData(true); // Força refresh após escrita
             } catch (error) {
                 handleOperation(error);
             } finally {
@@ -368,14 +376,16 @@ export class ControleView {
             if (!ESTACIONAMENTO_STATUS.includes(novoStatus)) {
                  await removeCaminhaoFromFila(caminhaoId);
             }
-            // OBS: Se o status for 'disponivel' ou 'patio_vazio', o caminhão deve permanecer no pool de ordenação
             
-            // 3. Feedback RÁPIDO para o usuário
+            // 3. Invalida o Cache (NOVO)
+            dataCache.invalidateAllData();
+            
+            // 4. Feedback RÁPIDO para o usuário
             showToast(successMessage, 'success');
             closeModal();
             
-            // 4. Recarrega os DADOS (a parte LENTA)
-            await this.loadData(); 
+            // 5. Recarrega os DADOS (a parte LENTA)
+            await this.loadData(true); // Força refresh após escrita
             
         } catch (error) {
             handleOperation(error);
@@ -402,9 +412,13 @@ export class ControleView {
             showLoading();
             try {
                 await updateFrenteComFazenda(frenteId, selectedFazendaId || null);
+                
+                // Invalida o Cache (NOVO)
+                dataCache.invalidateAllData();
+
                 showToast('Fazenda atualizada com sucesso!', 'success');
                 closeModal();
-                await this.loadData();
+                await this.loadData(true); // Força refresh após escrita
             } catch (error) {
                 handleOperation(error);
             } finally {
