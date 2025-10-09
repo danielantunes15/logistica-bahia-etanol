@@ -594,10 +594,10 @@ body {
 
 .fazenda-popup h4 {
     margin: 0 0 8px 0;
-    color: var(--text-primary); /* Branco */
+    color: #1A202C; /* Corrigido para Dark, para alto contraste */
     font-size: 1.1rem;
     font-weight: 700;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); /* Adicionar sombra ao título */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1); /* Sombra mais leve */
     padding: 0 10px;
 }
 
@@ -639,23 +639,28 @@ body {
 }
 
 .popup-details p {
-    margin: 8px 0; /* Mais espaço entre as linhas */
-    color: var(--text-primary); /* Mudar cor base para primária */
+    margin: 8px 0;
+    color: #4A5568; /* Dark Gray para texto base, garantindo contraste */
     display: flex;
     justify-content: space-between; /* Alinhar rótulo e valor */
     align-items: center;
 }
 
 .popup-details strong {
-    color: var(--text-secondary); /* Mudar rótulos para cor secundária (cinza) */
-    font-weight: 500;
+    color: #1A202C; /* Near Black para RÓTULOS, destacando sobre o fundo branco */
+    font-weight: 600;
     flex-grow: 1; /* Permite que o rótulo ocupe mais espaço */
     margin-right: 10px;
 }
 
 .popup-details .value {
-    color: var(--text-primary); /* Valor padrão principal */
-    font-weight: 700; /* Deixar o valor mais forte */
+    color: #1A202C; /* Near Black como valor padrão */
+    font-weight: 800; /* Deixar o valor mais forte */
+}
+
+/* Sobrescreve a cor dos valores dinâmicos para a cor de status, exceto se for o default dark */
+.popup-details .value[style*="var(--text-secondary)"] {
+    color: var(--text-secondary) !important;
 }
 
 /* NOVO ESTILO PARA AÇÕES NO POPUP */

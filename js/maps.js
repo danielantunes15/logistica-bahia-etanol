@@ -235,7 +235,7 @@ export class MapManager {
                 
                 const marker = L.marker(coords, { icon: customIcon }).addTo(map);
                 
-                // CONTEÚDO DO POPUP MELHORADO
+                // CONTEÚDO DO POPUP MELHORADO (REMOVIDO "Hectares")
                 const popupContent = `
                     <div class="fazenda-popup">
                         <h4>${fazenda.nome}</h4>
@@ -244,15 +244,36 @@ export class MapManager {
                             ${statusLabel}
                         </div>
                         <div class="popup-details">
-                            <p><strong>Frente Ativa:</strong> ${fazenda.frenteNome}</p>
-                            <p><strong>Caminhões em Rota:</strong> <span style="font-weight: 600; color: ${fazenda.trucksInRoute > 0 ? color : 'var(--text-secondary)'};">${fazenda.trucksInRoute}</span></p>
-                            <p><strong>Equipamentos Ativos:</strong> <span style="font-weight: 600; color: ${fazenda.activeEquipment > 0 ? color : 'var(--text-secondary)'};">${fazenda.activeEquipment}</span></p>
-                            <p><strong>Hectares:</strong> ${fazenda.hectares || 'N/A'} ha</p>
+                            <p><strong>Frente Ativa:</strong> <span class="value">${fazenda.frenteNome}</span></p>
+                            <p><strong>Caminhões em Rota:</strong> <span class="value" style="color: ${fazenda.trucksInRoute > 0 ? color : 'var(--text-secondary)'};">${fazenda.trucksInRoute}</span></p>
+                            <p><strong>Equipamentos Ativos:</strong> <span class="value" style="color: ${fazenda.activeEquipment > 0 ? color : 'var(--text-secondary)'};">${fazenda.activeEquipment}</span></p>
+                        </div>
+                        
+                        <div class="popup-actions">
+                            <button class="btn-primary btn-action-map" data-action="goToControle" data-frente-id="${fazenda.frente_id}" title="Gerenciar Frente no Painel de Controle">
+                                <i class="ph-fill ph-arrows-clockwise"></i> Gerenciar Frente
+                            </button>
                         </div>
                     </div>
                 `;
                 
                 marker.bindPopup(popupContent);
+                
+                // Adicionar um listener para o botão de Ação no POPUP
+                marker.on('popupopen', () => {
+                    const btn = document.querySelector(`.fazenda-marker.status-${iconClass} .btn-action-map`);
+                    if (btn) {
+                        btn.addEventListener('click', (e) => {
+                            // Disparar evento para o ViewManager
+                            window.dispatchEvent(new CustomEvent('viewChanged', { 
+                                detail: { 
+                                    view: 'controle', 
+                                    frenteId: e.target.dataset.frenteId 
+                                } 
+                            }));
+                        });
+                    }
+                });
                 
                 if (!this.markers.has('dashboard-fazendas')) {
                     this.markers.set('dashboard-fazendas', []);
