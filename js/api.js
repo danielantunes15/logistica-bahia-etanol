@@ -43,6 +43,32 @@ export async function updateCaminhao(id, data) {
     return { error: null };
 }
 
+/**
+ * NOVO: Função otimizada para buscar apenas metadados necessários para o Dashboard e Cadastros.
+ */
+export async function fetchMetadata() {
+    try {
+        const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros] = await Promise.all([
+            fetchTable('fazendas', '*, fornecedores(id, nome)'),
+            fetchTable('caminhoes', '*, proprietarios(id, nome)'),
+            fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome)'),
+            fetchTable('frentes_servico', '*, fazendas(cod_equipamento, nome)'),
+            fetchTable('fornecedores'),
+            fetchTable('proprietarios'),
+            fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
+        ]);
+        
+        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros }; 
+    } catch (error) {
+        console.error('Erro ao buscar metadados:', error);
+        throw error;
+    }
+}
+
+
+/**
+ * CORRIGIDO: Função para buscar todos os dados, incluindo histórico, usada por Relatórios e Vistas detalhadas.
+ */
 export async function fetchAllData() {
     try {
         const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico] = await Promise.all([
@@ -59,7 +85,7 @@ export async function fetchAllData() {
         
         return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico }; 
     } catch (error) {
-        console.error('Erro ao buscar todos os dados:', error);
+        console.error('Erro ao buscar todos os dados (FULL):', error);
         throw error;
     }
 }
@@ -216,12 +242,7 @@ export async function updateFrenteComFazenda(frenteId, fazendaId) {
 
 // --- NOVO: Função para atualizar apenas o status da Frente ---
 export async function updateFrenteStatus(frenteId, newStatus) {
-    const { data, error } = await supabase
-        .from('frentes_servico')
-        .update({ status: newStatus })
-        .eq('id', frenteId)
-        .select()
-        .single();
+    const { data, error } = await supabase.from('frentes_servico').update({ status: newStatus }).eq('id', frenteId).select().single();
     if (error) throw error;
     return { data };
 }

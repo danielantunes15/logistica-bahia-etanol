@@ -2,17 +2,16 @@
 import { fetchAllData, updateEquipamentoStatus } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
+// NOVO: Importa constantes
+import { EQUIPAMENTO_STATUS_LABELS } from '../constants.js';
 
 export class EquipamentosView {
     constructor() {
         this.container = null;
         this.data = {};
         this.tiposEquipamentos = ['Carregadeira', 'Trator Reboque', 'Colhedora', 'Trator Transbordo'];
-        this.statusLabels = {
-            ativo: 'Em Operação',
-            parado: 'Parado',
-            quebrado: 'Quebrado',
-        };
+        // REMOVIDO: Definição local de statusLabels
+        this.statusLabels = EQUIPAMENTO_STATUS_LABELS;
         this.frentesMap = new Map(); // Inicialização do mapa de frentes
         this._boundClickHandler = null; // Para armazenar a referência do handler e removê-lo
     }

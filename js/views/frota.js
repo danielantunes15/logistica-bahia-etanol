@@ -1,21 +1,15 @@
 // js/views/frota.js
 import { fetchAllData, updateCaminhaoStatus } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+// NOVO: Importa constantes
+import { CAMINHAO_STATUS_LABELS } from '../constants.js';
 
 export class FrotaView {
     constructor() {
         this.container = null;
         this.data = {};
-        this.statusLabels = {
-            disponivel: 'Disponível',
-            indo_carregar: 'Sentido Carreg.',
-            carregando: 'Carregando',
-            retornando: 'Sentido Usina',
-            patio_carregado: 'Pátio Carregado',
-            descarregando: 'Descarregando',
-            patio_vazio: 'Pátio Vazio',
-            quebrado: 'Quebrado'
-        };
+        // REMOVIDO: Definição local de statusLabels
+        this.statusLabels = CAMINHAO_STATUS_LABELS;
         // Armazenar referência do manipulador para remover corretamente
         this._boundClickHandler = null;
     }

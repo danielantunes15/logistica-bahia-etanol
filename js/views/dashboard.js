@@ -1,7 +1,10 @@
 // js/views/dashboard.js
 import { mapManager } from '../maps.js';
-import { fetchAllData } from '../api.js';
+// CORRIGIDO: Usa fetchMetadata em vez de fetchAllData
+import { fetchMetadata } from '../api.js'; 
 import { showToast, showLoading, hideLoading } from '../helpers.js';
+// NOVO: Importa constantes
+import { CAMINHAO_ROUTE_STATUS } from '../constants.js';
 
 export class DashboardView {
     constructor() {
@@ -200,7 +203,8 @@ export class DashboardView {
     async loadData() {
         showLoading();
         try {
-            this.data = await fetchAllData();
+            // CORRIGIDO: Usa a função otimizada para o Dashboard
+            this.data = await fetchMetadata(); 
             this.updateDashboardStats();
             this.updateMap();
             this.updateLastUpdateTime();
@@ -230,14 +234,8 @@ export class DashboardView {
         const { caminhoes, frentes_servico, equipamentos, fazendas } = this.data;
 
         // -------------------------------------------------------------
-        // CORREÇÃO: Esta lista contém APENAS os status que indicam que o caminhão está em MOVIMENTO ou CARREGANDO/DESCARREGANDO ativamente.
-        const cycleStatuses = [
-            'indo_carregar', 
-            'carregando', 
-            'retornando', 
-            'patio_carregado',
-            'descarregando'
-        ];
+        // CORREÇÃO: Usa a constante importada
+        const cycleStatuses = CAMINHAO_ROUTE_STATUS;
         // -------------------------------------------------------------
 
         // Estatísticas de Caminhões
@@ -362,7 +360,7 @@ export class DashboardView {
     }
 
     updateMap() {
-        const { fazendas, frentes_servico } = this.data;
+        const { fazendas, frentes_servico, caminhoes, equipamentos } = this.data;
         if (!fazendas || fazendas.length === 0) {
              // Se não há fazendas no BD, centraliza na usina com zoom distante.
             mapManager.clearMarkers('dashboard-fazendas');
@@ -370,21 +368,61 @@ export class DashboardView {
             return;
         }
 
-        // Lógica para filtrar APENAS as fazendas que estão ATIVAS (colhendo/cata) OU INATIVAS (atenção)
-        const activeFrenteMap = new Map();
-        // Inclui 'ativa', 'fazendo_cata' E 'inativa' para serem mapeadas
+        // --- NOVO: Agregação de Dados Dinâmicos por Fazenda ---
+        const fazendaDataMap = new Map();
+        const cycleStatuses = CAMINHAO_ROUTE_STATUS; // Caminhões que estão em rota
+
+        // 1. Mapear Frentes e seus status
+        const frenteMap = new Map(frentes_servico.map(f => [f.id, f]));
+        
+        // 2. Agregação inicial
+        fazendas.forEach(f => {
+             fazendaDataMap.set(f.id, {
+                ...f,
+                frenteStatus: null,
+                trucksInRoute: 0,
+                activeEquipment: 0,
+                frenteNome: 'N/A'
+             });
+        });
+
+        // 3. Contar Caminhões e Equipamentos Ativos por Frente/Fazenda
+        caminhoes.forEach(c => {
+            if (c.frente_id && cycleStatuses.includes(c.status)) {
+                const frente = frenteMap.get(c.frente_id);
+                if (frente && frente.fazenda_id && fazendaDataMap.has(frente.fazenda_id)) {
+                    fazendaDataMap.get(frente.fazenda_id).trucksInRoute++;
+                }
+            }
+        });
+
+        equipamentos.forEach(e => {
+            if (e.frente_id && e.status === 'ativo') {
+                 const frente = frenteMap.get(e.frente_id);
+                if (frente && frente.fazenda_id && fazendaDataMap.has(frente.fazenda_id)) {
+                    fazendaDataMap.get(frente.fazenda_id).activeEquipment++;
+                }
+            }
+        });
+        
+        // 4. Mapear Status Ativo da Frente para a Fazenda
         frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata' || f.status === 'inativa'))
                        .forEach(frente => {
-                           activeFrenteMap.set(frente.fazenda_id, frente.status); 
+                           if (fazendaDataMap.has(frente.fazenda_id)) {
+                               const data = fazendaDataMap.get(frente.fazenda_id);
+                               data.frenteStatus = frente.status; // Ativa, Cata, Inativa
+                               data.frenteNome = frente.nome;
+                           }
                        });
-
-        const fazendasNoMapa = fazendas.filter(f => activeFrenteMap.has(f.id)).map(f => ({
-            ...f,
-            status: activeFrenteMap.get(f.id) 
-        }));
+                       
+        // 5. Filtrar apenas as fazendas que DEVEM aparecer no mapa (com frente associada)
+        const fazendasNoMapa = Array.from(fazendaDataMap.values()).filter(f => f.frenteStatus !== null);
+        
+        // --- FIM NOVO: Agregação de Dados Dinâmicos por Fazenda ---
 
         if (fazendasNoMapa.length > 0) {
-            mapManager.updateFazendaMarkersWithStatus(fazendasNoMapa);
+            // CORRIGIDO: Passa a informação agregada para o maps.js
+            mapManager.updateFazendaMarkersWithStatus(fazendasNoMapa); 
             // Passa apenas as ativas, mas calculateBounds inclui a Usina
             this.adjustMapToShowFazendas(fazendasNoMapa); 
         } else {

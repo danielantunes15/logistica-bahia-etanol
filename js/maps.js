@@ -181,6 +181,9 @@ export class MapManager {
         });
     }
 
+    /**
+     * CORRIGIDO: Recebe fazendas com dados agregados (frenteStatus, trucksInRoute, activeEquipment, frenteNome)
+     */
     updateFazendaMarkersWithStatus(fazendas) {
         const map = this.maps.get('dashboard-map');
         if (!map) return;
@@ -196,7 +199,9 @@ export class MapManager {
                 // Definir cor baseada no status da FRENTE (ativa/fazendo_cata/inativa)
                 let color;
                 let statusLabel;
-                switch(fazenda.status) {
+                let iconClass = fazenda.frenteStatus;
+                
+                switch(fazenda.frenteStatus) {
                     case 'ativa':
                         color = '#38A169'; // Verde (Colhendo)
                         statusLabel = 'Colhendo';
@@ -217,7 +222,7 @@ export class MapManager {
                 
                 // Criar ícone personalizado
                 const customIcon = L.divIcon({
-                    className: `fazenda-marker status-${fazenda.status}`, 
+                    className: `fazenda-marker status-${iconClass}`, 
                     html: `
                         <div class="marker-pin" style="background-color: ${color}">
                             <i class="ph-fill ph-tree-evergreen"></i>
@@ -230,17 +235,19 @@ export class MapManager {
                 
                 const marker = L.marker(coords, { icon: customIcon }).addTo(map);
                 
+                // CONTEÚDO DO POPUP MELHORADO
                 const popupContent = `
                     <div class="fazenda-popup">
                         <h4>${fazenda.nome}</h4>
-                        <div class="popup-status ${fazenda.status}">
+                        <div class="popup-status ${iconClass}">
                             <i class="ph-fill ph-circle"></i>
                             ${statusLabel}
                         </div>
                         <div class="popup-details">
+                            <p><strong>Frente Ativa:</strong> ${fazenda.frenteNome}</p>
+                            <p><strong>Caminhões em Rota:</strong> <span style="font-weight: 600; color: ${fazenda.trucksInRoute > 0 ? color : 'var(--text-secondary)'};">${fazenda.trucksInRoute}</span></p>
+                            <p><strong>Equipamentos Ativos:</strong> <span style="font-weight: 600; color: ${fazenda.activeEquipment > 0 ? color : 'var(--text-secondary)'};">${fazenda.activeEquipment}</span></p>
                             <p><strong>Hectares:</strong> ${fazenda.hectares || 'N/A'} ha</p>
-                            <p><strong>Fornecedor:</strong> ${fazenda.fornecedores?.nome || 'N/A'}</p>
-                            <p><strong>Coordenadas:</strong> ${parseFloat(fazenda.latitude).toFixed(4)}, ${parseFloat(fazenda.longitude).toFixed(4)}</p>
                         </div>
                     </div>
                 `;

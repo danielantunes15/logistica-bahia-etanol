@@ -586,27 +586,32 @@ body {
     }
 }
 
-/* Popup Personalizado */
+/* Popup Personalizado - REGRAS DE ALTO CONTRASTE E AÇÃO */
 .fazenda-popup {
-    min-width: 200px;
+    min-width: 250px; /* Aumentar largura mínima para melhor leitura */
+    padding: 5px 0 0 0; /* Ajustar padding */
 }
 
 .fazenda-popup h4 {
     margin: 0 0 8px 0;
-    color: var(--text-primary);
-    font-size: 1rem;
+    color: var(--text-primary); /* Branco */
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); /* Adicionar sombra ao título */
+    padding: 0 10px;
 }
 
 .popup-status {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 12px;
-    font-size: 0.7rem;
+    font-size: 0.8rem; /* Aumentar um pouco */
     font-weight: 600;
     text-transform: uppercase;
-    margin-bottom: 8px;
+    margin-bottom: 12px; /* Aumentar margem */
+    margin-left: 10px; /* Alinhar com o conteúdo */
 }
 
 .popup-status.colhendo, .popup-status.ativa {
@@ -629,17 +634,43 @@ body {
 }
 
 .popup-details {
-    font-size: 0.8rem;
+    font-size: 0.9rem; /* Aumentar o tamanho do texto para legibilidade */
+    padding: 0 10px;
 }
 
 .popup-details p {
-    margin: 4px 0;
-    color: var(--text-secondary);
+    margin: 8px 0; /* Mais espaço entre as linhas */
+    color: var(--text-primary); /* Mudar cor base para primária */
+    display: flex;
+    justify-content: space-between; /* Alinhar rótulo e valor */
+    align-items: center;
 }
 
 .popup-details strong {
-    color: var(--text-primary);
+    color: var(--text-secondary); /* Mudar rótulos para cor secundária (cinza) */
+    font-weight: 500;
+    flex-grow: 1; /* Permite que o rótulo ocupe mais espaço */
+    margin-right: 10px;
 }
+
+.popup-details .value {
+    color: var(--text-primary); /* Valor padrão principal */
+    font-weight: 700; /* Deixar o valor mais forte */
+}
+
+/* NOVO ESTILO PARA AÇÕES NO POPUP */
+.popup-actions {
+    padding: 10px 10px 0 10px;
+    border-top: 1px solid rgba(74, 85, 104, 0.3); /* Linha divisória */
+    margin-top: 10px;
+}
+.popup-actions .btn-action-map {
+    width: 100%;
+    justify-content: center;
+    padding: 8px;
+    font-size: 0.9rem;
+}
+
 
 /* Controles Personalizados do Mapa */
 .custom-map-control {

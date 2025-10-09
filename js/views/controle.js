@@ -2,6 +2,8 @@
 import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
+// NOVO: Importa constantes
+import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS } from '../constants.js';
 
 const ESTACIONAMENTO_STATUS = ['disponivel', 'patio_vazio']; // Status que indicam que o caminhão está na fila/pátio
 
@@ -9,32 +11,12 @@ export class ControleView {
     constructor() {
         this.container = null;
         this.data = {};
-        // --- ORDEM DO CICLO CORRIGIDA ---
-        this.statusCiclo = [
-            'indo_carregar', 
-            'carregando', 
-            'retornando', 
-            'patio_carregado',
-            'descarregando',
-            'patio_vazio' 
-        ];
-        this.statusLabels = {
-            disponivel: 'Disponível',
-            indo_carregar: 'Sentido Carreg.',
-            carregando: 'Carregando',
-            retornando: 'Sentido Usina',
-            patio_carregado: 'Pátio Carregado',
-            descarregando: 'Descarregando',
-            patio_vazio: 'Pátio Vazio',
-            quebrado: 'Quebrado'
-        };
-
+        // REMOVIDO: Definição local de statusCiclo e statusLabels
+        this.statusCiclo = CAMINHAO_STATUS_CYCLE;
+        this.statusLabels = CAMINHAO_STATUS_LABELS;
+        
         // --- NOVO: Status da Frente de Serviço ---
-        this.frenteStatusLabels = {
-            ativa: 'Ativa (Colheita)',
-            inativa: 'Inativa',
-            fazendo_cata: 'Fazendo Cata',
-        };
+        this.frenteStatusLabels = FRENTE_STATUS_LABELS;
     }
 
     async show() {
@@ -354,6 +336,7 @@ export class ControleView {
             <form id="status-update-form" class="action-modal-form">
                 <div class="form-group">
                     <label>Selecione o Novo Status</label>
+                    ${/* Usa o CAMINHAO_STATUS_CYCLE importado */''}
                     <select name="status" class="form-select" required>
                     ${[...this.statusCiclo, 'quebrado', 'disponivel'].map(s => `<option value="${s}" ${caminhao.status === s ? 'selected' : ''}>${this.statusLabels[s]}</option>`).join('')}
                     </select>
