@@ -183,8 +183,9 @@ export class MapManager {
 
     /**
      * CORRIGIDO: Recebe fazendas com dados agregados (frenteStatus, trucksInRoute, activeEquipment, frenteNome)
+     * MUDANÇA: Recebe activeFilters e exibe cycleTime no popup
      */
-    updateFazendaMarkersWithStatus(fazendas) {
+    updateFazendaMarkersWithStatus(fazendas, activeFilters = {}) {
         const map = this.maps.get('dashboard-map');
         if (!map) return;
         
@@ -194,6 +195,13 @@ export class MapManager {
         // Adicionar marcadores para cada fazenda com cores diferentes
         fazendas.forEach(fazenda => {
             if (fazenda.latitude && fazenda.longitude) {
+                
+                // MUDANÇA: Lógica de filtragem
+                const filterKey = fazenda.frenteStatus || 'inativa'; 
+                if (activeFilters[filterKey] === false) {
+                     return; // Pula este marcador se o filtro estiver desativado
+                }
+                
                 const coords = [parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)];
                 
                 // Definir cor baseada no status da FRENTE (ativa/fazendo_cata/inativa)
@@ -235,7 +243,7 @@ export class MapManager {
                 
                 const marker = L.marker(coords, { icon: customIcon }).addTo(map);
                 
-                // CONTEÚDO DO POPUP MELHORADO (REMOVIDO "Hectares")
+                // MUDANÇA: CONTEÚDO DO POPUP MELHORADO (Adiciona Tempo de Ciclo)
                 const popupContent = `
                     <div class="fazenda-popup">
                         <h4>${fazenda.nome}</h4>
@@ -245,6 +253,7 @@ export class MapManager {
                         </div>
                         <div class="popup-details">
                             <p><strong>Frente Ativa:</strong> <span class="value">${fazenda.frenteNome}</span></p>
+                            <p><strong>Tempo Médio de Ciclo:</strong> <span class="value" style="color: var(--accent-edit);">${fazenda.cycleTime || 'N/A'}</span></p>
                             <p><strong>Caminhões em Rota:</strong> <span class="value" style="color: ${fazenda.trucksInRoute > 0 ? color : 'var(--text-secondary)'};">${fazenda.trucksInRoute}</span></p>
                             <p><strong>Equipamentos Ativos:</strong> <span class="value" style="color: ${fazenda.activeEquipment > 0 ? color : 'var(--text-secondary)'};">${fazenda.activeEquipment}</span></p>
                         </div>

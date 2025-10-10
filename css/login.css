@@ -47,9 +47,9 @@
 .login-header i {
     /* Estilo moderno para o ícone */
     font-size: 56px;
-    color: var(--accent-primary);
     background: linear-gradient(45deg, var(--accent-primary), #2B6CB0);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 15px;
     display: none; /* NOVO: Oculta o ícone antigo */
@@ -91,6 +91,7 @@
     background: var(--bg-dark);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
+    box-sizing: border-box; /* ADICIONADO: Garante consistência no tamanho */
 }
 
 #login-form .form-input:focus {
@@ -98,6 +99,12 @@
     outline: none;
     border-color: var(--accent-primary);
     box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.2);
+}
+
+#login-form .form-input:focus-visible {
+    /* ADICIONADO: Melhora acessibilidade para navegação por teclado */
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
 }
 
 #login-form .btn-primary {
@@ -110,6 +117,9 @@
     /* Adiciona gradiente para um toque moderno */
     background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover)); 
     border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -118,26 +128,77 @@
     box-shadow: 0 5px 15px rgba(56, 161, 105, 0.3);
 }
 
+#login-form .btn-primary:active {
+    /* ADICIONADO: Feedback visual ao clicar */
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(56, 161, 105, 0.3);
+}
+
 .login-info {
     margin-top: 25px;
     font-size: 0.8rem;
-    color: var(--border-color);
+    color: var(--text-secondary); /* CORRIGIDO: Melhor contraste */
     border-top: 1px solid var(--border-color);
     padding-top: 15px;
 }
 
+/* ADICIONADO: Estados de erro para os campos */
+#login-form .form-input.error {
+    border-color: #e53e3e;
+    box-shadow: 0 0 0 2px rgba(229, 62, 62, 0.2);
+}
+
+/* ADICIONADO: Loading state para o botão */
+#login-form .btn-primary.loading {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
 /* Responsividade (garantindo que se adapte a telas pequenas) */
 @media (max-width: 480px) {
+    .login-container {
+        padding: 15px;
+    }
+    
     .login-card {
         padding: 25px;
-        margin: 10px;
+        margin: 0;
     }
     
     .login-header h2 {
         font-size: 1.4rem;
     }
     
-    .login-header i {
-        font-size: 48px;
+    .login-header #login-logo {
+        width: 100px;
+        height: 100px;
+    }
+    
+    #login-form {
+        gap: 15px;
+    }
+    
+    #login-form .form-input {
+        padding: 10px;
+    }
+    
+    #login-form .btn-primary {
+        padding: 12px;
+    }
+}
+
+/* ADICIONADO: Suporte para telas muito pequenas */
+@media (max-width: 320px) {
+    .login-card {
+        padding: 20px;
+    }
+    
+    .login-header h2 {
+        font-size: 1.2rem;
+    }
+    
+    .login-header p {
+        font-size: 0.9rem;
     }
 }

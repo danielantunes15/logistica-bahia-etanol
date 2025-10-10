@@ -12,6 +12,13 @@ export class DashboardView {
         this.container = null;
         this.data = {};
         this.autoRefreshInterval = null;
+        // MUDANÇA: Estado de filtragem da legenda (inicia tudo ativo)
+        this.activeFilters = {
+            usina: true,
+            ativa: true,
+            fazendo_cata: true,
+            inativa: true
+        };
     }
 
     async show() {
@@ -30,6 +37,14 @@ export class DashboardView {
         const container = document.getElementById('views-container');
         container.innerHTML = this.getHTML();
         this.container = container;
+    }
+
+    // MUDANÇA: Novo método Mock para Tempo de Ciclo (a ser substituído pela API real)
+    mockFrenteCycleTime(frenteId) {
+        // Mock data: 3h 45m, 4h 10m, or 5h 05m based on frenteId
+        if (frenteId % 3 === 0) return '03h 45m';
+        if (frenteId % 3 === 1) return '04h 10m';
+        return '05h 05m';
     }
 
     getHTML() {
@@ -65,14 +80,15 @@ export class DashboardView {
                                         </div>
                                         <div class="stat-title">Caminhões</div>
                                     </div>
-                                    <div class="stat-content">
-                                        <div class="stat-main">
-                                            <span class="stat-value" id="caminhoes-ativos">0</span>
+                                    <div class="stat-content status-3-cols"> <div class="stat-main">
+                                            <span class="stat-value" id="caminhoes-em-operacao">0</span>
                                             <span class="stat-label">Em Operação</span>
                                         </div>
                                         <div class="stat-secondary">
-                                            <span class="stat-badge danger" id="caminhoes-parados">0</span>
-                                            <span class="stat-label">Parados</span>
+                                            <span class="stat-value ready" id="caminhoes-prontos">0</span> <span class="stat-label">Prontos / Pátio</span>
+                                        </div>
+                                        <div class="stat-secondary">
+                                            <span class="stat-badge danger" id="caminhoes-criticos">0</span> <span class="stat-label">Inativos Críticos</span>
                                         </div>
                                     </div>
                                     <div class="stat-total">
@@ -165,22 +181,20 @@ export class DashboardView {
                         </div>
                     </div>
 
-                    <div class="map-legend">
-                        <div class="legend-title">Legenda</div>
+                    <div class="map-legend" id="map-legend"> <div class="legend-title">Legenda</div>
                         <div class="legend-items">
-                            <div class="legend-item">
-                                <div class="legend-color usina"></div>
+                            <div class="legend-item ${this.activeFilters.usina ? '' : 'disabled'}" data-filter-key="usina"> <div class="legend-color usina"></div>
                                 <span>Usina</span>
                             </div>
-                            <div class="legend-item">
+                            <div class="legend-item ${this.activeFilters.ativa ? '' : 'disabled'}" data-filter-key="ativa">
                                 <div class="legend-color colhendo"></div>
                                 <span>Colhendo</span>
                             </div>
-                            <div class="legend-item">
+                            <div class="legend-item ${this.activeFilters.fazendo_cata ? '' : 'disabled'}" data-filter-key="fazendo_cata">
                                 <div class="legend-color fazendo_cata"></div>
                                 <span>Cata</span>
                             </div>
-                            <div class="legend-item">
+                            <div class="legend-item ${this.activeFilters.inativa ? '' : 'disabled'}" data-filter-key="inativa">
                                 <div class="legend-color atencao"></div>
                                 <span>Frentes com Atenção</span>
                             </div>
@@ -235,19 +249,26 @@ export class DashboardView {
     updateDashboardStats() {
         const { caminhoes, frentes_servico, equipamentos, fazendas } = this.data;
 
-        // -------------------------------------------------------------
-        // CORREÇÃO: Usa a constante importada
-        const cycleStatuses = CAMINHAO_ROUTE_STATUS;
-        // -------------------------------------------------------------
+        const operationalStatuses = CAMINHAO_ROUTE_STATUS; // 'indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando'
+        const readyStatuses = ['disponivel', 'patio_vazio']; // MUDANÇA: Prontos
+        const criticalStatuses = ['quebrado', 'parado']; // MUDANÇA: Críticos
 
         // Estatísticas de Caminhões
         const totalCaminhoes = caminhoes ? caminhoes.length : 0;
-        const caminhoesAtivos = caminhoes ? caminhoes.filter(c => 
-            cycleStatuses.includes(c.status) // Filtra APENAS pelos status de movimentação/operação
+        const caminhoesEmOperacao = caminhoes ? caminhoes.filter(c => 
+            operationalStatuses.includes(c.status) // Filtra APENAS pelos status de movimentação/operação
         ).length : 0;
         
-        // Caminhões Parados: todos que NÃO estão nos status Ativos (inclui 'disponivel', 'patio_vazio' e 'quebrado')
-        const caminhoesParados = totalCaminhoes - caminhoesAtivos; 
+        // MUDANÇA: Novos KPIs de Caminhões
+        const caminhoesProntos = caminhoes ? caminhoes.filter(c => 
+            readyStatuses.includes(c.status)
+        ).length : 0; 
+        
+        const caminhoesCriticos = caminhoes ? caminhoes.filter(c => 
+            criticalStatuses.includes(c.status)
+        ).length : 0; 
+        
+        const caminhoesParados = totalCaminhoes - caminhoesEmOperacao; 
 
         // Estatísticas de Frentes (MODIFICADO)
         const totalFrentes = frentes_servico ? frentes_servico.length : 0;
@@ -262,21 +283,20 @@ export class DashboardView {
         const equipamentosParados = totalEquipamentos - equipamentosAtivos;
 
         // Estatísticas de Fazendas (MODIFICADO)
-        // Fazendas Colhendo/Cata: Contar fazendas que TEM uma frente ativa/fazendo_cata associada
         const fazendasColhendoIds = new Set(
             frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
                             .map(f => f.fazenda_id)
         );
         const fazendasColhendo = fazendasColhendoIds.size;
         
-        // Fazendas Disponíveis: Contar fazendas que não estão associadas a nenhuma frente ativa/cata
         const totalFazendas = fazendas ? fazendas.length : 0;
         const fazendasDisponiveis = totalFazendas - fazendasColhendo;
 
 
         // Atualizar elementos
-        this.updateStatElement('caminhoes-ativos', caminhoesAtivos);
-        this.updateStatElement('caminhoes-parados', caminhoesParados);
+        this.updateStatElement('caminhoes-em-operacao', caminhoesEmOperacao); // MUDANÇA: Novo ID
+        this.updateStatElement('caminhoes-prontos', caminhoesProntos); // MUDANÇA: Novo KPI
+        this.updateStatElement('caminhoes-criticos', caminhoesCriticos); // MUDANÇA: Novo KPI
         this.updateStatElement('caminhoes-total', totalCaminhoes);
 
         this.updateStatElement('frentes-ativas', frentesAtivasColheita);
@@ -292,7 +312,7 @@ export class DashboardView {
         this.updateStatElement('fazendas-total', totalFazendas);
 
         // Calcular eficiência geral
-        const totalAtivos = caminhoesAtivos + equipamentosAtivos;
+        const totalAtivos = caminhoesEmOperacao + equipamentosAtivos;
         const totalRecursos = totalCaminhoes + totalEquipamentos;
         const eficiencia = totalRecursos > 0 ? Math.round((totalAtivos / totalRecursos) * 100) : 0;
         
@@ -300,7 +320,7 @@ export class DashboardView {
         this.updateEfficiencyBar(eficiencia);
 
         // Operações ativas
-        const operacoesAtivas = caminhoesAtivos + equipamentosAtivos + fazendasColhendo;
+        const operacoesAtivas = caminhoesEmOperacao + equipamentosAtivos + fazendasColhendo;
         this.updateStatElement('operacoes-ativas', operacoesAtivas);
     }
 
@@ -370,9 +390,9 @@ export class DashboardView {
             return;
         }
 
-        // --- NOVO: Agregação de Dados Dinâmicos por Fazenda ---
+        // --- Agregação de Dados Dinâmicos por Fazenda ---
         const fazendaDataMap = new Map();
-        const cycleStatuses = CAMINHAO_ROUTE_STATUS; // Caminhões que estão em rota
+        const cycleStatuses = CAMINHAO_ROUTE_STATUS;
 
         // 1. Mapear Frentes e seus status
         const frenteMap = new Map(frentes_servico.map(f => [f.id, f]));
@@ -407,13 +427,16 @@ export class DashboardView {
             }
         });
         
-        // 4. Mapear Status Ativo da Frente para a Fazenda
+        // 4. Mapear Status Ativo da Frente para a Fazenda e ADICIONAR TEMPO DE CICLO
         frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata' || f.status === 'inativa'))
                        .forEach(frente => {
                            if (fazendaDataMap.has(frente.fazenda_id)) {
                                const data = fazendaDataMap.get(frente.fazenda_id);
                                data.frenteStatus = frente.status; // Ativa, Cata, Inativa
                                data.frenteNome = frente.nome;
+                               data.frente_id = frente.id;
+                               // MUDANÇA: Adiciona Tempo de Ciclo (Mock)
+                               data.cycleTime = this.mockFrenteCycleTime(frente.id); 
                            }
                        });
                        
@@ -423,9 +446,8 @@ export class DashboardView {
         // --- FIM NOVO: Agregação de Dados Dinâmicos por Fazenda ---
 
         if (fazendasNoMapa.length > 0) {
-            // CORRIGIDO: Passa a informação agregada para o maps.js
-            mapManager.updateFazendaMarkersWithStatus(fazendasNoMapa); 
-            // Passa apenas as ativas, mas calculateBounds inclui a Usina
+            // MUDANÇA: Passa os filtros ativos
+            mapManager.updateFazendaMarkersWithStatus(fazendasNoMapa, this.activeFilters); 
             this.adjustMapToShowFazendas(fazendasNoMapa); 
         } else {
             // Se não há fazendas ativas, limpa os marcadores e centraliza na usina (zoom distante)
@@ -441,11 +463,11 @@ export class DashboardView {
 
         const bounds = this.calculateBounds(fazendas);
         if (bounds.isValid()) {
-            // AJUSTADO: Adiciona padding na lateral esquerda e topo para desviar do painel de status
+            // MUDANÇA: Ajuste de Zoom para 14
             map.fitBounds(bounds, { 
                 paddingTopLeft: [50, 200], // 50px de cima, 200px da esquerda
                 paddingBottomRight: [50, 50],
-                maxZoom: 12 // MUDANÇA AQUI: Visão mais distante (mais zoom out)
+                maxZoom: 14 // MUDANÇA AQUI: Visão mais detalhada (Zoom mais próximo)
             });
         }
     }
@@ -453,7 +475,7 @@ export class DashboardView {
     calculateBounds(fazendas) {
         const bounds = L.latLngBounds();
         
-        // 1. Incluir Coordenadas da Usina SEMPRE (MUDANÇA AQUI)
+        // 1. Incluir Coordenadas da Usina SEMPRE
         bounds.extend(USINA_COORDS); 
         
         // 2. Incluir todas as fazendas ativas
@@ -473,6 +495,24 @@ export class DashboardView {
                 // Força o refresh para ignorar o cache de 10s.
                 this.loadData(true); 
                 showToast('Operações atualizadas', 'success');
+            });
+        }
+        
+        // MUDANÇA: Lógica de Filtragem da Legenda
+        const legend = document.getElementById('map-legend');
+        if (legend) {
+            legend.addEventListener('click', (e) => {
+                const item = e.target.closest('.legend-item');
+                const filterKey = item?.dataset.filterKey;
+                
+                if (filterKey) {
+                    // A usina não é filtrada por esta lógica, mas as fazendas sim
+                    if (filterKey === 'usina') return; 
+                    
+                    this.activeFilters[filterKey] = !this.activeFilters[filterKey];
+                    item.classList.toggle('disabled');
+                    this.updateMap(); // Redraw map with new filters
+                }
             });
         }
     }
