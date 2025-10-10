@@ -66,12 +66,32 @@ export async function fetchMetadata() {
     }
 }
 
+// --- NOVA FUNÇÃO INTERNA: Busca Logs Históricos com Filtro de Tempo ---
+async function fetchHistoricalTable(tableName, select, dateLimitISO) {
+    // Busca logs mais recentes que a data limite
+    const { data, error } = await supabase
+        .from(tableName)
+        .select(select)
+        .gte('timestamp_mudanca', dateLimitISO) 
+        .order('timestamp_mudanca', { ascending: false }); 
+    if (error) throw error;
+    return data;
+}
+// -------------------------------------------------------------------
 
 /**
  * CORRIGIDO: Função para buscar todos os dados, incluindo histórico, usada por Relatórios e Vistas detalhadas.
+ * MELHORIA: Adiciona limite de 90 dias para histórico para mitigar grandes volumes de dados.
  */
-export async function fetchAllData() {
+export async function fetchAllData(daysBack = 90) {
     try {
+        const dateLimit = new Date();
+        // Se daysBack for nulo (passado por Relatórios para não aplicar filtro de tempo se já houver filtro de data), não aplica.
+        if (daysBack !== null) {
+            dateLimit.setDate(dateLimit.getDate() - daysBack);
+        }
+        const dateLimitISO = daysBack !== null ? dateLimit.toISOString() : null;
+
         const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico] = await Promise.all([
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
             fetchTable('caminhoes', '*, proprietarios(id, nome)'),
@@ -80,8 +100,10 @@ export async function fetchAllData() {
             fetchTable('fornecedores'),
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
-            fetchTable('caminhao_historico', '*, caminhoes(cod_equipamento)'),
-            fetchTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada') 
+            
+            // Filtro de tempo para histórico
+            dateLimitISO ? fetchHistoricalTable('caminhao_historico', '*, caminhoes(cod_equipamento)', dateLimitISO) : fetchTable('caminhao_historico', '*, caminhoes(cod_equipamento)'),
+            dateLimitISO ? fetchHistoricalTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada', dateLimitISO) : fetchTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada')
         ]);
         
         return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico }; 

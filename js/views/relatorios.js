@@ -180,14 +180,12 @@ export class RelatoriosView {
         selectProprietario.innerHTML = '<option value="">Todos os Proprietários</option>' + 
             proprietarios.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
 
-        const dateEnd = new Date();
-        const dateStart = new Date();
-        dateStart.setDate(dateEnd.getDate() - 7); 
-
-        const formatDate = (date) => date.toISOString().split('T')[0];
-
-        document.getElementById('filter-data-fim').value = formatDate(dateEnd);
-        document.getElementById('filter-data-inicio').value = formatDate(dateStart);
+        // --- MELHORIA: Remove o filtro de data padrão de 7 dias para refletir o limite de 90 dias da API ---
+        const dateEndInput = document.getElementById('filter-data-fim');
+        const dateStartInput = document.getElementById('filter-data-inicio');
+        if(dateEndInput) dateEndInput.value = '';
+        if(dateStartInput) dateStartInput.value = '';
+        // --- FIM MELHORIA ---
     }
 
     async showReport(reportName) {
