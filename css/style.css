@@ -194,7 +194,8 @@ body {
 
 /* AUMENTANDO TAMANHO E AJUSTANDO MARGENS PARA USINA */
 .usina-marker .marker-pin {
-    background: #E53E3E;
+    /* MUDANÇA DE COR: Para #805AD5 (Roxo) */
+    background: #805AD5; 
     width: 45px; 
     height: 45px; 
     margin: -22px 0 0 -22px; 
@@ -260,15 +261,18 @@ body {
 }
 
 .usina-marker .marker-pin i {
-    color: #E53E3E;
+    /* MUDANÇA DE COR: Roxo Escuro */
+    color: #6A49B8;
 }
 
 .usina-marker .marker-pulse {
-    background: #E53E3E; 
+    /* MUDANÇA DE COR: Roxo */
+    background: #805AD5; 
 }
 
 .usina-marker .marker-pulse::after {
-    box-shadow: 0 0 1px 3px #E53E3E; 
+    /* MUDANÇA DE COR: Roxo */
+    box-shadow: 0 0 1px 3px #805AD5; 
 }
 
 @keyframes pulsate {
@@ -324,8 +328,9 @@ body {
 }
 
 .popup-status.inativa {
-    background: rgba(214, 158, 46, 0.2);
-    color: #D69E2E; /* Amarelo para Atenção/Inativa */
+    /* MUDANÇA DE COR: Vermelho (cor da variável CSS --accent-danger) */
+    background: rgba(197, 48, 48, 0.2);
+    color: var(--accent-danger); 
 }
 
 .popup-status i {

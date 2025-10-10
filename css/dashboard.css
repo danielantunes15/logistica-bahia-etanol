@@ -1,3 +1,4 @@
+/* css/dashboard.css */
 .dashboard-header {
     padding: 24px;
     border-bottom: 1px solid var(--border-color);
@@ -368,7 +369,8 @@
 }
 
 .legend-color.usina {
-    background-color: #E53E3E;
+    /* MUDANÇA DE COR: Para #805AD5 (Roxo) */
+    background-color: #805AD5;
 }
 
 .legend-color.colhendo { 
@@ -380,7 +382,8 @@
 }
 
 .legend-color.atencao {
-    background-color: #D69E2E; /* Amarelo para Atenção/Inativa */
+    /* MUDANÇA DE COR: Para VERMELHO */
+    background-color: var(--accent-danger); /* #C53030 */
 }
 
 .legend-color.finalizada {

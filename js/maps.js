@@ -56,7 +56,6 @@ export class MapManager {
             
             L.marker(USINA_COORDS, { icon: usinaIcon }).addTo(map)
                 .bindPopup('<b>Usina LOGISTICA BEL</b><br>Localização principal');
-                // LINHA REMOVIDA: .openPopup();
         }
         return map;
     }
@@ -219,7 +218,8 @@ export class MapManager {
                         statusLabel = 'Fazendo Cata';
                         break;
                     case 'inativa':
-                        color = '#D69E2E'; // Amarelo para Inativa (Atenção)
+                        // MUDANÇA DE COR: Vermelho (cor da variável CSS --accent-danger)
+                        color = '#C53030'; // Vermelho para Frentes com Atenção
                         statusLabel = 'Com Atenção';
                         break;
                     default:
