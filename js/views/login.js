@@ -29,17 +29,22 @@ export class LoginView {
                     <form id="login-form">
                         <div class="form-group">
                             <label for="username">Usuário</label>
-                            <input type="text" id="username" name="username" class="form-input" required>
+                            <input type="text" id="username" name="username" class="form-input" required autocomplete="username">
                         </div>
                         <div class="form-group">
                             <label for="password">Senha</label>
-                            <input type="password" id="password" name="password" class="form-input" required>
+                            <input type="password" id="password" name="password" class="form-input" required autocomplete="current-password">
                         </div>
                         <button type="submit" class="btn-primary" id="btn-login">
                             <i class="ph-fill ph-sign-in"></i> Entrar
                         </button>
                     </form>
                     <p class="login-info">Sistema de Gerenciamento de Operações Agrícolas</p>
+                    
+                    <div class="login-security-info">
+                        <i class="ph-fill ph-shield-check"></i>
+                        <small>Sistema seguro • Suas credenciais são criptografadas</small>
+                    </div>
                 </div>
             </div>
         `;
@@ -50,25 +55,69 @@ export class LoginView {
         if (form) {
             form.addEventListener('submit', this.handleLogin.bind(this));
         }
+        
+        // Enter key support
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && document.activeElement.closest('#login-form')) {
+                form.dispatchEvent(new Event('submit'));
+            }
+        });
     }
 
     async handleLogin(e) {
         e.preventDefault();
-        const username = e.target.username.value;
+        const username = e.target.username.value.trim();
         const password = e.target.password.value;
+        
+        // Validações client-side
+        if (!username || !password) {
+            showToast('Preencha todos os campos.', 'error');
+            return;
+        }
+        
+        if (username.length < 3) {
+            showToast('Usuário deve ter pelo menos 3 caracteres.', 'error');
+            return;
+        }
+        
+        if (password.length < 1) {
+            showToast('Senha é obrigatória.', 'error');
+            return;
+        }
+        
+        const loginBtn = document.getElementById('btn-login');
+        const originalText = loginBtn.innerHTML;
+        loginBtn.innerHTML = '<i class="ph-fill ph-circle-notch ph-spin"></i> Entrando...';
+        loginBtn.disabled = true;
         
         showLoading();
         try {
-            await loginAppUser(username, password); 
-            showToast('Login realizado com sucesso!', 'success');
+            const userData = await loginAppUser(username, password);
             
-            // Sucesso: Chama o método de inicialização da aplicação
-            this.appManager.initializeAfterLogin(); 
+            if (userData.isFirstLogin) {
+                showToast('Login realizado! Como é seu primeiro acesso, você deve alterar sua senha.', 'warning');
+                // Redireciona para troca de senha obrigatória
+                window.dispatchEvent(new CustomEvent('showChangePassword'));
+            } else {
+                showToast(`Bem-vindo, ${userData.fullName}!`, 'success');
+                this.appManager.initializeAfterLogin();
+            }
+            
         } catch (error) {
-            handleOperation(error);
-            showToast('Erro de login: Usuário ou senha inválidos.', 'error');
+            console.error('Erro no login:', error);
+            showToast(error.message, 'error');
+            
+            // Foca no campo apropriado
+            if (error.message.includes('Usuário')) {
+                document.getElementById('username').focus();
+            } else {
+                document.getElementById('password').focus();
+            }
+            
         } finally {
             hideLoading();
+            loginBtn.innerHTML = originalText;
+            loginBtn.disabled = false;
         }
     }
 }

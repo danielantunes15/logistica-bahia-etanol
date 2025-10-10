@@ -3,14 +3,17 @@
 import { loadSidebar } from './components/sidebar.js';
 import { loadModal, openModal, closeModal } from './components/modal.js'; 
 import { initializeViews } from './views/viewManager.js';
-// Revertido para lógica DB: fetchUserRole, logoutAppUser, getLocalSession, updateUserPassword
-import { fetchUserRole, logoutAppUser, getLocalSession, updateUserPassword, finalizeFirstLogin } from './api.js'; 
+// Importações atualizadas para o novo sistema seguro
+import { getLocalSession, logoutAppUser, updateUserPassword, forceLogout } from './api.js'; 
 import { showToast, showLoading, hideLoading, handleOperation } from './helpers.js';
 
 class App {
     constructor() {
         this.currentView = 'login'; 
         this.userRole = null;
+        this.sessionTimer = null;
+        this.inactivityTimer = null;
+        this.INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos de inatividade
         this.init();
     }
 
@@ -27,7 +30,7 @@ class App {
             const session = await getLocalSession(); 
             
             if (session) {
-                // Se houver sessão, vai para o fluxo pós-login
+                // Se houver sessão válida, vai para o fluxo pós-login
                 await this.initializeAfterLogin(); 
             } else {
                 // Caso contrário, mostra a tela de login
@@ -58,22 +61,86 @@ class App {
         // 2. Carrega a sidebar com o nome do usuário para exibição
         await loadSidebar(this.userRole, session.fullName); 
         
-        // 3. LÓGICA MODIFICADA: REMOVIDA A VERIFICAÇÃO OBRIGATÓRIA.
-        window.viewManager.showView('dashboard');
+        // 3. Inicia o monitoramento de sessão e inatividade
+        this.setupSessionManagement();
+        
+        // 4. Verifica se é primeiro login para forçar troca de senha
+        if (session.isFirstLogin) {
+            this.showFirstLoginChangePasswordModal(session);
+        } else {
+            window.viewManager.showView('dashboard');
+        }
     }
     
     showLoginScreen() {
+        // Para timers quando na tela de login
+        this.cleanupTimers();
+        
         document.getElementById('login-container').style.display = 'flex';
         document.getElementById('app-container').style.display = 'none';
         window.viewManager.showView('login');
     }
     
+    // --- GERENCIAMENTO DE SESSÃO E INATIVIDADE ---
+    
+    setupSessionManagement() {
+        // Monitora inatividade
+        this.resetInactivityTimer();
+        
+        // Eventos que resetam o timer de inatividade
+        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+        events.forEach(event => {
+            document.addEventListener(event, this.resetInactivityTimer.bind(this), true);
+        });
+        
+        // Verifica sessão a cada minuto
+        this.sessionTimer = setInterval(() => this.checkSession(), 60000);
+    }
+    
+    resetInactivityTimer() {
+        if (this.inactivityTimer) {
+            clearTimeout(this.inactivityTimer);
+        }
+        
+        this.inactivityTimer = setTimeout(() => {
+            this.handleInactivity();
+        }, this.INACTIVITY_TIMEOUT);
+    }
+    
+    async handleInactivity() {
+        const session = await getLocalSession();
+        if (session) {
+            await forceLogout();
+            this.handleLogout();
+            showToast('Sessão expirada por inatividade. Faça login novamente.', 'warning');
+        }
+    }
+    
+    async checkSession() {
+        const session = await getLocalSession();
+        if (!session) {
+            this.handleLogout();
+        }
+    }
+    
+    cleanupTimers() {
+        if (this.sessionTimer) {
+            clearInterval(this.sessionTimer);
+            this.sessionTimer = null;
+        }
+        if (this.inactivityTimer) {
+            clearTimeout(this.inactivityTimer);
+            this.inactivityTimer = null;
+        }
+    }
+    
     async handleLogout() {
         try {
+            this.cleanupTimers();
             await logoutAppUser(); 
             
             this.userRole = null;
-            showToast('Logout realizado.', 'info');
+            showToast('Logout realizado com sucesso.', 'info');
             this.showLoginScreen();
         } catch (error) {
             console.error('Erro ao fazer logout:', error);
@@ -81,27 +148,28 @@ class App {
         }
     }
     
-    // --- LÓGICA DE TROCA DE SENHA OBRIGATÓRIA (MANTIDA, SEM AVISO DE TEXTO SIMPLES) ---
+    // --- LÓGICA DE TROCA DE SENHA OBRIGATÓRIA (ATUALIZADA) ---
     showFirstLoginChangePasswordModal(session) {
          // Desabilita a sidebar e o main-content para forçar a interação com o modal
          document.getElementById('sidebar').style.pointerEvents = 'none';
-         document.querySelector('.main-content').style.pointerEvents = 'none'; // Usa querySelector para a classe
+         document.querySelector('.main-content').style.pointerEvents = 'none';
 
          const modalContent = `
             <form id="change-password-form" class="action-modal-form">
                 <h3 style="margin-bottom: 5px;">Bem-vindo(a), ${session.fullName}!</h3>
                 <p class="form-help" style="color: var(--accent-danger); font-size: 1rem; margin-bottom: 20px;">
-                    <strong>SEGURANÇA OBRIGATÓRIA:</strong> Sua senha inicial é provisória. 
-                    Por favor, defina uma nova senha para continuar.
+                    <strong>SEGURANÇA OBRIGATÓRIA:</strong> Este é seu primeiro acesso. 
+                    Por favor, defina uma nova senha segura para continuar.
                 </p>
                 <div class="form-group">
-                    <label for="current_password">Senha Atual</label>
-                    <input type="password" id="current_password" name="current_password" class="form-input" required value="1234" readonly>
-                    <p class="form-help">Sua senha inicial é '1234'.</p>
+                    <label for="current_password">Senha Atual Provisória</label>
+                    <input type="password" id="current_password" name="current_password" class="form-input" required>
+                    <p class="form-help">Digite a senha temporária fornecida pelo administrador.</p>
                 </div>
                 <div class="form-group">
-                    <label for="new_password">Nova Senha (Mínimo 4 caracteres)</label>
-                    <input type="password" id="new_password" name="new_password" class="form-input" required minlength="4">
+                    <label for="new_password">Nova Senha (Mínimo 6 caracteres)</label>
+                    <input type="password" id="new_password" name="new_password" class="form-input" required minlength="6">
+                    <p class="form-help">Use uma senha forte com letras, números e caracteres especiais.</p>
                 </div>
                 <div class="form-group">
                     <label for="confirm_password">Confirmar Nova Senha</label>
@@ -109,7 +177,7 @@ class App {
                 </div>
                 <button type="submit" class="btn-primary">Criar Nova Senha e Continuar</button>
             </form>
-        `; // AVISO REMOVIDO DAQUI
+        `;
 
         // Abre o modal. O parâmetro 'false' impede que ele seja fechado pelo overlay.
         openModal('Troca de Senha Obrigatória', modalContent, false); 
@@ -127,65 +195,74 @@ class App {
         const newPassword = form.new_password.value;
         const confirmPassword = form.confirm_password.value;
 
+        if (!currentPassword) {
+            showToast('Digite a senha atual provisória.', 'error');
+            return;
+        }
+
         if (newPassword !== confirmPassword) {
             showToast('A nova senha e a confirmação não coincidem.', 'error');
             return;
         }
 
-        if (newPassword.length < 4) {
-             showToast('A nova senha deve ter no mínimo 4 caracteres.', 'error');
+        if (newPassword.length < 6) {
+             showToast('A nova senha deve ter no mínimo 6 caracteres.', 'error');
              return;
+        }
+        
+        // Validação básica de força da senha
+        if (newPassword === currentPassword) {
+            showToast('A nova senha não pode ser igual à senha atual.', 'error');
+            return;
         }
         
         showLoading();
         try {
-            // 1. Tenta atualizar a senha e desativa a flag 'primeiro_login' no DB
+            // Atualiza a senha (agora usando bcrypt seguro)
             await updateUserPassword(userId, currentPassword, newPassword);
-            
-            // 2. Finaliza o processo de primeiro login (remove a flag da sessão local)
-            await finalizeFirstLogin(userId);
             
             showToast('Senha atualizada com sucesso! Acesso liberado.', 'success');
             
-            // 3. Reabilita a interface e fecha o modal
+            // Reabilita a interface e fecha o modal
             closeModal();
             document.getElementById('sidebar').style.pointerEvents = 'auto';
             document.querySelector('.main-content').style.pointerEvents = 'auto';
 
-            // 4. Redireciona para o dashboard
+            // Redireciona para o dashboard
             window.viewManager.showView('dashboard');
             
         } catch (error) {
-            handleOperation(error);
-            showToast(error.message, 'error'); // Exibe a mensagem de erro da API (ex: Senha atual incorreta)
+            console.error('Erro ao trocar senha:', error);
+            showToast(error.message, 'error');
         } finally {
             hideLoading();
         }
     }
 
-
+    // Modal de troca de senha normal (não primeiro login)
     async showChangePasswordModal() {
         const session = await getLocalSession();
-        if (!session) return; // Não faz nada se não estiver logado
+        if (!session) return;
 
         const modalContent = `
             <form id="change-password-form" class="action-modal-form">
                 <p>Alterando senha para: <strong>${session.fullName}</strong></p>
                 <div class="form-group">
                     <label for="current_password">Senha Atual</label>
-                    <input type="password" id="current_password" name="current_password" class="form-input" required>
+                    <input type="password" id="current_password" name="current_password" class="form-input" required autocomplete="current-password">
                 </div>
                 <div class="form-group">
-                    <label for="new_password">Nova Senha (Mínimo 4 caracteres)</label>
-                    <input type="password" id="new_password" name="new_password" class="form-input" required minlength="4">
+                    <label for="new_password">Nova Senha (Mínimo 6 caracteres)</label>
+                    <input type="password" id="new_password" name="new_password" class="form-input" required minlength="6" autocomplete="new-password">
+                    <p class="form-help">Use uma senha forte com letras, números e caracteres especiais.</p>
                 </div>
                 <div class="form-group">
                     <label for="confirm_password">Confirmar Nova Senha</label>
-                    <input type="password" id="confirm_password" name="confirm_password" class="form-input" required>
+                    <input type="password" id="confirm_password" name="confirm_password" class="form-input" required autocomplete="new-password">
                 </div>
                 <button type="submit" class="btn-primary">Trocar Senha</button>
             </form>
-        `; // AVISO REMOVIDO DAQUI
+        `;
 
         openModal('Trocar Senha do Usuário', modalContent);
 
@@ -204,9 +281,14 @@ class App {
             return;
         }
 
-        if (newPassword.length < 4) {
-             showToast('A nova senha deve ter no mínimo 4 caracteres.', 'error');
+        if (newPassword.length < 6) {
+             showToast('A nova senha deve ter no mínimo 6 caracteres.', 'error');
              return;
+        }
+        
+        if (newPassword === currentPassword) {
+            showToast('A nova senha não pode ser igual à senha atual.', 'error');
+            return;
         }
         
         showLoading();
@@ -216,17 +298,26 @@ class App {
             showToast('Senha alterada com sucesso! Você será desconectado para logar novamente.', 'success');
             closeModal();
             
-            // Força logout para garantir que o usuário se autentique com a nova senha
-            this.handleLogout(); 
+            // Pequeno delay para mostrar a mensagem de sucesso
+            setTimeout(() => {
+                this.handleLogout(); 
+            }, 1500);
             
         } catch (error) {
-            handleOperation(error);
-            showToast(error.message, 'error'); // Exibe a mensagem de erro da API (ex: Senha atual incorreta)
+            console.error('Erro ao trocar senha:', error);
+            showToast(error.message, 'error');
         } finally {
             hideLoading();
         }
     }
 }
+
+// Event listener para forçar logout quando a sessão expirar
+window.addEventListener('forceLogout', () => {
+    if (window.app) {
+        window.app.handleLogout();
+    }
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new App();
