@@ -38,30 +38,43 @@ function addModalEventListeners() {
     if (closeBtn) {
         closeBtn.addEventListener('click', closeModal);
     }
-
-    // Fecha o modal se o usuário clicar no fundo escuro (overlay)
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                closeModal();
-            }
-        });
-    }
+    
+    // O listener de overlay é associado/desassociado no openModal
 }
 
 /**
  * Abre o modal, define seu título e conteúdo, e o torna visível.
  * @param {string} title - O título a ser exibido no cabeçalho do modal.
  * @param {string} content - O HTML a ser inserido no corpo do modal.
+ * @param {boolean} [closeOnOverlayClick=true] - Se o modal deve fechar ao clicar fora.
  */
-export function openModal(title, content) {
+export function openModal(title, content, closeOnOverlayClick = true) {
     const modal = document.getElementById('edit-modal');
     const modalTitle = document.getElementById('modal-title');
     const modalBody = document.getElementById('modal-body');
+    const modalOverlay = modal; // O modal-overlay é o #edit-modal
 
     if (modal && modalTitle && modalBody) {
         modalTitle.textContent = title;
         modalBody.innerHTML = content;
+        
+        // Remove listener de overlay anterior, se houver
+        if (modalOverlay.closeOverlayHandler) {
+            modalOverlay.removeEventListener('click', modalOverlay.closeOverlayHandler);
+            modalOverlay.closeOverlayHandler = null;
+        }
+
+        // Adiciona novo listener de overlay se permitido
+        if (closeOnOverlayClick) {
+            const handler = (e) => {
+                if (e.target === modalOverlay) {
+                    closeModal();
+                }
+            };
+            modalOverlay.closeOverlayHandler = handler;
+            modalOverlay.addEventListener('click', handler);
+        }
+
         modal.classList.add('active'); // Adiciona a classe para mostrar o modal
     }
 }

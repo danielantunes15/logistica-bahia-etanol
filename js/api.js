@@ -133,10 +133,10 @@ export async function fetchTable(tableName, select = '*') {
  * @param {string} password - A senha.
  */
 export async function loginAppUser(username, password) {
-    // 1. Consulta a tabela diretamente
+    // 1. Consulta a tabela, incluindo senha_app e o campo primeiro_login
     const { data, error } = await supabase
         .from('app_users')
-        .select('id, username_app, nome_completo, tipo_usuario') 
+        .select('id, username_app, nome_completo, tipo_usuario, senha_app, primeiro_login') // ALTERADO: Adicionado 'senha_app' e 'primeiro_login'
         .eq('username_app', username)
         .eq('senha_app', password) // CHECK INSEGURO: Verificação em texto simples
         .single();
@@ -147,13 +147,25 @@ export async function loginAppUser(username, password) {
     if (error) {
         throw error;
     }
+    
+    // --- NOVO: LÓGICA DE PRIMEIRO LOGIN ---
+    // Considera primeiro login se a senha for a senha inicial padrão ('1234')
+    // OU se o campo 'primeiro_login' no DB for TRUE.
+    let isFirstLogin = false;
+    
+    // Simulação: A senha '1234' é a senha inicial/padrão.
+    if (data.senha_app === '1234' || data.primeiro_login === true) { 
+        isFirstLogin = true;
+    }
+    // ------------------------------------
 
     // 2. Cria o objeto de sessão
     const sessionData = {
         id: data.id,
         username: data.username_app,
         role: data.tipo_usuario,
-        fullName: data.nome_completo // Adiciona o nome completo para exibição
+        fullName: data.nome_completo, // Adiciona o nome completo para exibição
+        isFirstLogin: isFirstLogin // NOVO: Flag para forçar troca de senha
     };
 
     // 3. Simula a sessão localmente e persiste no localStorage
@@ -215,10 +227,10 @@ export async function updateUserPassword(userId, currentPassword, newPassword) {
         throw verifyError;
     }
 
-    // 2. Atualiza a senha no banco
+    // 2. Atualiza a senha no banco e DESATIVA a flag de primeiro login
     const { error: updateError } = await supabase
         .from('app_users')
-        .update({ senha_app: newPassword }) // SALVAMENTO INSEGURO
+        .update({ senha_app: newPassword, primeiro_login: false }) // ALTERADO: Adicionado 'primeiro_login: false'
         .eq('id', userId);
 
     if (updateError) {
@@ -228,6 +240,18 @@ export async function updateUserPassword(userId, currentPassword, newPassword) {
     // 3. NÃO atualiza o localUserSession com a nova senha para forçar o login na próxima vez.
 
     return { error: null };
+}
+
+/**
+ * NOVO: Função para marcar o primeiro login como concluído na sessão local (após troca de senha).
+ */
+export async function finalizeFirstLogin(userId) {
+     // Apenas limpa a flag isFirstLogin na sessão local.
+     // A atualização do DB é feita no updateUserPassword.
+     if (localUserSession && localUserSession.id === userId) {
+         localUserSession.isFirstLogin = false;
+         localStorage.setItem(USER_SESSION_KEY, JSON.stringify(localUserSession));
+     }
 }
 
 
@@ -251,7 +275,8 @@ export async function registerAppUser(username_app, password, nome_completo, tip
         nome_completo: nome_completo,
         tipo_usuario: tipo_usuario,
         username_app: username_app,
-        senha_app: password // SALVAMENTO INSEGURO
+        senha_app: password, // SALVAMENTO INSEGURO
+        primeiro_login: true // NOVO: Define como primeiro login
     }).select().single();
 
     if (insertError) throw insertError;
