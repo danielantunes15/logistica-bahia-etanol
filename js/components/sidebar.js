@@ -59,21 +59,21 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário') {
         </div>
     `;
     
-    // NOVO: Bloco de Perfil que fica no final
+    // NOVO: Bloco de Perfil minimalista no final
     const profileFooterBlock = `
         <div class="profile-menu-container">
-            <div class="profile-details">
-                <span class="user-name">${userNameDisplay}</span>
-                <span class="user-role">${userRole.charAt(0).toUpperCase() + userRole.slice(1)}</span>
-            </div>
-            
             <button class="nav-button-group nav-profile-button" id="btn-profile-menu-toggle">
                 <i class="ph-fill ph-user-circle"></i>
-                <span>Meu Perfil</span>
-                <i class="ph ph-caret-up caret"></i>
+                <span>${userNameDisplay}</span> <i class="ph ph-caret-up caret"></i>
             </button>
 
             <div class="submenu profile-submenu" id="profile-submenu">
+                <div class="profile-submenu-header">
+                    <p class="user-name-header">${userNameDisplay}</p>
+                    <p class="user-role-header">${userRole.charAt(0).toUpperCase() + userRole.slice(1)}</p>
+                </div>
+                <hr class="profile-submenu-divider">
+                
                 <button class="nav-button" data-action="change-password">
                     <i class="ph-fill ph-key"></i>
                     <span>Trocar Senha</span>
