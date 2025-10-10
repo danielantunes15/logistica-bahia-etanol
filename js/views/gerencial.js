@@ -151,7 +151,6 @@ export class GerencialView {
                 <div class="table-wrapper">
                     ${usersTableHTML}
                 </div>
-                <p style="margin-top: 15px; font-size: 0.9rem; color: var(--accent-danger);">AVISO DE SEGURANÇA: Esta alternativa não usa hashing de senha. A exclusão é imediata.</p>
             </div>
         `;
     }
