@@ -276,7 +276,7 @@ export class DashboardView {
         const readyStatuses = ['disponivel', 'patio_vazio']; 
         const criticalStatuses = ['quebrado', 'parado']; 
 
-        // 1. Estatísticas de Caminhões (Mantido o padrão anterior)
+        // 1. Estatísticas de Caminhões 
         const totalCaminhoes = caminhoes ? caminhoes.length : 0;
         const caminhoesEmOperacao = caminhoes ? caminhoes.filter(c => 
             operationalStatuses.includes(c.status)
@@ -349,10 +349,16 @@ export class DashboardView {
         this.updateStatElement('fazendas-disponiveis', fazendasDisponiveis);
         this.updateStatElement('fazendas-total', totalFazendas);
 
-        // --- CÁLCULOS GERAIS ---
-        const totalAtivos = caminhoesEmOperacao + equipamentosEmOperacao;
-        const totalRecursos = totalCaminhoes + totalEquipamentos;
-        const eficiencia = totalRecursos > 0 ? Math.round((totalAtivos / totalRecursos) * 100) : 0;
+        // --- CÁLCULOS GERAIS (Eficiência Geral) ---
+        
+        // Numerador: Soma dos recursos e frentes que estão em atividade/operação
+        const totalActive = caminhoesEmOperacao + equipamentosEmOperacao + frentesAtivas + frentesCata;
+
+        // Denominador: Soma dos recursos totais (Caminhões e Equipamentos) mais o total de Frentes de Serviço
+        const totalOverallResources = totalCaminhoes + totalEquipamentos + totalFrentes;
+        
+        // NOVO CÁLCULO DE EFICIÊNCIA GERAL
+        const eficiencia = totalOverallResources > 0 ? Math.round((totalActive / totalOverallResources) * 100) : 0;
         
         this.updateStatElement('eficiencia-geral', `${eficiencia}%`);
         this.updateEfficiencyBar(eficiencia);
