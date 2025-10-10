@@ -130,10 +130,10 @@ export async function fetchTable(tableName, select = '*') {
  * Realiza o login do usuário contra a tabela app_users (CHECK INSEGURO).
  */
 export async function loginAppUser(username, password) {
-    // 1. Consulta a tabela, incluindo senha_app
+    // 1. Consulta a tabela, incluindo senha_app e o campo 'ativo'
     const { data, error } = await supabase
         .from('app_users')
-        .select('id, username_app, nome_completo, tipo_usuario, senha_app, primeiro_login')
+        .select('id, username_app, nome_completo, tipo_usuario, senha_app, primeiro_login, ativo') 
         .eq('username_app', username)
         .eq('senha_app', password) // CHECK INSEGURO: Verificação em texto simples
         .single();
@@ -143,6 +143,11 @@ export async function loginAppUser(username, password) {
     }
     if (error) {
         throw error;
+    }
+    
+    // NOVO: BLOQUEIO DE LOGIN PARA USUÁRIOS INATIVOS 
+    if (data.ativo === false) {
+         throw new Error('Conta inativa. Contate o administrador do sistema.');
     }
     
     // --- LÓGICA DE PRIMEIRO LOGIN ---
@@ -243,14 +248,12 @@ export async function finalizeFirstLogin(userId) {
      }
 }
 
-/* NOVO: Função para atualizar nome, username e tipo de usuário */
 /**
- * Atualiza dados de um usuário (nome, username, tipo_usuario) na tabela app_users.
+ * Atualiza dados de um usuário (nome, username, tipo_usuario, **ativo**) na tabela app_users.
  * Não permite alterar a senha por esta rota.
  */
 export async function updateAppUser(userId, updateData) {
     // Remove a senha do objeto de dados se ela estiver presente, para evitar alterações acidentais
-    // (A senha é tratada na rota updateUserPassword)
     delete updateData.password;
     
     // 1. Verifica se o username já existe (apenas se estiver mudando o username)
@@ -268,7 +271,7 @@ export async function updateAppUser(userId, updateData) {
         }
     }
 
-    // 2. Atualiza os dados
+    // 2. Atualiza os dados (agora incluindo 'ativo')
     const { data, error: updateError } = await supabase
         .from('app_users')
         .update(updateData)
@@ -280,7 +283,6 @@ export async function updateAppUser(userId, updateData) {
     
     return { data, error: null };
 }
-/* FIM NOVO */
 
 
 /**
@@ -298,13 +300,14 @@ export async function registerAppUser(username_app, password, nome_completo, tip
         throw new Error(`O usuário '${username_app}' já existe.`);
     }
 
-    // 2. Insere o novo registro (SALVAMENTO INSEGURO)
+    // 2. Insere o novo registro (SALVAMENTO INSEGURO) - NOVO USUÁRIO SEMPRE COMEÇA ATIVO
     const { data, error: insertError } = await supabase.from('app_users').insert({
         nome_completo: nome_completo,
         tipo_usuario: tipo_usuario,
         username_app: username_app,
         senha_app: password, // SALVAMENTO INSEGURO
-        primeiro_login: true
+        primeiro_login: true,
+        ativo: true // NOVO: Inserindo o campo ativo
     }).select().single();
 
     if (insertError) throw insertError;
@@ -313,11 +316,11 @@ export async function registerAppUser(username_app, password, nome_completo, tip
 }
 
 /**
- * Busca todos os usuários da aplicação (Gerencial).
+ * Busca todos os usuários da aplicação (Gerencial) - Incluindo o status 'ativo'.
  */
 export async function fetchAppUsers() {
-    // Busca a lista de perfis (incluindo o ID para exclusão)
-    const { data, error } = await supabase.from('app_users').select('id, nome_completo, tipo_usuario, username_app').order('username_app');
+    // Busca a lista de perfis (incluindo o ID para exclusão e o novo campo 'ativo')
+    const { data, error } = await supabase.from('app_users').select('id, nome_completo, tipo_usuario, username_app, ativo').order('username_app');
     if (error) throw error;
     return data;
 }

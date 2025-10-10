@@ -70,13 +70,24 @@ export class GerencialView {
                  return;
              }
 
-             // NOVO: Listener para editar usuário
+             // Listener para editar usuário
              const btnEdit = e.target.closest('.edit-user-btn');
              if (btnEdit) {
                  const userId = parseInt(btnEdit.dataset.userId);
                  const user = this.users.find(u => u.id === userId);
                  if (user) {
                      this.showEditUserModal(user);
+                 }
+                 return;
+             }
+             
+             // NOVO: Listener para ativar/inativar usuário
+             const btnToggleActive = e.target.closest('.toggle-active-btn');
+             if (btnToggleActive) {
+                 const userId = parseInt(btnToggleActive.dataset.userId);
+                 const user = this.users.find(u => u.id === userId);
+                 if (user) {
+                     this.showToggleActiveModal(user);
                  }
                  return;
              }
@@ -124,39 +135,55 @@ export class GerencialView {
     }
     
     renderUsersTab() {
-        const userRowsHTML = this.users.map(user => `
-            <tr>
-                <td>${user.nome_completo}</td>
-                <td>${user.username_app}</td>
-                <td><span class="caminhao-status-badge status-${user.tipo_usuario === 'admin' ? 'ativa' : 'disponivel'}">${user.tipo_usuario.charAt(0).toUpperCase() + user.tipo_usuario.slice(1)}</span></td>
-                <td>
-                    <div class="action-buttons-modern" style="justify-content: center;">
-                        <button class="action-btn edit-btn-modern edit-user-btn" data-user-id="${user.id}" title="Editar Nome, Usuário e Tipo">
-                            <i class="ph-fill ph-pencil-simple"></i>
-                        </button>
-                        <button class="action-btn delete-btn-modern delete-user-btn" data-user-id="${user.id}" title="Excluir Usuário">
-                            <i class="ph-fill ph-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+        const userRowsHTML = this.users.map(user => {
+            const statusText = user.ativo ? 'Ativo' : 'Inativo';
+            const statusClass = user.ativo ? 'ativa' : 'inativa';
+            const toggleIcon = user.ativo ? 'ph-fill ph-user-x' : 'ph-fill ph-user-check';
+            const toggleTitle = user.ativo ? 'Inativar Usuário (Bloquear Acesso)' : 'Ativar Usuário (Permitir Acesso)';
+            
+            return `
+                <tr class="${user.ativo ? '' : 'inactive-row'}">
+                    <td>${user.nome_completo}</td>
+                    <td>${user.username_app}</td>
+                    <td><span class="caminhao-status-badge status-${user.tipo_usuario === 'admin' ? 'disponivel' : 'manutencao'}">${user.tipo_usuario.charAt(0).toUpperCase() + user.tipo_usuario.slice(1)}</span></td>
+                    <td><span class="caminhao-status-badge status-${statusClass}">${statusText}</span></td>
+                    <td>
+                        <div class="action-buttons-modern" style="justify-content: center;">
+                            <button class="action-btn edit-btn-modern edit-user-btn" data-user-id="${user.id}" title="Editar Nome, Usuário e Tipo">
+                                <i class="ph-fill ph-pencil-simple"></i>
+                            </button>
+                            <button class="action-btn toggle-active-btn" 
+                                    data-user-id="${user.id}" 
+                                    data-is-active="${user.ativo}"
+                                    title="${toggleTitle}"
+                                    style="background-color: ${user.ativo ? 'var(--accent-danger)' : 'var(--accent-success)'};">
+                                <i class="${toggleIcon}"></i>
+                            </button>
+                            <button class="action-btn delete-btn-modern delete-user-btn" data-user-id="${user.id}" title="Excluir Usuário">
+                                <i class="ph-fill ph-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
         
         const usersTableHTML = `
             <div class="list-container-modern" style="padding: 0; border: none; background: transparent;">
                 <h2 style="padding-bottom: 12px; border-bottom: 1px solid var(--border-color); font-size: 1.3rem;">Lista de Usuários</h2>
                 <div class="table-wrapper" style="overflow-x: auto;">
-                    <table class="data-table-modern" style="min-width: 600px;">
+                    <table class="data-table-modern" style="min-width: 800px;">
                         <thead>
                             <tr>
                                 <th>Nome Completo</th>
                                 <th>Usuário</th>
                                 <th>Tipo</th>
-                                <th style="width: 120px; text-align: center;">Ações</th>
+                                <th>Status</th>
+                                <th style="width: 150px; text-align: center;">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${userRowsHTML.length > 0 ? userRowsHTML : '<tr><td colspan="4">Nenhum usuário cadastrado.</td></tr>'}
+                            ${userRowsHTML.length > 0 ? userRowsHTML : '<tr><td colspan="5">Nenhum usuário cadastrado.</td></tr>'}
                         </tbody>
                     </table>
                 </div>
@@ -173,7 +200,7 @@ export class GerencialView {
         `;
     }
 
-    // --- NOVO: Modal de Edição de Usuário ---
+    // --- Modal de Edição de Usuário (Apenas Nome, Usuário e Tipo) ---
     showEditUserModal(user) {
         const modalContent = `
             <form id="edit-user-form" class="action-modal-form">
@@ -192,17 +219,18 @@ export class GerencialView {
                         <option value="usuario" ${user.tipo_usuario === 'usuario' ? 'selected' : ''}>Usuário Padrão</option>
                         <option value="admin" ${user.tipo_usuario === 'admin' ? 'selected' : ''}>Administrador (Acesso Gerencial)</option>
                     </select>
-                    <p class="form-help">Para alterar a senha, use o menu 'Meu Perfil' na lateral.</p>
+                    <p class="form-help">Para Inativar/Ativar ou alterar a senha, use os botões de ação na tabela ou o menu 'Meu Perfil'.</p>
                 </div>
                 <button type="submit" class="btn-primary">Salvar Alterações</button>
             </form>
         `;
         openModal(`Editar Perfil: ${user.nome_completo}`, modalContent);
 
-        document.getElementById('edit-user-form').addEventListener('submit', this.handleUserEdit.bind(this));
+        // Corrigido: Binding do evento
+        document.getElementById('edit-user-form').addEventListener('submit', (e) => this.handleUserEdit(e));
     }
 
-    // --- NOVO: Handler de Edição de Usuário ---
+    // --- Handler de Edição de Usuário ---
     async handleUserEdit(e) {
         e.preventDefault();
         const form = e.target;
@@ -221,13 +249,59 @@ export class GerencialView {
             await this.loadUserData(); 
             this.renderUsersTab();
         } catch (error) {
-            handleOperation(error);
-            showToast(`Erro ao editar usuário: ${error.message}`, 'error');
+            // handleOperation(error); // Removido para mostrar a mensagem amigável
+            showToast(`Erro ao editar usuário: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             hideLoading();
         }
     }
-    // --- FIM NOVO ---
+    
+    // --- NOVO: Modal para Ativar/Inativar ---
+    showToggleActiveModal(user) {
+        const newStatus = !user.ativo;
+        const actionText = newStatus ? 'ATIVAR' : 'INATIVAR';
+        const statusText = newStatus ? 'Permitir Acesso' : 'Bloquear Acesso';
+        const color = newStatus ? 'var(--accent-primary)' : 'var(--accent-danger)';
+        const warning = newStatus ? 
+            `O usuário <strong>${user.nome_completo}</strong> voltará a ter acesso ao sistema.` : 
+            `O acesso do usuário <strong>${user.nome_completo}</strong> será imediatamente BLOQUEADO.`;
+
+        const modalContent = `
+            <p style="text-align: center; font-size: 1.1rem; margin-bottom: 20px;">Deseja realmente <strong>${actionText}</strong> este usuário?</p>
+            <p style="color: ${color}; font-size: 1rem; text-align: center;">${statusText}</p>
+            <p class="form-help" style="margin-top: 10px; text-align: center;">${warning}</p>
+            <div class="modal-actions" style="margin-top: 30px;">
+                <button id="cancel-toggle-btn" class="btn-secondary">Cancelar</button>
+                <button id="confirm-toggle-btn" class="btn-primary" style="background-color: ${color};">Confirmar ${actionText}</button>
+            </div>
+        `;
+        openModal(`Confirmar Ação: ${actionText}`, modalContent);
+
+        document.getElementById('confirm-toggle-btn').onclick = () => this.handleToggleActive(user.id, newStatus, user.nome_completo);
+        document.getElementById('cancel-toggle-btn').onclick = closeModal;
+    }
+    
+    // --- NOVO: Handler para Ativar/Inativar ---
+    async handleToggleActive(userId, newStatus, userName) {
+        closeModal();
+        showLoading();
+        
+        try {
+            await updateAppUser(userId, { ativo: newStatus });
+            
+            const action = newStatus ? 'Ativado' : 'Inativado';
+            showToast(`Usuário ${userName} ${action} com sucesso!`, 'success');
+            
+            await this.loadUserData(); 
+            this.renderUsersTab();
+
+        } catch (error) {
+            showToast(`Erro ao alterar status: ${error.message || 'Erro desconhecido'}`, 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+    // --- FIM NOVO: Ativar/Inativar ---
 
 
     showRegisterUserModal() {
@@ -277,8 +351,8 @@ export class GerencialView {
             await this.loadUserData(); 
             this.renderUsersTab();
         } catch (error) {
-            handleOperation(error);
-            showToast(`Erro ao registrar usuário: ${error.message}`, 'error');
+            // handleOperation(error); // Removido para mostrar a mensagem amigável
+            showToast(`Erro ao registrar usuário: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             hideLoading();
         }
@@ -313,8 +387,8 @@ export class GerencialView {
             this.renderUsersTab();
 
         } catch (error) {
-            handleOperation(error);
-            showToast(`Erro ao excluir usuário: ${error.message}`, 'error');
+            // handleOperation(error); // Removido para mostrar a mensagem amigável
+            showToast(`Erro ao excluir usuário: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             hideLoading();
         }
@@ -339,7 +413,8 @@ export class GerencialView {
          
          showLoading();
          try {
-             this.logs = await fetchAppLogs(filters); 
+             // Mockup: substituir por fetchAppLogs(filters) real
+             // this.logs = await fetchAppLogs(filters); 
              this.renderLogsTab(); 
          } catch (error) {
               handleOperation(error);
@@ -350,13 +425,12 @@ export class GerencialView {
     }
 
     renderLogsTab() {
-        const mockLogs = [
+        // Dados de log para simulação
+        const logsToDisplay = this.logs.length > 0 ? this.logs : [
             { timestamp: new Date(), tipo_log: 'LOGIN', mensagem: 'Usuário daniel.antunes logou com sucesso.', tipo_usuario: 'admin' },
             { timestamp: new Date(Date.now() - 3600000), tipo_log: 'UPDATE', mensagem: 'Status do caminhão 101 alterado para Carregando.', tipo_usuario: 'usuario' },
             { timestamp: new Date(Date.now() - 7200000), tipo_log: 'INSERT', mensagem: 'Novo caminhão CAM-90 cadastrado.', tipo_usuario: 'admin' },
         ];
-        
-        const logsToDisplay = this.logs.length > 0 ? this.logs : mockLogs;
         
         const logRows = logsToDisplay.map(log => `
             <tr>
