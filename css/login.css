@@ -1,0 +1,125 @@
+/* css/login.css */
+
+.login-container {
+    /* Garante que o container ocupe toda a tela e centralize o conteúdo */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+    /* Utiliza o background escuro principal do seu tema */
+    background-color: var(--bg-dark); 
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.login-wrapper {
+    width: 100%;
+    max-width: 420px; /* Limite de largura para telas maiores */
+}
+
+.login-card {
+    background-color: var(--bg-light); 
+    border: 1px solid var(--border-color);
+    border-radius: 16px; /* Bordas mais arredondadas */
+    padding: 40px; /* Mais espaço interno */
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4);
+    text-align: center;
+    /* Transição suave para o efeito hover/focus */
+    transition: all 0.3s ease;
+}
+
+.login-header {
+    margin-bottom: 30px;
+}
+
+.login-header i {
+    /* Estilo moderno para o ícone */
+    font-size: 56px;
+    color: var(--accent-primary);
+    background: linear-gradient(45deg, var(--accent-primary), #2B6CB0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.login-header h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 5px;
+}
+
+.login-header p {
+    color: var(--text-secondary);
+    font-size: 1rem;
+}
+
+#login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* Estiliza os grupos de formulário (reutilizando estilos de cadastros.css se aplicável) */
+#login-form .form-group label {
+    text-align: left;
+    display: block;
+    margin-bottom: 5px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+#login-form .form-input {
+    /* Estilos do form-input já devem vir de cadastros.css/style.css, garantindo consistência */
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+#login-form .btn-primary {
+    /* Estilo do botão de login */
+    margin-top: 15px;
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+    font-weight: 600;
+    /* Adiciona gradiente para um toque moderno */
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover)); 
+    border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#login-form .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(56, 161, 105, 0.3);
+}
+
+.login-info {
+    margin-top: 25px;
+    font-size: 0.8rem;
+    color: var(--border-color);
+    border-top: 1px solid var(--border-color);
+    padding-top: 15px;
+}
+
+/* Responsividade (garantindo que se adapte a telas pequenas) */
+@media (max-width: 480px) {
+    .login-card {
+        padding: 25px;
+        margin: 10px;
+    }
+    
+    .login-header h2 {
+        font-size: 1.4rem;
+    }
+    
+    .login-header i {
+        font-size: 48px;
+    }
+}

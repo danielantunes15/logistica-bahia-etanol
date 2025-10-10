@@ -4,14 +4,17 @@ import { ControleView } from './controle.js';
 import { RelatoriosView } from './relatorios.js';
 import { CadastrosView } from './cadastros.js';
 import { FrotaView } from './frota.js';
-import { EquipamentosView } from './equipamentos.js'; // NOVO
-import { FilaEstacionamentoView } from './filaEstacionamento.js'; // NOVO
-import { DescargaView } from './descarga.js'; // NOVO: Fila de Descarga
+import { EquipamentosView } from './equipamentos.js'; 
+import { FilaEstacionamentoView } from './filaEstacionamento.js'; 
+import { DescargaView } from './descarga.js'; 
+import { LoginView } from './login.js'; // NOVO: Tela de Login
+import { GerencialView } from './gerencial.js'; // NOVO: Tela Gerencial
 
 export class ViewManager {
-    constructor() {
+    constructor(appManager) { // Recebe o App Manager
         this.views = new Map();
         this.currentView = null;
+        this.appManager = appManager; // Armazena a referência
         this.init();
     }
 
@@ -20,17 +23,19 @@ export class ViewManager {
         window.addEventListener('viewChanged', (e) => {
             this.showView(e.detail.view);
         });
-        this.showView('dashboard'); // CORRIGIDO: Define 'dashboard' como view inicial
+        // Removido showView('dashboard'), o AppManager agora controla a view inicial (Login)
     }
 
     registerViews() {
+        this.views.set('login', new LoginView(this.appManager)); // Registra Login
         this.views.set('dashboard', new DashboardView());
         this.views.set('controle', new ControleView());
         this.views.set('frota', new FrotaView());
-        this.views.set('equipamentos', new EquipamentosView()); // NOVO
-        this.views.set('fila-estacionamento', new FilaEstacionamentoView()); // NOVO
-        this.views.set('fila-descarga', new DescargaView()); // NOVO: Fila de Descarga
+        this.views.set('equipamentos', new EquipamentosView()); 
+        this.views.set('fila-estacionamento', new FilaEstacionamentoView()); 
+        this.views.set('fila-descarga', new DescargaView()); 
         this.views.set('relatorios', new RelatoriosView());
+        this.views.set('gerencial', new GerencialView()); // NOVO: Registra Gerencial
         
         this.views.set('cadastro-fazendas', new CadastrosView('fazendas'));
         this.views.set('cadastro-caminhoes', new CadastrosView('caminhoes'));
@@ -60,6 +65,7 @@ export class ViewManager {
     }
 }
 
-export async function initializeViews() {
-    window.viewManager = new ViewManager();
+// Exporta o App Manager para ser usado na inicialização
+export async function initializeViews(appManager) { 
+    window.viewManager = new ViewManager(appManager);
 }

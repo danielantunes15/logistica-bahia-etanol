@@ -2,6 +2,9 @@
 
 import { supabase } from './supabase.js';
 
+// --- NOVO: Variável local para simular a sessão do usuário (substitui Supabase Auth Session) ---
+let localUserSession = null;
+
 async function setRelatedTerceiros(itemId, terceiroIds, joinTableName, idColumnName) {
     const { error: deleteError } = await supabase.from(joinTableName).delete().eq(idColumnName, itemId);
     if (deleteError) throw deleteError;
@@ -118,6 +121,130 @@ export async function fetchTable(tableName, select = '*') {
     if (error) throw error;
     return data;
 }
+
+// --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (NOVAS FUNÇÕES CORRIGIDAS) ---
+
+/**
+ * Realiza o login do usuário contra a tabela app_users (CHECK INSEGURO).
+ * Corrigido para não usar supabase.auth.signInWithPassword.
+ * @param {string} username - O nome de usuário.
+ * @param {string} password - A senha.
+ */
+export async function loginAppUser(username, password) {
+    // 1. Consulta a tabela diretamente
+    const { data, error } = await supabase
+        .from('app_users')
+        .select('*')
+        .eq('username_app', username)
+        .eq('senha_app', password) // CHECK INSEGURO: Verificação em texto simples
+        .single();
+
+    if (error && error.code === 'PGRST116') {
+        // PGRST116 significa "linha não encontrada" - ou seja, credenciais inválidas.
+        throw new Error('Credenciais de login inválidas.'); 
+    }
+    if (error) {
+        // Lançar outros erros do banco
+        throw error;
+    }
+
+    // 2. Simula a sessão localmente
+    localUserSession = {
+        id: data.id,
+        username: data.username_app,
+        role: data.tipo_usuario
+    };
+    
+    return data;
+}
+
+/**
+ * Faz o logout do usuário, limpando a sessão local.
+ */
+export async function logoutAppUser() {
+    localUserSession = null;
+    return { error: null };
+}
+
+/**
+ * Busca a sessão do usuário logado (simula supabase.auth.getSession()).
+ */
+export async function getLocalSession() {
+    return localUserSession;
+}
+
+
+/**
+ * Busca o papel (role) do usuário logado na sessão local.
+ */
+export async function fetchUserRole() {
+    if (!localUserSession) return { role: null };
+    return { role: localUserSession.role };
+}
+
+
+/**
+ * Registra um novo usuário na tabela app_users (SALVAMENTO INSEGURO).
+ */
+export async function registerAppUser(username_app, password, nome_completo, tipo_usuario) {
+    // 1. Verifica se o username já existe
+    const { data: existingUser, error: fetchError } = await supabase
+        .from('app_users')
+        .select('id')
+        .eq('username_app', username_app);
+        
+    if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+    if (existingUser && existingUser.length > 0) {
+        throw new Error(`O usuário '${username_app}' já existe.`);
+    }
+
+    // 2. Insere o novo registro (SALVAMENTO INSEGURO)
+    const { data, error: insertError } = await supabase.from('app_users').insert({
+        nome_completo: nome_completo,
+        tipo_usuario: tipo_usuario,
+        username_app: username_app,
+        senha_app: password // SALVAMENTO INSEGURO
+    }).select().single();
+
+    if (insertError) throw insertError;
+
+    return { data, error: null };
+}
+
+/**
+ * Busca todos os usuários da aplicação (Gerencial).
+ */
+export async function fetchAppUsers() {
+    const { data, error } = await supabase.from('app_users').select('*').order('username_app');
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Busca logs da aplicação (Simulação).
+ */
+export async function fetchAppLogs(filters = {}) {
+     let query = supabase.from('app_logs').select('*');
+     
+     if (filters.tipo_usuario) {
+         query = query.eq('tipo_usuario', filters.tipo_usuario);
+     }
+     if (filters.dataInicio) {
+         query = query.gte('timestamp', filters.dataInicio);
+     }
+     if (filters.dataFim) {
+         query = query.lte('timestamp', filters.dataFim);
+     }
+     
+     // Ordena do mais recente para o mais antigo
+     const { data, error } = await query.order('timestamp', { ascending: false });
+     
+     if (error) throw error;
+     return data;
+}
+
+// --- FIM NOVAS FUNÇÕES DE AUTENTICAÇÃO ---
+
 
 /**
  * MUDANÇA AQUI: Designa um caminhão para uma frente com status e horário.
@@ -338,6 +465,6 @@ export async function fetchItemById(tableName, id, select = '*') {
 export async function updateItem(tableName, id, updateData) {
     if (tableName === 'equipamentos') return await updateEquipment(id, updateData);
     if (tableName === 'caminhoes') return await updateCaminhao(id, updateData);
-    const { data, error } = await supabase.from(tableName).update(updateData).eq('id', id).select().single();
+    const { data, error } = await supabase.from(tableName).update(updateData).eq('id', id).single();
     return { data, error };
 }

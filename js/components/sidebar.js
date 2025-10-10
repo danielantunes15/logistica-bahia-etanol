@@ -1,15 +1,67 @@
 // js/components/sidebar.js
-export async function loadSidebar() {
+
+// MODIFICADO: Agora recebe o papel do usuário para renderizar
+export async function loadSidebar(userRole) { 
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
+    
+    // Decide se o botão Gerencial deve ser visível (Apenas Admin)
+    const isAdmin = userRole === 'admin';
+    const gerencialButton = isAdmin ? `
+        <button class="nav-button" data-view="gerencial">
+            <i class="ph-fill ph-gear"></i>
+            <span>Gerencial</span>
+        </button>
+    ` : '';
+    
+    // Conteúdo existente de Cadastros
+    const cadastrosGroup = `
+        <div class="nav-group">
+            <button class="nav-button-group">
+                <i class="ph-fill ph-database"></i>
+                <span>Cadastros</span>
+                <i class="ph ph-caret-down caret"></i>
+            </button>
+            <div class="submenu">
+                <button class="nav-button" data-view="cadastro-fazendas">
+                    <i class="ph-fill ph-tree-evergreen"></i>
+                    <span>Fazendas</span>
+                </button>
+                <button class="nav-button" data-view="cadastro-caminhoes">
+                    <i class="ph-fill ph-truck"></i>
+                    <span>Caminhões</span>
+                </button>
+                <button class="nav-button" data-view="cadastro-equipamentos">
+                    <i class="ph-fill ph-tractor"></i>
+                    <span>Equipamentos</span>
+                </button>
+                <button class="nav-button" data-view="cadastro-frentes">
+                    <i class="ph-fill ph-users-three"></i>
+                    <span>Frentes</span>
+                </button>
+                <button class="nav-button" data-view="cadastro-fornecedores">
+                    <i class="ph-fill ph-user-list"></i>
+                    <span>Fornecedores</span>
+                </button>
+                <button class="nav-button" data-view="cadastro-proprietarios">
+                    <i class="ph-fill ph-user-circle"></i>
+                    <span>Proprietários</span>
+                </button>
+                <button class="nav-button" data-view="cadastro-terceiros">
+                    <i class="ph-fill ph-user"></i>
+                    <span>Terceiros</span>
+                </button>
+            </div>
+        </div>
+    `;
 
     sidebar.innerHTML = `
         <div class="sidebar-header">
             <i class="ph-fill ph-tractor"></i>
             <h2>LOGISTICA BEL</h2>
         </div>
-        <nav>
-            <button class="nav-button active" data-view="dashboard"> <!- CORREÇÃO AQUI ->
+        <nav id="main-nav-buttons">
+            <button class="nav-button active" data-view="dashboard">
                 <i class="ph-fill ph-map-trifold"></i>
                 <span>Mapa Principal</span>
             </button>
@@ -35,51 +87,30 @@ export async function loadSidebar() {
                 <i class="ph-fill ph-chart-bar"></i>
                 <span>Relatórios</span>
             </button>
-            <div class="nav-group">
-                <button class="nav-button-group">
-                    <i class="ph-fill ph-database"></i>
-                    <span>Cadastros</span>
-                    <i class="ph ph-caret-down caret"></i>
-                </button>
-                <div class="submenu">
-                    <button class="nav-button" data-view="cadastro-fazendas">
-                        <i class="ph-fill ph-tree-evergreen"></i>
-                        <span>Fazendas</span>
-                    </button>
-                    <button class="nav-button" data-view="cadastro-caminhoes">
-                        <i class="ph-fill ph-truck"></i>
-                        <span>Caminhões</span>
-                    </button>
-                    <button class="nav-button" data-view="cadastro-equipamentos">
-                        <i class="ph-fill ph-tractor"></i>
-                        <span>Equipamentos</span>
-                    </button>
-                    <button class="nav-button" data-view="cadastro-frentes">
-                        <i class="ph-fill ph-users-three"></i>
-                        <span>Frentes</span>
-                    </button>
-                    <button class="nav-button" data-view="cadastro-fornecedores">
-                        <i class="ph-fill ph-user-list"></i>
-                        <span>Fornecedores</span>
-                    </button>
-                    <button class="nav-button" data-view="cadastro-proprietarios">
-                        <i class="ph-fill ph-user-circle"></i>
-                        <span>Proprietários</span>
-                    </button>
-                    <button class="nav-button" data-view="cadastro-terceiros">
-                        <i class="ph-fill ph-user"></i>
-                        <span>Terceiros</span>
-                    </button>
-                </div>
-            </div>
+            
+            ${gerencialButton}
+            
+            ${cadastrosGroup}
         </nav>
+        
+        <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border-color);">
+            <button class="btn-primary" id="btn-logout" style="width: 100%;">
+                <i class="ph-fill ph-sign-out"></i> Sair
+            </button>
+        </div>
     `;
 
     addSidebarEventListeners();
 }
 
 function addSidebarEventListeners() {
-    document.querySelectorAll('.nav-button').forEach(button => {
+    // Listener para o botão de logout
+    document.getElementById('btn-logout').addEventListener('click', () => {
+        window.app.handleLogout();
+    });
+
+    // Listener para os botões de navegação
+    document.querySelectorAll('#main-nav-buttons .nav-button').forEach(button => {
         button.addEventListener('click', (e) => {
             if (e.target.closest('.nav-button-group')) return;
             
