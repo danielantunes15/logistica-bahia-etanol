@@ -1,7 +1,7 @@
 // js/views/filaEstacionamento.js
+
 import { fetchAllData, fetchFila, updateFilaCarregamento } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
-// NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
 
 // Status que indicam que o caminhão está no estacionamento
@@ -14,6 +14,7 @@ export class FilaEstacionamentoView {
         this.availableTrucks = []; 
         this.manualQueue = [];
         this.mechanizedQueue = [];
+        this.agroUnioneQueue = []; // NOVO: Fila Agro Unione
     }
 
     async show() {
@@ -64,6 +65,13 @@ export class FilaEstacionamentoView {
                                 </div>
                             <p class="queue-status-hint">Arraste os caminhões para ordenar a fila de carregamento mecanizado.</p>
                         </div>
+
+                        <div class="fila-queue-panel">
+                            <h2>Agro Unione - Fila de Carregamento</h2>
+                            <div id="queue-agro-unione-list" class="truck-list queue-list drop-target" data-queue-type="agro_unione">
+                                </div>
+                            <p class="queue-status-hint">Arraste os caminhões para ordenar a fila de carregamento Agro Unione.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -105,6 +113,7 @@ export class FilaEstacionamentoView {
         // Inicializa as filas
         this.manualQueue = [];
         this.mechanizedQueue = [];
+        this.agroUnioneQueue = []; // NOVO
         this.availableTrucks = [];
 
         // 1. Preenche as filas com base na persistência
@@ -123,6 +132,8 @@ export class FilaEstacionamentoView {
                     this.manualQueue.push(truckObject);
                 } else if (item.tipo_fila === 'mecanizada') {
                     this.mechanizedQueue.push(truckObject);
+                } else if (item.tipo_fila === 'agro_unione') { // NOVO
+                    this.agroUnioneQueue.push(truckObject);
                 } else if (item.tipo_fila === 'disponivel_ordenado') {
                     this.availableTrucks.push(truckObject);
                 }
@@ -151,6 +162,7 @@ export class FilaEstacionamentoView {
         this.renderList('disponiveis-list', this.availableTrucks, true, false); 
         this.renderList('queue-manual-list', this.manualQueue, true, true);
         this.renderList('queue-mechanized-list', this.mechanizedQueue, true, true);
+        this.renderList('queue-agro-unione-list', this.agroUnioneQueue, true, true); // NOVO
     }
     
     renderList(elementId, list, isDraggable, isReorderable) {
@@ -295,10 +307,11 @@ export class FilaEstacionamentoView {
     // Lógica para manipular o drop e atualizar as filas (estrutura de dados)
     async handleDrop(truckId, targetQueueType, insertIndex) {
         
-        // 1. Encontra e remove o caminhão de todas as listas (available, manual, mechanized)
+        // 1. Encontra e remove o caminhão de todas as listas (available, manual, mechanized, agro unione)
         let truck = this.availableTrucks.find(c => c.id == truckId) ||
                     this.manualQueue.find(c => c.id == truckId) || 
-                    this.mechanizedQueue.find(c => c.id == truckId);
+                    this.mechanizedQueue.find(c => c.id == truckId) ||
+                    this.agroUnioneQueue.find(c => c.id == truckId); // NOVO
         
         if (!truck) {
              console.error(`ERRO HANDLE DROP: Caminhão com ID ${truckId} não encontrado em nenhuma lista.`);
@@ -311,6 +324,7 @@ export class FilaEstacionamentoView {
         this.availableTrucks = this.availableTrucks.filter(c => c.id != truckId);
         this.manualQueue = this.manualQueue.filter(c => c.id != truckId);
         this.mechanizedQueue = this.mechanizedQueue.filter(c => c.id != truckId);
+        this.agroUnioneQueue = this.agroUnioneQueue.filter(c => c.id != truckId); // NOVO
         
         const normalizedTargetType = targetQueueType.toLowerCase().trim();
         
@@ -323,6 +337,9 @@ export class FilaEstacionamentoView {
         } else if (normalizedTargetType === 'mecanizada') {
             targetQueue = this.mechanizedQueue;
             successMessage = 'Mecanizada';
+        } else if (normalizedTargetType === 'agro_unione') { // NOVO
+            targetQueue = this.agroUnioneQueue;
+            successMessage = 'Agro Unione';
         } else if (normalizedTargetType === 'disponivel') {
              // Caso de retorno para o pool de disponíveis (agora ordenável)
              targetQueue = this.availableTrucks; 
@@ -372,6 +389,15 @@ export class FilaEstacionamentoView {
             filasParaPersistir.push({
                 caminhao_id: truck.id,
                 tipo_fila: 'mecanizada',
+                ordem: index
+            });
+        });
+
+        // Mapeia fila Agro Unione (NOVO)
+        this.agroUnioneQueue.forEach((truck, index) => {
+            filasParaPersistir.push({
+                caminhao_id: truck.id,
+                tipo_fila: 'agro_unione',
                 ordem: index
             });
         });

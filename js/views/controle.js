@@ -1,10 +1,9 @@
 // js/views/controle.js
+
 import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
-import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js'; // IMPORTA FUNÇÕES DE HORA
 import { openModal, closeModal } from '../components/modal.js';
-// NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
-// NOVO: Importa constantes
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS } from '../constants.js';
 
 const ESTACIONAMENTO_STATUS = ['disponivel', 'patio_vazio']; // Status que indicam que o caminhão está na fila/pátio
@@ -13,17 +12,19 @@ export class ControleView {
     constructor() {
         this.container = null;
         this.data = {};
-        // REMOVIDO: Definição local de statusCiclo e statusLabels
         this.statusCiclo = CAMINHAO_STATUS_CYCLE;
         this.statusLabels = CAMINHAO_STATUS_LABELS;
         
-        // --- NOVO: Status da Frente de Serviço ---
         this.frenteStatusLabels = FRENTE_STATUS_LABELS;
+        
+        // NOVO: Expor a view no window para o script do modal funcionar
+        if (window.viewManager) {
+             window.viewManager.views.set('controle', this);
+        }
     }
 
     async show() {
         await this.loadData();
-        // Antiga localização do addEventListeners, agora movida para loadData
     }
 
     async hide() {}
@@ -54,6 +55,8 @@ export class ControleView {
                 </div>
 
                 ${this.renderDashboardSummary()}
+                
+                ${this.renderParadosPanel()} 
 
                 <div class="controle-grid" id="main-grid">
                     ${this.renderFrentes()}
@@ -86,10 +89,11 @@ export class ControleView {
 
     renderDashboardSummary() {
         const { caminhoes = [] } = this.data;
+        // Incluído 'parado' na contagem
+        const statusesToCount = [...this.statusCiclo, 'quebrado', 'parado']; 
         const statusCounts = {};
-        const statusesToCount = [...this.statusCiclo, 'quebrado'];
         
-        // Contagem de todos os status (incluindo 'disponivel', que não está no statusCiclo, mas pode estar no objeto)
+        // Contagem de todos os status (incluindo 'disponivel')
         const allStatuses = [...statusesToCount, 'disponivel'];
         allStatuses.forEach(status => { statusCounts[status] = 0; });
 
@@ -123,8 +127,90 @@ export class ControleView {
         `;
     }
 
+    // MODIFICADO: Painel de Caminhões Parados / Quebrados (Com Data/Hora e Duração)
+    renderParadosPanel() {
+        const { caminhoes = [] } = this.data;
+        const downtimeStatus = ['parado', 'quebrado'];
+        const paradosQuebrados = caminhoes.filter(c => downtimeStatus.includes(c.status));
+        
+        const downtimeInfo = new Map();
+        // Encontra o log de INÍCIO de inatividade para os caminhões
+        const sortedHistory = this.data.caminhao_historico.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
+        
+        for (const log of sortedHistory) {
+            const isStart = downtimeStatus.includes(log.status_novo) && !downtimeStatus.includes(log.status_anterior);
+            const isUpdate = downtimeStatus.includes(log.status_novo) && downtimeStatus.includes(log.status_anterior);
+            const isEnd = log.status_novo === 'disponivel' || log.status_novo === 'indo_carregar';
+
+            if (isStart) {
+                // Inicia nova sessão de inatividade
+                downtimeInfo.set(log.caminhao_id, {
+                    startTime: log.timestamp_mudanca,
+                    motivo: log.motivo_parada || 'Não informado',
+                    currentStatus: log.status_novo
+                });
+            } else if (isUpdate && downtimeInfo.has(log.caminhao_id)) {
+                // Apenas atualiza o motivo e status se já estiver em inatividade
+                 downtimeInfo.get(log.caminhao_id).motivo = log.motivo_parada || downtimeInfo.get(log.caminhao_id).motivo;
+                 downtimeInfo.get(log.caminhao_id).currentStatus = log.status_novo;
+            } else if (isEnd) {
+                // Limpa a sessão se o caminhão voltar a ficar disponível/em ciclo
+                downtimeInfo.delete(log.caminhao_id);
+            }
+        }
+        
+        // Re-processa apenas os caminhões atualmente parados
+        const rows = paradosQuebrados.map(c => {
+            const info = downtimeInfo.get(c.id) || { startTime: c.created_at, motivo: 'N/A', currentStatus: c.status };
+            const duration = calculateDowntimeDuration(info.startTime, null); // Null para calcular até o momento atual
+            
+            return `
+                <tr>
+                    <td><strong>${c.cod_equipamento}</strong></td>
+                    <td><span class="caminhao-status-badge status-${info.currentStatus}">${this.statusLabels[info.currentStatus]}</span></td>
+                    <td>${info.motivo}</td>
+                    <td>${formatDateTime(info.startTime)}</td>
+                    <td><span style="font-weight: 600;">${duration}</span></td>
+                    <td>
+                        <button class="btn-secondary btn-finalize-downtime" style="font-size: 0.8rem; padding: 6px 10px;" data-caminhao-id="${c.id}" data-start-time="${info.startTime}">
+                            Finalizar
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <div class="historico-container" style="margin-bottom: 32px;">
+                <div class="historico-header">
+                    <h2>Caminhões Parados / Quebrados</h2> </div>
+                <div class="table-wrapper">
+                    <table class="data-table-modern" id="parados-caminhoes-table">
+                        <thead>
+                            <tr>
+                                <th>Cód. Caminhão</th>
+                                <th>Status</th>
+                                <th>Motivo da Parada / Quebra</th>
+                                <th>Início da Parada</th>
+                                <th>Duração (H/M)</th>
+                                <th style="width: 1%;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.length > 0 ? rows : '<tr><td colspan="6">Nenhum caminhão atualmente parado ou quebrado.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
     renderFrentes() {
         const { frentes_servico = [], caminhoes = [] } = this.data;
+        
+        // NOVO: Ordenar frentes por nome alfabeticamente
+        frentes_servico.sort((a, b) => a.nome.localeCompare(b.nome)); 
+        
         return frentes_servico.map(frente => {
             const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel');
             const fazendaAtual = frente.fazendas;
@@ -203,10 +289,14 @@ export class ControleView {
             if (btn.dataset.caminhaoId && !btn.closest('#action-modal-form')) {
                 this.showStatusUpdateModal(btn.dataset.caminhaoId);
             }
+            
+            // NOVO: Listener para finalizar inatividade
+            if (btn.classList.contains('btn-finalize-downtime')) {
+                this.showFinalizeDowntimeModal(btn.dataset.caminhaoId, btn.dataset.startTime);
+            }
         });
     }
 
-    // --- NOVO: Modal para Mudar Status da Frente ---
     showFrenteStatusModal(frenteId, currentStatus) {
         const optionsHTML = Object.entries(this.frenteStatusLabels).map(([statusKey, statusLabel]) => 
             `<option value="${statusKey}" ${statusKey === currentStatus ? 'selected' : ''}>${statusLabel}</option>`
@@ -255,19 +345,28 @@ export class ControleView {
             hideLoading(); // FINALIZA APÓS O loadData() (ou após o erro)
         }
     }
-    // --- FIM NOVO MODAL ---
 
     showAssignmentModal() {
         const { caminhoes = [], frentes_servico = [] } = this.data;
         // --- CORREÇÃO AQUI: Mostra caminhões 'disponivel' OU sem status definido (null) ---
-        const caminhoesDisponiveis = caminhoes.filter(c => c.status === 'disponivel' || c.status === 'patio_vazio' || !c.status);
+        let caminhoesDisponiveis = caminhoes.filter(c => c.status === 'disponivel' || c.status === 'patio_vazio' || !c.status);
+        
+        // NOVO: Ordenação numérica dos caminhões disponíveis
+        caminhoesDisponiveis.sort((a, b) => {
+            const codA = parseInt(a.cod_equipamento, 10);
+            const codB = parseInt(b.cod_equipamento, 10);
+            return codA - codB;
+        });
         
         const now = new Date();
         now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
         const nowString = now.toISOString().slice(0,16);
 
         // Filtra para mostrar apenas frentes ATIVAS (ativa ou fazendo_cata) e com fazenda associada
-        const frentesAtivas = frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'));
+        // E ORDENA POR NOME ALFABETICAMENTE
+        const frentesAtivas = frentes_servico
+            .filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
+            .sort((a, b) => a.nome.localeCompare(b.nome));
 
         const modalContent = `
             <form id="action-modal-form" class="action-modal-form">
@@ -335,30 +434,164 @@ export class ControleView {
         });
     }
 
+    // NOVO: Modal para finalizar inatividade com edição de data/hora
+    showFinalizeDowntimeModal(caminhaoId, startTime) {
+        const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
+        if (!caminhao) return;
+
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        const nowString = now.toISOString().slice(0,16);
+
+        const modalContent = `
+            <p>Finalizando inatividade para: <strong>${caminhao.cod_equipamento}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">Início da Inatividade: ${formatDateTime(startTime)}</p>
+            
+            <form id="finalize-downtime-form" class="action-modal-form">
+                <div class="form-group">
+                    <label>Hora de Retorno (Fim da Inatividade)</label>
+                    <input type="datetime-local" name="hora_fim" class="form-input" value="${nowString}" required>
+                    <p class="form-help">Edite se a hora de retorno for diferente da hora atual.</p>
+                </div>
+                
+                <button type="submit" class="btn-primary">Finalizar (Tornar Disponível)</button>
+            </form>
+        `;
+        openModal('Finalizar Inatividade - ' + this.statusLabels[caminhao.status], modalContent);
+
+        document.getElementById('finalize-downtime-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const horaFim = e.target.hora_fim.value;
+            const finalTimestamp = new Date(horaFim).toISOString();
+            
+            // Passa a hora de fim e o novo status 'disponivel'
+            this.handleStatusUpdate(caminhaoId, 'disponivel', null, 'Ciclo finalizado, caminhão disponível!', null, finalTimestamp);
+        });
+    }
+
+    // MODIFICADO: showStatusUpdateModal agora chama showFinalizeDowntimeModal quando for o caso.
     showStatusUpdateModal(caminhaoId) {
         const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
         if (!caminhao) return;
+
+        const isDowntimeStatus = ['quebrado', 'parado'];
+        const isCurrentDowntime = isDowntimeStatus.includes(caminhao.status);
+        
+        let initialMotivo = '';
+        if (isCurrentDowntime) {
+             const latestLog = this.data.caminhao_historico.find(log => log.caminhao_id === caminhaoId && isDowntimeStatus.includes(log.status_novo));
+             initialMotivo = latestLog?.motivo_parada || '';
+        }
+
+        // Se o caminhão está parado/quebrado, oferece o modal de gerenciamento/finalização da inatividade.
+        if (isCurrentDowntime) {
+             // Tenta encontrar a hora de início para passar ao modal de finalização
+             const sortedHistory = this.data.caminhao_historico.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
+             let startTime = caminhao.created_at; 
+             for (const log of sortedHistory) {
+                 if (log.caminhao_id === caminhaoId && isDowntimeStatus.includes(log.status_novo) && !isDowntimeStatus.includes(log.status_anterior)) {
+                     startTime = log.timestamp_mudanca;
+                     break; 
+                 }
+             }
+             
+             // Se o status é de inatividade, oferece o modal de finalização/edição do status da inatividade
+             const downtimeForm = `
+                <p>Status atual: <strong>${this.statusLabels[caminhao.status]}</strong></p>
+                <p style="font-size: 0.9rem; color: var(--text-secondary);">Início da Inatividade: ${formatDateTime(startTime)}</p>
+                
+                <form id="status-update-form" class="action-modal-form">
+                    <div class="form-group">
+                        <label>Alterar para Status de Inatividade (Mudar Motivo)</label>
+                        <select name="status" id="novo-status-caminhao" class="form-select" required>
+                        <option value="parado" ${caminhao.status === 'parado' ? 'selected' : ''}>${this.statusLabels['parado']}</option>
+                        <option value="quebrado" ${caminhao.status === 'quebrado' ? 'selected' : ''}>${this.statusLabels['quebrado']}</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="motivo-parada-group">
+                        <label>Novo Motivo (Obrigatório para atualização)</label>
+                        <input type="text" name="motivo" class="form-input" value="${initialMotivo}" required placeholder="Ex: Manutenção preventiva, Esperando pneu">
+                    </div>
+                    
+                    <button type="submit" class="btn-secondary">Atualizar Status/Motivo</button>
+                    
+                </form>
+                
+                <hr style="margin: 20px 0; border-color: var(--border-color);">
+                
+                <button type="button" id="btn-finalizar-downtime" class="btn-primary">
+                    <i class="ph-fill ph-check-circle"></i> Finalizar Inatividade
+                </button>
+
+                <script>
+                    document.getElementById('btn-finalizar-downtime').addEventListener('click', function() {
+                        closeModal(); // Fecha o modal atual
+                        // Chama o método da instância da view
+                        window.viewManager.views.get('controle').showFinalizeDowntimeModal('${caminhaoId}', '${startTime}'); 
+                    });
+                </script>
+             `;
+             openModal('Gerenciar Inatividade - ' + caminhao.cod_equipamento, downtimeForm);
+             
+             document.getElementById('status-update-form').addEventListener('submit', async (e) => {
+                 e.preventDefault();
+                 const novoStatus = e.target.status.value;
+                 const motivo = e.target.motivo.value;
+                 this.handleStatusUpdate(caminhaoId, novoStatus, caminhao.frente_id, 'Status e motivo atualizados!', motivo);
+             });
+             
+             return;
+        }
+
+
+        // Caso Normal: Caminhão em Ciclo ou Disponível
+        const statusOptions = [...this.statusCiclo, 'quebrado', 'disponivel', 'parado']; 
 
         const modalContent = `
             <p>Alterando status de: <strong>${caminhao.cod_equipamento}</strong></p>
             <form id="status-update-form" class="action-modal-form">
                 <div class="form-group">
                     <label>Selecione o Novo Status</label>
-                    ${/* Usa o CAMINHAO_STATUS_CYCLE importado */''}
-                    <select name="status" class="form-select" required>
-                    ${[...this.statusCiclo, 'quebrado', 'disponivel'].map(s => `<option value="${s}" ${caminhao.status === s ? 'selected' : ''}>${this.statusLabels[s]}</option>`).join('')}
+                    <select name="status" id="novo-status-caminhao" class="form-select" required>
+                    ${statusOptions.map(s => `<option value="${s}" ${caminhao.status === s ? 'selected' : ''}>${this.statusLabels[s]}</option>`).join('')}
                     </select>
                 </div>
+                
+                <div class="form-group" id="motivo-parada-group" style="display: none;">
+                    <label>Motivo da Parada / Quebra (Obrigatório para Parado/Quebrado)</label>
+                    <input type="text" name="motivo" class="form-input" placeholder="Ex: Manutenção preventiva, Esperando pneu">
+                </div>
+                
                 <button type="submit" class="btn-primary">Atualizar Status</button>
                 <button type="button" id="btn-finalizar-ciclo" class="btn-secondary">Finalizar Ciclo (Tornar Disponível)</button>
             </form>
+            
+            <script>
+                document.getElementById('novo-status-caminhao').addEventListener('change', function() {
+                    const statusGroup = document.getElementById('motivo-parada-group');
+                    const selectedStatus = this.value;
+                    if (selectedStatus === 'quebrado' || selectedStatus === 'parado') {
+                        statusGroup.style.display = 'flex';
+                        statusGroup.querySelector('input').setAttribute('required', 'required');
+                    } else {
+                        statusGroup.style.display = 'none';
+                        statusGroup.querySelector('input').removeAttribute('required');
+                    }
+                });
+            </script>
         `;
         openModal('Alterar Status do Caminhão', modalContent);
 
         const form = document.getElementById('status-update-form');
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            this.handleStatusUpdate(caminhao.id, e.target.status.value, caminhao.frente_id, 'Status atualizado!');
+            const novoStatus = e.target.status.value;
+            const motivo = e.target.motivo.value;
+            
+            const motivoParaAPI = (novoStatus === 'quebrado' || novoStatus === 'parado') ? motivo : null;
+            
+            this.handleStatusUpdate(caminhao.id, novoStatus, caminhao.frente_id, 'Status atualizado!', motivoParaAPI);
         });
 
         document.getElementById('btn-finalizar-ciclo').addEventListener('click', () => {
@@ -366,11 +599,12 @@ export class ControleView {
         });
     }
     
-    async handleStatusUpdate(caminhaoId, novoStatus, frenteId, successMessage) {
+    // MODIFICADO: Inclui timestamp para permitir edição da hora de fim de ciclo
+    async handleStatusUpdate(caminhaoId, novoStatus, frenteId, successMessage, motivoParada = null, timestamp = null) {
         showLoading(); // INICIA AQUI
         try {
-            // 1. Atualiza o DB (o API.js já cuida de desassociar a frente se for 'disponivel' ou 'quebrado')
-            await updateCaminhaoStatus(caminhaoId, novoStatus, frenteId);
+            // 1. Atualiza o DB (o API.js já cuida de desassociar a frente se for 'disponivel', 'quebrado' ou 'parado')
+            await updateCaminhaoStatus(caminhaoId, novoStatus, frenteId, motivoParada, timestamp);
             
             // 2. NOVO: Se o caminhão saiu do pátio/fila (status não é de estacionamento), remove da tabela fila_carregamento
             if (!ESTACIONAMENTO_STATUS.includes(novoStatus)) {
@@ -390,7 +624,7 @@ export class ControleView {
         } catch (error) {
             handleOperation(error);
         } finally {
-            hideLoading(); // FINALIZA APÓS O loadData() (ou após o erro)
+            hideLoading();
         }
     }
 

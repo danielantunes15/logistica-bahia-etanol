@@ -1,8 +1,8 @@
 // js/views/relatorios.js
 import { fetchAllData } from '../api.js';
-import { showToast, showLoading, hideLoading } from '../helpers.js';
-// NOVO: Importa dataCache
+import { showToast, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js';
 import { dataCache } from '../dataCache.js';
+import { CAMINHAO_STATUS_LABELS, EQUIPAMENTO_STATUS_LABELS } from '../constants.js'; // Importa LABELS
 
 // Variáveis globais para as bibliotecas de exportação
 let html2canvas;
@@ -15,13 +15,17 @@ export class RelatoriosView {
         this.workHoursChart = null;
         this.downtimeHoursChart = null; 
         this.utilizationChart = null; 
-        this.exportData = {}; // Armazena dados para exportação
+        this.exportData = {}; 
+        this.currentReport = 'charts'; // NOVO: Estado para gerenciar a view interna
+        this.caminhaoStatusLabels = CAMINHAO_STATUS_LABELS; // NOVO
+        this.equipamentoStatusLabels = EQUIPAMENTO_STATUS_LABELS; // NOVO
     }
 
     async show() {
         await this.loadHTML();
         await this.loadInitialData();
-        await this.renderReports();
+        // Ação inicial: mostrar gráficos
+        await this.showReport('charts'); 
         this.addEventListeners();
     }
 
@@ -33,20 +37,21 @@ export class RelatoriosView {
 
     async loadHTML() {
         const container = document.getElementById('views-container');
+        // Usaremos o getHTML abaixo
         container.innerHTML = this.getHTML(); 
         this.container = container.querySelector('#relatorios-view');
     }
     
-    // ESTRUTURA HTML COM DESIGN MODERNO E NOVOS FILTROS
+    // ESTRUTURA HTML COM DESIGN MODERNO E MENU INTERNO
     getHTML() {
         return `
             <div id="relatorios-view" class="view active-view">
                 <div class="report-header">
                     <h1>Relatórios Gerenciais</h1>
-                </div>
+                    ${this.renderInternalMenu()} </div>
 
                 <div class="report-filters" style="padding: 0 24px 24px; display: flex; flex-wrap: wrap; gap: 16px;">
-                    <div class="filter-group" style="display: flex; gap: 12px; align-items: center; background-color: var(--bg-light); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                    <div class="filter-group" id="filter-date-group" style="display: flex; gap: 12px; align-items: center; background-color: var(--bg-light); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                         <label style="font-weight: 600; color: var(--accent-primary);">Período:</label>
                         <label for="filter-data-inicio" style="color: var(--text-secondary); font-size: 0.9rem;">De:</label>
                         <input type="date" id="filter-data-inicio" class="form-input" style="width: 150px;">
@@ -54,7 +59,7 @@ export class RelatoriosView {
                         <input type="date" id="filter-data-fim" class="form-input" style="width: 150px;">
                     </div>
                     
-                    <div class="filter-group" style="display: flex; gap: 12px; align-items: center; background-color: var(--bg-light); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; flex-grow: 1;">
+                    <div class="filter-group" id="filter-resource-group" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background-color: var(--bg-light); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; flex-grow: 1;">
                         <label style="font-weight: 600; color: var(--accent-primary);">Recursos:</label>
                         <select id="filter-equipamento" class="form-select" style="min-width: 200px;">
                             <option value="">Equipamento (Todos)</option>
@@ -71,40 +76,39 @@ export class RelatoriosView {
                         </button>
                     </div>
                 </div>
-
-                <div class="charts-grid">
-                    <div class="chart-container">
-                        <h3>Horas Trabalhadas vs. Paradas (Por Equipamento)</h3>
-                        <div class="chart-wrapper">
-                            <canvas id="workHoursChart"></canvas>
-                        </div>
-                    </div>
-
-                    <div class="chart-container">
-                        <h3>Horas de Inatividade por Tipo de Equipamento</h3>
-                        <div class="chart-wrapper">
-                            <canvas id="downtimeHoursChart"></canvas>
-                        </div>
-                    </div>
-                    
-                    <div class="chart-container">
-                        <h3>Taxa de Utilização por Equipamento (%)</h3>
-                        <div class="chart-wrapper">
-                            <canvas id="utilizationChart"></canvas>
-                        </div>
-                    </div>
+                
+                <div id="report-content-container" style="min-height: 500px;">
                 </div>
 
-                <div class="report-export">
+                <div class="report-export" style="padding-top: 20px;">
                     <button class="btn-secondary" id="export-pdf">
                         <i class="ph-fill ph-file-pdf"></i>
                         Exportar PDF
                     </button>
                     <button class="btn-secondary" id="export-excel">
                         <i class="ph-fill ph-file-xls"></i>
-                        Exportar Excel
+                        Exportar Excel/CSV
                     </button>
                 </div>
+            </div>
+        `;
+    }
+    
+    // NOVO: Renderiza o menu interno
+    renderInternalMenu() {
+        const buttons = [
+            { name: 'Gráficos de Utilização', id: 'charts' },
+            { name: 'Relatório de Paradas (Caminhões)', id: 'downtime-caminhao' },
+            { name: 'Relatório de Paradas (Equipamentos)', id: 'downtime-equipamento' }
+        ];
+        
+        return `
+            <div class="report-internal-menu">
+                ${buttons.map(btn => `
+                    <button class="btn-secondary internal-menu-btn ${this.currentReport === btn.id ? 'active' : ''}" data-report-type="${btn.id}">
+                        ${btn.name}
+                    </button>
+                `).join('')}
             </div>
         `;
     }
@@ -112,7 +116,8 @@ export class RelatoriosView {
     async loadInitialData() {
         showLoading();
         try {
-            this.data = await dataCache.fetchAllData(); // USANDO CACHE AQUI
+            // Usa fetchAllData pois os relatórios de tabela precisam do histórico
+            this.data = await dataCache.fetchAllData(); 
             this.populateFilters();
         } catch (error) {
             showToast('Erro ao carregar dados iniciais dos relatórios.', 'error');
@@ -128,12 +133,13 @@ export class RelatoriosView {
         const selectProprietario = document.getElementById('filter-proprietario');
         if (!selectEquipamento || !selectFrente || !selectProprietario) return;
         
+        // Combina caminhões e equipamentos para o filtro de recursos
         const allItems = [
             ...(this.data.caminhoes || []).map(c => ({ id: `c-${c.id}`, cod: c.cod_equipamento, tipo: 'Caminhão' })),
             ...(this.data.equipamentos || []).map(e => ({ id: `e-${e.id}`, cod: e.cod_equipamento, tipo: e.finalidade }))
         ];
 
-        selectEquipamento.innerHTML = '<option value="">Todos os Equipamentos/Caminhões</option>' +
+        selectEquipamento.innerHTML = '<option value="">Todos os Recursos</option>' +
             allItems.map(item => `<option value="${item.id}">${item.cod} (${item.tipo})</option>`).join('');
 
         const frentes = this.data.frentes_servico || [];
@@ -144,6 +150,7 @@ export class RelatoriosView {
         selectProprietario.innerHTML = '<option value="">Todos os Proprietários</option>' + 
             proprietarios.map(p => `<option value="${p.id}">${p.nome}</option>`).join('');
 
+        // Define o período padrão de 7 dias
         const dateEnd = new Date();
         const dateStart = new Date();
         dateStart.setDate(dateEnd.getDate() - 7); 
@@ -154,28 +161,296 @@ export class RelatoriosView {
         document.getElementById('filter-data-inicio').value = formatDate(dateStart);
     }
 
+    // NOVO: Método principal para renderizar o relatório selecionado
+    async showReport(reportName) {
+        this.currentReport = reportName;
+        // Atualiza a classe ativa do menu
+        this.container.querySelectorAll('.internal-menu-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.reportType === reportName) {
+                btn.classList.add('active');
+            }
+        });
+        
+        // Oculta/Exibe filtros conforme necessário
+        const filters = document.getElementById('filter-resource-group');
+        if (filters) {
+            filters.style.display = 'flex';
+        }
+
+        switch (reportName) {
+            case 'charts':
+                await this.renderReports();
+                break;
+            case 'downtime-caminhao':
+                await this.renderDowntimeCaminhaoTable();
+                break;
+            case 'downtime-equipamento':
+                await this.renderDowntimeEquipamentoTable();
+                break;
+            default:
+                document.getElementById('report-content-container').innerHTML = `<div class="empty-state">Selecione um relatório.</div>`;
+        }
+    }
+    
+    // NOVO: Renderiza Tabela de Paradas de Caminhão
+    async renderDowntimeCaminhaoTable() {
+        showLoading();
+        const container = document.getElementById('report-content-container');
+        
+        try {
+            const filters = this.getFilterValues();
+            const caminhãoMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
+            
+            // 1. Filtragem da História de Caminhões
+            const filteredHistory = this.filterHistory(
+                this.data.caminhao_historico, caminhãoMap, filters.dataInicio, filters.dataFim, 
+                filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
+            );
+            
+            // 2. Geração das Sessões de Inatividade
+            const sessions = this.groupDowntimeSessions(filteredHistory, caminhãoMap, 'caminhao_id', ['parado', 'quebrado'], this.data.frentes_servico);
+            
+            // 3. Renderização
+            let tableHTML = this.generateDowntimeTableHTML(
+                sessions, 
+                'Relatório Detalhado de Paradas de Caminhões', 
+                'Caminhão', 
+                this.caminhaoStatusLabels
+            );
+            
+            container.innerHTML = tableHTML;
+        } catch (error) {
+            container.innerHTML = `<div class="empty-state">Erro ao gerar relatório de caminhões: ${error.message}</div>`;
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // NOVO: Renderiza Tabela de Paradas de Equipamentos
+    async renderDowntimeEquipamentoTable() {
+        showLoading();
+        const container = document.getElementById('report-content-container');
+        
+        try {
+            const filters = this.getFilterValues();
+            const equipamentoMap = new Map((this.data.equipamentos || []).map(e => [e.id, e]));
+            
+            // 1. Filtragem da História de Equipamentos
+            const filteredHistory = this.filterHistory(
+                this.data.equipamento_historico, equipamentoMap, filters.dataInicio, filters.dataFim, 
+                filters.equipamento, filters.frente, filters.proprietario, 'equipamento_id'
+            );
+            
+            // 2. Geração das Sessões de Inatividade
+            const sessions = this.groupDowntimeSessions(filteredHistory, equipamentoMap, 'equipamento_id', ['parado', 'quebrado'], this.data.frentes_servico);
+            
+            // 3. Renderização
+            let tableHTML = this.generateDowntimeTableHTML(
+                sessions, 
+                'Relatório Detalhado de Paradas de Equipamentos', 
+                'Equipamento', 
+                this.equipamentoStatusLabels
+            );
+            
+            container.innerHTML = tableHTML;
+        } catch (error) {
+            container.innerHTML = `<div class="empty-state">Erro ao gerar relatório de equipamentos: ${error.message}</div>`;
+        } finally {
+            hideLoading();
+        }
+    }
+    
+    // NOVO: Função genérica para agrupar logs em sessões de inatividade
+    groupDowntimeSessions(history, itemMap, idColumn, downtimeStatuses, frentesServico) {
+        const sortedLogs = history.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
+        const downtimeSessions = [];
+        const activeSessions = new Map(); 
+        const frentesMap = new Map(frentesServico.map(f => [f.id, f.nome]));
+
+        for (const log of sortedLogs) {
+            const itemId = log[idColumn];
+            // Uma sessão de inatividade começa se o status for de inatividade E o anterior não for
+            const isDowntimeStart = downtimeStatuses.includes(log.status_novo) && !downtimeStatuses.includes(log.status_anterior);
+            // Uma sessão é uma mudança entre status de inatividade (ex: parado -> quebrado)
+            const isStatusChangeDowntime = downtimeStatuses.includes(log.status_novo) && downtimeStatuses.includes(log.status_anterior);
+            // Uma sessão termina se o status novo NÃO for de inatividade E o anterior FOI
+            const isDowntimeEnd = !downtimeStatuses.includes(log.status_novo) && downtimeStatuses.includes(log.status_anterior);
+
+            const itemDetails = itemMap.get(itemId);
+            if (!itemDetails) continue; // Ignora logs de itens que não existem mais
+
+            if (isDowntimeStart) {
+                // Início de uma nova parada
+                activeSessions.set(itemId, {
+                    startLog: log,
+                    startTime: new Date(log.timestamp_mudanca),
+                    startStatus: log.status_novo,
+                    frenteId: itemDetails.frente_id // Frente associada no momento do início
+                });
+            } else if (isDowntimeEnd) {
+                const session = activeSessions.get(itemId);
+                if (session) {
+                    // Fim da parada
+                    downtimeSessions.push({
+                        cod_equipamento: itemDetails.cod_equipamento,
+                        tipo: itemDetails.finalidade || 'Caminhão',
+                        frente: frentesMap.get(session.frenteId) || 'N/A',
+                        start_time: session.startTime,
+                        end_time: new Date(log.timestamp_mudanca),
+                        start_status: session.startStatus,
+                        end_status: log.status_novo, 
+                        motivo: session.startLog.motivo_parada || 'Não informado',
+                    });
+                    activeSessions.delete(itemId);
+                }
+            } else if (isStatusChangeDowntime) {
+                // Atualização de status/motivo durante a parada
+                const session = activeSessions.get(itemId);
+                if (session) {
+                    // Atualiza o status e o motivo mais recente
+                    session.startStatus = log.status_novo; 
+                    session.startLog.motivo_parada = log.motivo_parada || session.startLog.motivo_parada;
+                }
+            }
+        }
+        
+        // Adiciona sessões que ainda estão abertas
+        for (const [id, session] of activeSessions.entries()) {
+            const itemDetails = itemMap.get(id);
+            downtimeSessions.push({
+                cod_equipamento: itemDetails.cod_equipamento,
+                tipo: itemDetails.finalidade || 'Caminhão',
+                frente: frentesMap.get(session.frenteId) || 'N/A',
+                start_time: session.startTime,
+                end_time: null, // Em aberto
+                start_status: session.startStatus,
+                end_status: session.startStatus, 
+                motivo: session.startLog.motivo_parada || 'Não informado',
+            });
+        }
+        
+        downtimeSessions.sort((a, b) => b.start_time - a.start_time);
+        return downtimeSessions;
+    }
+    
+    // NOVO: Gerador de HTML de Tabela de Parada
+    generateDowntimeTableHTML(sessions, title, resourceLabel, statusLabels) {
+        if (sessions.length === 0) {
+            return `<div class="empty-state" style="padding: 50px;">
+                        <i class="ph-fill ph-warning" style="font-size: 3rem;"></i>
+                        <p>Nenhum registro de inatividade encontrado para os filtros e recursos selecionados.</p>
+                    </div>`;
+        }
+
+        const rows = sessions.map(session => {
+            const duration = calculateDowntimeDuration(session.start_time, session.end_time);
+            const startStatusBadge = `<span class="caminhao-status-badge status-${session.start_status}">${statusLabels[session.start_status] || session.start_status}</span>`;
+            
+            let endStatusLabel;
+            if (session.end_time) {
+                // Se a sessão terminou, o status final é o status de retorno (ex: 'disponivel', 'ativo')
+                endStatusLabel = `<span class="caminhao-status-badge status-${session.end_status}" style="background-color: var(--accent-primary);">${statusLabels[session.end_status] || session.end_status}</span>`;
+            } else {
+                // Se estiver em aberto, mantém o status atual (parado/quebrado) com destaque
+                endStatusLabel = `<span class="caminhao-status-badge status-${session.end_status}" style="background-color: var(--accent-danger);">EM ABERTO (${statusLabels[session.end_status]})</span>`;
+            }
+            
+            const endTimeDisplay = session.end_time ? formatDateTime(session.end_time) : '---';
+
+            return `
+                <tr>
+                    <td>${session.cod_equipamento}</td>
+                    <td>${session.tipo}</td>
+                    <td>${session.frente}</td>
+                    <td>${startStatusBadge}</td>
+                    <td>${session.motivo}</td>
+                    <td>${formatDateTime(session.start_time)}</td>
+                    <td>${endTimeDisplay}</td>
+                    <td><strong style="color: ${session.end_time ? 'var(--text-primary)' : 'var(--accent-danger)'};">${duration}</strong></td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <div class="report-table-container">
+                <h3 style="padding: 0 24px; margin-bottom: 16px;">${title} (${sessions.length} Registros)</h3>
+                <div style="padding: 0 24px; overflow-x: auto;">
+                    <table class="data-table-modern">
+                        <thead>
+                            <tr>
+                                <th>Cód. ${resourceLabel}</th>
+                                <th>Tipo</th>
+                                <th>Frente de Origem</th>
+                                <th>Status Inicial</th>
+                                <th>Motivo</th>
+                                <th>Início da Parada</th>
+                                <th>Fim da Parada</th>
+                                <th>Duração</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    // Método para obter valores dos filtros
+    getFilterValues() {
+        return {
+            equipamento: document.getElementById('filter-equipamento')?.value,
+            frente: document.getElementById('filter-frente')?.value,
+            proprietario: document.getElementById('filter-proprietario')?.value,
+            dataInicio: document.getElementById('filter-data-inicio')?.value,
+            dataFim: document.getElementById('filter-data-fim')?.value
+        };
+    }
+    
     // Método principal para renderizar todos os gráficos
     async renderReports() {
         showLoading(); 
+        const container = document.getElementById('report-content-container');
+        container.innerHTML = `
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <h3>Horas Trabalhadas vs. Paradas (Por Equipamento)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="workHoursChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Horas de Inatividade por Tipo de Equipamento</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="downtimeHoursChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <h3>Taxa de Utilização por Equipamento (%)</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="utilizationChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        `;
         
         try {
-            const equipamentoFilter = document.getElementById('filter-equipamento')?.value;
-            const frenteFilter = document.getElementById('filter-frente')?.value;
-            const proprietarioFilter = document.getElementById('filter-proprietario')?.value;
-            const dataInicio = document.getElementById('filter-data-inicio')?.value;
-            const dataFim = document.getElementById('filter-data-fim')?.value;
-            
+            const filters = this.getFilterValues();
             const caminhoesMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
             const equipamentosMap = new Map((this.data.equipamentos || []).map(e => [e.id, e]));
 
             // 1. FILTRAGEM
             let filteredWorkHistory = this.filterHistory(
-                this.data.caminhao_historico, caminhoesMap, dataInicio, dataFim, 
-                equipamentoFilter, frenteFilter, proprietarioFilter, 'caminhao_id'
+                this.data.caminhao_historico, caminhoesMap, filters.dataInicio, filters.dataFim, 
+                filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             let filteredDowntimeHistory = this.filterHistory(
-                this.data.equipamento_historico, equipamentosMap, dataInicio, dataFim, 
-                equipamentoFilter, frenteFilter, proprietarioFilter, 'equipamento_id'
+                this.data.equipamento_historico, equipamentosMap, filters.dataInicio, filters.dataFim, 
+                filters.equipamento, filters.frente, filters.proprietario, 'equipamento_id'
             );
 
             // 2. CÁLCULO DE HORAS (GRÁFICO 1: INDIVIDUAL)
@@ -225,7 +500,7 @@ export class RelatoriosView {
                 downtimeByType: downtimeHoursByType,
                 utilizationData: utilizationData,
                 filterContext: {
-                    periodo: `${dataInicio || 'Início'} a ${dataFim || 'Fim'}`,
+                    periodo: `${filters.dataInicio || 'Início'} a ${filters.dataFim || 'Fim'}`,
                     equipamento: document.getElementById('filter-equipamento')?.options[document.getElementById('filter-equipamento')?.selectedIndex]?.text || 'Todos',
                     frente: document.getElementById('filter-frente')?.options[document.getElementById('filter-frente')?.selectedIndex]?.text || 'Todas',
                     proprietario: document.getElementById('filter-proprietario')?.options[document.getElementById('filter-proprietario')?.selectedIndex]?.text || 'Todos'
@@ -615,7 +890,7 @@ export class RelatoriosView {
         if (canvasId === 'downtimeHoursChart') this.downtimeHoursChart = newChart;
     }
 
-    // FUNÇÃO DE EXPORTAÇÃO DE RELATÓRIO PDF (MODIFICADA PARA LAZY LOAD)
+    // FUNÇÃO DE EXPORTAÇÃO DE RELATÓRIO PDF (MANTIDA)
     async exportToPDF() {
         if (!this.container) return;
         
@@ -776,10 +1051,19 @@ export class RelatoriosView {
 
 
     addEventListeners() {
+        // Listener do botão de Filtro (aplica filtro ao relatório atual)
         const filterBtn = document.getElementById('apply-report-filters');
         if (filterBtn) {
-            filterBtn.removeEventListener('click', this.renderReports.bind(this));
-            filterBtn.addEventListener('click', this.renderReports.bind(this));
+            filterBtn.removeEventListener('click', this.applyFilterAndRender.bind(this));
+            filterBtn.addEventListener('click', this.applyFilterAndRender.bind(this));
+        }
+        
+        // Listener do menu interno
+        if (this.container) {
+            this.container.querySelectorAll('.internal-menu-btn').forEach(btn => {
+                btn.removeEventListener('click', this.handleInternalMenuClick.bind(this));
+                btn.addEventListener('click', this.handleInternalMenuClick.bind(this));
+            });
         }
         
         const exportPdfBtn = document.getElementById('export-pdf');
@@ -795,193 +1079,16 @@ export class RelatoriosView {
         }
     }
     
-    // Funções de cálculo (MANTIDAS)
-    calculateUtilizationRate(comparisonData) {
-        const labels = comparisonData.labels;
-        const utilizationData = [];
-
-        labels.forEach((label, index) => {
-            const work = comparisonData.workData[index];
-            const downtime = comparisonData.downtimeData[index];
-            const total = work + downtime;
-            
-            const utilization = total > 0 ? (work / total) * 100 : 0;
-            utilizationData.push(parseFloat(utilization.toFixed(1)));
-        });
-
-        return { labels, data: utilizationData };
-    }
-
-    drawUtilizationChart(canvasId, labels, data) {
-        const ctx = document.getElementById(canvasId);
-        if (this.utilizationChart) this.utilizationChart.destroy();
-        
-        this.utilizationChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Taxa de Utilização (%)',
-                    data: data,
-                    backgroundColor: data.map(v => v >= 80 ? 'rgba(56, 161, 105, 0.8)' : v >= 50 ? 'rgba(214, 158, 46, 0.8)' : 'rgba(197, 48, 48, 0.8)'),
-                    borderColor: data.map(v => v >= 80 ? 'rgba(56, 161, 105, 1)' : v >= 50 ? 'rgba(214, 158, 46, 1)' : 'rgba(197, 48, 48, 1)'),
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { 
-                    y: { 
-                        beginAtZero: true, 
-                        max: 100,
-                        ticks: { color: '#A0AEC0', callback: (value) => value + "%" }, 
-                        grid: { color: '#4A5568' } 
-                    }, 
-                    x: { 
-                        ticks: { color: '#A0AEC0' }, 
-                        grid: { color: '#4A5568' } 
-                    } 
-                },
-                plugins: { 
-                    legend: { 
-                        labels: { color: '#F7FAFC' } 
-                    } 
-                }
-            }
-        });
-    }
-
-    drawComparisonChart(canvasId, labels, datasets, type) {
-        const ctx = document.getElementById(canvasId);
-        if (this.workHoursChart) this.workHoursChart.destroy();
-
-        this.workHoursChart = new Chart(ctx, {
-            type: type,
-            data: {
-                labels: labels,
-                datasets: datasets
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { 
-                    y: { 
-                        beginAtZero: true, 
-                        ticks: { color: '#A0AEC0' }, 
-                        grid: { color: '#4A5568' } 
-                    }, 
-                    x: { 
-                        ticks: { color: '#A0AEC0' }, 
-                        grid: { color: '#4A5568' } 
-                    } 
-                },
-                plugins: { 
-                    legend: { 
-                        labels: { color: '#F7FAFC' } 
-                    } 
-                }
-            }
-        });
-    }
-
-    calculateDowntimeHoursByType(history, equipamentos) {
-        const itemMap = new Map(equipamentos.map(i => [i.id, i]));
-        const nonProductiveStatus = ['parado', 'quebrado'];
-        const itemDowntimeLogs = {};
-        history.forEach(log => {
-            const id = log.equipamento_id;
-            const item = itemMap.get(id);
-            if (!id || !item) return;
-            if (!itemDowntimeLogs[id]) {
-                itemDowntimeLogs[id] = { groupKey: item.finalidade, sessions: [] };
-            }
-            itemDowntimeLogs[id].sessions.push({ status: log.status_novo, time: new Date(log.timestamp_mudanca) });
-        });
-        const groupedResults = {};
-        for (const id in itemDowntimeLogs) {
-            let totalMillis = 0;
-            const { sessions, groupKey } = itemDowntimeLogs[id];
-            const sortedSessions = sessions.sort((a, b) => a.time - b.time);
-            for(let i = 0; i < sortedSessions.length - 1; i++) {
-                if (nonProductiveStatus.includes(sortedSessions[i].status)) { totalMillis += sortedSessions[i+1].time - sortedSessions[i].time; }
-            }
-            const lastSession = sortedSessions[sortedSessions.length - 1];
-            if (lastSession && nonProductiveStatus.includes(lastSession.status)) { totalMillis += new Date() - lastSession.time; }
-            if (!groupedResults[groupKey]) { groupedResults[groupKey] = 0; }
-            groupedResults[groupKey] += totalMillis;
+    // NOVO: Handler para o menu interno
+    handleInternalMenuClick(e) {
+        const reportType = e.target.dataset.reportType;
+        if (reportType) {
+            this.showReport(reportType);
         }
-        const finalResults = Object.keys(groupedResults).map(groupKey => ({ cod_equipamento: groupKey, totalHours: (groupedResults[groupKey] / (1000 * 60 * 60)).toFixed(2) }));
-        return finalResults;
     }
     
-    calculateWorkHours(history, items, idColumn) {
-        const itemMap = new Map(items.map(i => [i.id, i]));
-        const productiveStatus = ['ativo', 'indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando', 'patio_vazio'];
-        const itemWorkLogs = {};
-        history.forEach(log => {
-            const id = log[idColumn];
-            const item = itemMap.get(id);
-            if (!id || !item) return;
-            if (!itemWorkLogs[id]) { itemWorkLogs[id] = { cod_equipamento: item.cod_equipamento, sessions: [] }; }
-            itemWorkLogs[id].sessions.push({ status: log.status_novo, time: new Date(log.timestamp_mudanca) });
-        });
-        const results = [];
-        for (const id in itemWorkLogs) {
-            let totalMillis = 0;
-            const { sessions, cod_equipamento } = itemWorkLogs[id];
-            const sortedSessions = sessions.sort((a, b) => a.time - b.time);
-            for(let i = 0; i < sortedSessions.length - 1; i++) {
-                if (productiveStatus.includes(sortedSessions[i].status)) { totalMillis += sortedSessions[i+1].time - sortedSessions[i].time; }
-            }
-            const lastSession = sortedSessions[sortedSessions.length - 1];
-            if (lastSession && productiveStatus.includes(lastSession.status)) { totalMillis += new Date() - lastSession.time; }
-            results.push({ cod_equipamento: cod_equipamento, totalHours: parseFloat((totalMillis / (1000 * 60 * 60)).toFixed(2)) });
-        }
-        return results;
-    }
-    
-    calculateDowntimeHours(history, equipamentos) {
-        const itemMap = new Map(equipamentos.map(i => [i.id, i]));
-        const nonProductiveStatus = ['parado', 'quebrado'];
-        const itemDowntimeLogs = {};
-        history.forEach(log => {
-            const id = log.equipamento_id;
-            const item = itemMap.get(id);
-            if (!id || !item) return;
-            if (!itemDowntimeLogs[id]) { itemDowntimeLogs[id] = { cod_equipamento: item.cod_equipamento, sessions: [] }; }
-            itemDowntimeLogs[id].sessions.push({ status: log.status_novo, time: new Date(log.timestamp_mudanca) });
-        });
-        const results = [];
-        for (const id in itemDowntimeLogs) {
-            let totalMillis = 0;
-            const { sessions, cod_equipamento } = itemDowntimeLogs[id];
-            const sortedSessions = sessions.sort((a, b) => a.time - b.time);
-            for(let i = 0; i < sortedSessions.length - 1; i++) {
-                if (nonProductiveStatus.includes(sortedSessions[i].status)) { totalMillis += sortedSessions[i+1].time - sortedSessions[i].time; }
-            }
-            const lastSession = sortedSessions[sessions.length - 1];
-            if (lastSession && nonProductiveStatus.includes(lastSession.status)) { totalMillis += new Date() - lastSession.time; }
-            results.push({ cod_equipamento: cod_equipamento, totalHours: parseFloat((totalMillis / (1000 * 60 * 60)).toFixed(2)) });
-        }
-        return results;
-    }
-    
-    prepareComparisonData(workHours, downtimeHours) {
-        const dataMap = new Map();
-        workHours.forEach(item => {
-            dataMap.set(item.cod_equipamento, { work: item.totalHours, downtime: 0 });
-        });
-        downtimeHours.forEach(item => {
-            if (dataMap.has(item.cod_equipamento)) {
-                dataMap.get(item.cod_equipamento).downtime = item.totalHours;
-            } else {
-                 dataMap.set(item.cod_equipamento, { work: 0, downtime: item.totalHours });
-            }
-        });
-        const labels = Array.from(dataMap.keys()).sort();
-        const workData = labels.map(label => dataMap.get(label).work);
-        const downtimeData = labels.map(label => dataMap.get(label).downtime);
-        return { labels, workData, downtimeData };
+    // NOVO: Aplica o filtro no relatório atual
+    applyFilterAndRender() {
+        this.showReport(this.currentReport);
     }
 }

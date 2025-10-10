@@ -1,6 +1,7 @@
 // js/views/frota.js
 import { fetchAllData, updateCaminhaoStatus } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+import { openModal, closeModal } from '../components/modal.js'; // NOVO: Importa modal
 // NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
 // NOVO: Importa constantes
@@ -10,7 +11,6 @@ export class FrotaView {
     constructor() {
         this.container = null;
         this.data = {};
-        // REMOVIDO: Definição local de statusLabels
         this.statusLabels = CAMINHAO_STATUS_LABELS;
         // Armazenar referência do manipulador para remover corretamente
         this._boundClickHandler = null;
@@ -97,27 +97,32 @@ export class FrotaView {
         }).join('');
     }
 
+    // Lógica do menu de ações refatorada
     renderActionMenu(caminhao) {
         const status = caminhao.status;
         let actions = '';
+        const cycleStatus = ['indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando', 'patio_vazio'];
 
-        if (status && status !== 'disponivel' && status !== 'quebrado' && status !== 'patio_vazio') {
+        // Ação 1: Finalizar Ciclo (se estiver em operação/ciclo)
+        if (cycleStatus.includes(status)) {
             actions += `
                 <button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-novo-status="disponivel">
                     <i class="ph-fill ph-check-circle"></i> Finalizar Ciclo
                 </button>`;
         }
         
-        if (status !== 'quebrado') {
-            actions += `
-                <button class="btn-status-change btn-danger" data-caminhao-id="${caminhao.id}" data-novo-status="quebrado">
-                    <i class="ph-fill ph-x-circle"></i> Registrar Quebra
+        // Ação 2: Registrar Parada/Quebra (se não estiver já inativo)
+        if (!['quebrado', 'parado'].includes(status)) {
+             actions += `
+                <button class="btn-status-action btn-danger" data-caminhao-id="${caminhao.id}" data-action="downtime">
+                    <i class="ph-fill ph-x-circle"></i> Registrar Parada/Quebra
                 </button>`;
         }
 
-        if (status === 'quebrado') {
+        // Ação 3: Marcar como Disponível/Ativo (se estiver quebrado/parado)
+        if (['quebrado', 'parado'].includes(status)) {
             actions += `
-                <button class="btn-status-change" data-caminhao-id="${caminhao.id}" data-novo-status="disponivel">
+                <button class="btn-status-action" data-caminhao-id="${caminhao.id}" data-action="makeAvailable">
                     <i class="ph-fill ph-wrench"></i> Marcar como Disponível
                 </button>`;
         }
@@ -145,6 +150,66 @@ export class FrotaView {
         });
     }
 
+    // NOVO: Modal para Parada/Quebra com Motivo
+    showDowntimeModal(caminhaoId) {
+        const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
+        if (!caminhao) return;
+
+        const modalContent = `
+            <p>Registrar Inatividade para: <strong>${caminhao.cod_equipamento}</strong></p>
+            <form id="downtime-form" class="action-modal-form">
+                <div class="form-group">
+                    <label>Status</label>
+                    <select name="status" class="form-select" required>
+                        <option value="parado">${this.statusLabels['parado']}</option>
+                        <option value="quebrado">${this.statusLabels['quebrado']}</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Motivo da Parada / Quebra</label>
+                    <input type="text" name="motivo" class="form-input" required placeholder="Ex: Manutenção, Esperando Peça, Observação">
+                </div>
+                <button type="submit" class="btn-primary">Registrar</button>
+            </form>
+        `;
+        openModal('Registrar Parada ou Quebra', modalContent);
+
+        document.getElementById('downtime-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const novoStatus = e.target.status.value;
+            const motivo = e.target.motivo.value;
+            
+            // Fecha o menu de ações antes de iniciar a operação (se ainda estiver aberto)
+            e.target.closest('.action-menu.show')?.classList.remove('show');
+
+            this.handleStatusUpdate(caminhao.id, novoStatus, motivo);
+        });
+    }
+
+    // Lógica unificada de atualização de status
+    async handleStatusUpdate(caminhaoId, novoStatus, motivoParada = null) {
+        showLoading();
+        const successMessage = novoStatus === 'disponivel' ? 
+            'Status do caminhão atualizado para Disponível!' : 
+            `Status do caminhão atualizado para ${this.statusLabels[novoStatus]}!`;
+            
+        try {
+            // Note: A API já trata frente_id = null para 'disponivel', 'quebrado', 'parado'.
+            await updateCaminhaoStatus(caminhaoId, novoStatus, null, motivoParada); 
+            
+            // Invalida o Cache (NOVO)
+            dataCache.invalidateAllData();
+            
+            showToast(successMessage, 'success');
+            closeModal(); // Fecha o modal se estiver aberto
+            await this.loadData(true); // Força refresh após escrita
+        } catch (error) {
+            handleOperation(error);
+        } finally {
+            hideLoading();
+        }
+    }
+
 
     addEventListeners() {
         // Remove listeners antigos antes de adicionar novos
@@ -168,28 +233,32 @@ export class FrotaView {
             
             if (target.closest('#refresh-frota')) {
                 this.loadData(true); // Força refresh
+                return;
             }
 
-            const statusChangeBtn = target.closest('.btn-status-change');
-            if (statusChangeBtn) {
-                const caminhaoId = statusChangeBtn.dataset.caminhaoId;
-                const novoStatus = statusChangeBtn.dataset.novoStatus;
+            // Ação Simples: Finalizar Ciclo (data-novo-status="disponivel")
+            const simpleStatusBtn = target.closest('.btn-status-change');
+            if (simpleStatusBtn) {
+                const caminhaoId = simpleStatusBtn.dataset.caminhaoId;
+                simpleStatusBtn.closest('.action-menu.show')?.classList.remove('show');
+                this.handleStatusUpdate(caminhaoId, 'disponivel');
+                return;
+            }
+            
+            // Ações Complexas: Registrar Parada/Quebra ou Marcar como Disponível
+            const complexActionBtn = target.closest('.btn-status-action');
+            if (complexActionBtn) {
+                const caminhaoId = complexActionBtn.dataset.caminhaoId;
+                const actionType = complexActionBtn.dataset.action;
                 
-                showLoading();
-                try {
-                    await updateCaminhaoStatus(caminhaoId, novoStatus, null); 
-                    
-                    // Invalida o Cache (NOVO)
-                    dataCache.invalidateAllData();
-                    
-                    showToast('Status do caminhão atualizado!', 'success');
-                    // Fecha o menu após a ação
-                    statusChangeBtn.closest('.action-menu.show')?.classList.remove('show'); 
-                    await this.loadData(true); // Força refresh após escrita
-                } catch (error) {
-                    handleOperation(error);
-                } finally {
-                    hideLoading();
+                complexActionBtn.closest('.action-menu.show')?.classList.remove('show');
+
+                if (actionType === 'downtime') {
+                    // Abre o modal para escolher Parado/Quebrado e Motivo
+                    this.showDowntimeModal(caminhaoId);
+                } else if (actionType === 'makeAvailable') {
+                    // Marcar como Disponível (Fim de Parada/Quebra)
+                    this.handleStatusUpdate(caminhaoId, 'disponivel');
                 }
             }
         };
