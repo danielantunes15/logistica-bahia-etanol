@@ -28,7 +28,7 @@ export class LoginView {
                     
                     <form id="login-form">
                         <div class="form-group">
-                            <label for="username">Usuário (ex: daniel.antunes)</label>
+                            <label for="username">Usuário</label>
                             <input type="text" id="username" name="username" class="form-input" required>
                         </div>
                         <div class="form-group">
