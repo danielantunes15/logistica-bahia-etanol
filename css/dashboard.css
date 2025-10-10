@@ -187,6 +187,12 @@
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
+/* NOVO: Classe para valores menores quando há 3 métricas */
+.stat-value.small-value,
+.stat-badge.small-value {
+    font-size: 1.5rem; /* Reduz para caber */
+}
+
 .stat-badge {
     font-size: 1.3rem;
     font-weight: 800;
@@ -200,10 +206,16 @@
     color: #E53E3E;
 }
 
-.stat-value.ready { /* MUDANÇA: Estilo para Caminhões Prontos */
+.stat-value.ready { 
     color: var(--accent-edit); 
-    font-size: 1.5rem; /* Um pouco menor para caber na grade */
+    /* A classe small-value já define o tamanho de 1.5rem */
 }
+
+.stat-value.warning,
+.stat-badge.warning {
+    color: #ED8936; /* Laranja para o status Cata/Alerta */
+}
+
 
 .stat-label {
     font-size: 0.75rem;

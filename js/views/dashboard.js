@@ -7,6 +7,10 @@ import { showToast, showLoading, hideLoading } from '../helpers.js';
 // NOVO: Importa constantes
 import { CAMINHAO_ROUTE_STATUS } from '../constants.js';
 
+// Coordenadas da usina (definir se não estiver definido)
+const USINA_COORDS = [-17.642301, -40.181525];
+const INITIAL_ZOOM = 14;
+
 export class DashboardView {
     constructor() {
         this.container = null;
@@ -73,6 +77,7 @@ export class DashboardView {
                             </div>
                             
                             <div class="stats-grid">
+                                
                                 <div class="stat-card">
                                     <div class="stat-header">
                                         <div class="stat-icon">
@@ -80,15 +85,18 @@ export class DashboardView {
                                         </div>
                                         <div class="stat-title">Caminhões</div>
                                     </div>
-                                    <div class="stat-content status-3-cols"> <div class="stat-main">
-                                            <span class="stat-value" id="caminhoes-em-operacao">0</span>
+                                    <div class="stat-content status-3-cols"> 
+                                        <div class="stat-main">
+                                            <span class="stat-value small-value" id="caminhoes-em-operacao">0</span>
                                             <span class="stat-label">Em Operação</span>
                                         </div>
                                         <div class="stat-secondary">
-                                            <span class="stat-value ready" id="caminhoes-prontos">0</span> <span class="stat-label">Prontos / Pátio</span>
+                                            <span class="stat-value ready small-value" id="caminhoes-prontos">0</span> 
+                                            <span class="stat-label">Prontos / Pátio</span>
                                         </div>
                                         <div class="stat-secondary">
-                                            <span class="stat-badge danger" id="caminhoes-criticos">0</span> <span class="stat-label">Inativos Críticos</span>
+                                            <span class="stat-badge danger small-value" id="caminhoes-criticos">0</span> 
+                                            <span class="stat-label">Inativos Críticos</span>
                                         </div>
                                     </div>
                                     <div class="stat-total">
@@ -98,18 +106,22 @@ export class DashboardView {
 
                                 <div class="stat-card">
                                     <div class="stat-header">
-                                        <div class="stat-icon">
+                                        <div class="stat-icon" style="background: linear-gradient(135deg, #2B6CB0, #4C77A5);">
                                             <i class="ph-fill ph-users-three"></i>
                                         </div>
-                                        <div class="stat-title">Frentes</div>
+                                        <div class="stat-title" style="background: linear-gradient(135deg, #2B6CB0, #4C77A5); -webkit-background-clip: text;">Frentes</div>
                                     </div>
-                                    <div class="stat-content">
+                                    <div class="stat-content status-3-cols">
                                         <div class="stat-main">
-                                            <span class="stat-value" id="frentes-ativas">0</span>
-                                            <span class="stat-label">Ativas</span>
+                                            <span class="stat-value small-value" id="frentes-ativas">0</span>
+                                            <span class="stat-label">Ativas (Colheita)</span>
                                         </div>
                                         <div class="stat-secondary">
-                                            <span class="stat-badge danger" id="frentes-inativas">0</span>
+                                            <span class="stat-value warning small-value" id="frentes-cata">0</span>
+                                            <span class="stat-label">Em Cata</span>
+                                        </div>
+                                        <div class="stat-secondary">
+                                            <span class="stat-badge danger small-value" id="frentes-inativas">0</span>
                                             <span class="stat-label">Inativas</span>
                                         </div>
                                     </div>
@@ -120,19 +132,23 @@ export class DashboardView {
 
                                 <div class="stat-card">
                                     <div class="stat-header">
-                                        <div class="stat-icon">
+                                        <div class="stat-icon" style="background: linear-gradient(135deg, #D69E2E, #B7791F);">
                                             <i class="ph-fill ph-tractor"></i>
                                         </div>
-                                        <div class="stat-title">Equipamentos</div>
+                                        <div class="stat-title" style="background: linear-gradient(135deg, #D69E2E, #B7791F); -webkit-background-clip: text;">Equipamentos</div>
                                     </div>
-                                    <div class="stat-content">
+                                    <div class="stat-content status-3-cols">
                                         <div class="stat-main">
-                                            <span class="stat-value" id="equipamentos-ativos">0</span>
+                                            <span class="stat-value small-value" id="equipamentos-em-operacao">0</span>
                                             <span class="stat-label">Em Operação</span>
                                         </div>
                                         <div class="stat-secondary">
-                                            <span class="stat-badge danger" id="equipamentos-parados">0</span>
-                                            <span class="stat-label">Parados</span>
+                                            <span class="stat-value ready small-value" id="equipamentos-disponiveis">0</span>
+                                            <span class="stat-label">Disponíveis (Livre)</span>
+                                        </div>
+                                        <div class="stat-secondary">
+                                            <span class="stat-badge danger small-value" id="equipamentos-criticos">0</span>
+                                            <span class="stat-label">Inativos Críticos</span>
                                         </div>
                                     </div>
                                     <div class="stat-total">
@@ -142,18 +158,22 @@ export class DashboardView {
 
                                 <div class="stat-card">
                                     <div class="stat-header">
-                                        <div class="stat-icon">
+                                        <div class="stat-icon" style="background: linear-gradient(135deg, #805AD5, #6A49B8);">
                                             <i class="ph-fill ph-tree-evergreen"></i>
                                         </div>
-                                        <div class="stat-title">Fazendas</div>
+                                        <div class="stat-title" style="background: linear-gradient(135deg, #805AD5, #6A49B8); -webkit-background-clip: text;">Fazendas</div>
                                     </div>
-                                    <div class="stat-content">
+                                    <div class="stat-content status-3-cols">
                                         <div class="stat-main">
-                                            <span class="stat-value" id="fazendas-colhendo">0</span>
-                                            <span class="stat-label">Colhendo/Cata</span>
+                                            <span class="stat-value small-value" id="fazendas-colhendo">0</span>
+                                            <span class="stat-label">Colhendo</span>
                                         </div>
                                         <div class="stat-secondary">
-                                            <span class="stat-badge" id="fazendas-disponiveis">0</span>
+                                            <span class="stat-value warning small-value" id="fazendas-cata">0</span>
+                                            <span class="stat-label">Em Cata</span>
+                                        </div>
+                                        <div class="stat-secondary">
+                                            <span class="stat-value small-value" id="fazendas-disponiveis">0</span>
                                             <span class="stat-label">Disponíveis</span>
                                         </div>
                                     </div>
@@ -181,9 +201,11 @@ export class DashboardView {
                         </div>
                     </div>
 
-                    <div class="map-legend" id="map-legend"> <div class="legend-title">Legenda</div>
+                    <div class="map-legend" id="map-legend"> 
+                        <div class="legend-title">Legenda</div>
                         <div class="legend-items">
-                            <div class="legend-item ${this.activeFilters.usina ? '' : 'disabled'}" data-filter-key="usina"> <div class="legend-color usina"></div>
+                            <div class="legend-item ${this.activeFilters.usina ? '' : 'disabled'}" data-filter-key="usina"> 
+                                <div class="legend-color usina"></div>
                                 <span>Usina</span>
                             </div>
                             <div class="legend-item ${this.activeFilters.ativa ? '' : 'disabled'}" data-filter-key="ativa">
@@ -215,7 +237,7 @@ export class DashboardView {
         }, 100);
     }
 
-    async loadData() {
+    async loadData(forceRefresh = false) {
         showLoading();
         try {
             // CORRIGIDO: Usa a função otimizada com CACHE para o Dashboard
@@ -246,81 +268,96 @@ export class DashboardView {
         }
     }
 
+    // MUDANÇA: Lógica de contagem para 3 métricas por KPI
     updateDashboardStats() {
         const { caminhoes, frentes_servico, equipamentos, fazendas } = this.data;
 
-        const operationalStatuses = CAMINHAO_ROUTE_STATUS; // 'indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando'
-        const readyStatuses = ['disponivel', 'patio_vazio']; // MUDANÇA: Prontos
-        const criticalStatuses = ['quebrado', 'parado']; // MUDANÇA: Críticos
+        const operationalStatuses = CAMINHAO_ROUTE_STATUS; 
+        const readyStatuses = ['disponivel', 'patio_vazio']; 
+        const criticalStatuses = ['quebrado', 'parado']; 
 
-        // Estatísticas de Caminhões
+        // 1. Estatísticas de Caminhões (Mantido o padrão anterior)
         const totalCaminhoes = caminhoes ? caminhoes.length : 0;
         const caminhoesEmOperacao = caminhoes ? caminhoes.filter(c => 
-            operationalStatuses.includes(c.status) // Filtra APENAS pelos status de movimentação/operação
+            operationalStatuses.includes(c.status)
         ).length : 0;
-        
-        // MUDANÇA: Novos KPIs de Caminhões
         const caminhoesProntos = caminhoes ? caminhoes.filter(c => 
             readyStatuses.includes(c.status)
         ).length : 0; 
-        
         const caminhoesCriticos = caminhoes ? caminhoes.filter(c => 
             criticalStatuses.includes(c.status)
         ).length : 0; 
-        
-        const caminhoesParados = totalCaminhoes - caminhoesEmOperacao; 
 
-        // Estatísticas de Frentes (MODIFICADO)
+        // 2. Estatísticas de Frentes (NOVO)
         const totalFrentes = frentes_servico ? frentes_servico.length : 0;
-        const frentesAtivasColheita = frentes_servico ? frentes_servico.filter(f => f.status === 'ativa' || f.status === 'fazendo_cata').length : 0;
-        const frentesInativas = totalFrentes - frentesAtivasColheita;
+        const frentesAtivas = frentes_servico ? frentes_servico.filter(f => f.status === 'ativa').length : 0;
+        const frentesCata = frentes_servico ? frentes_servico.filter(f => f.status === 'fazendo_cata').length : 0;
+        const frentesInativas = frentes_servico ? frentes_servico.filter(f => f.status === 'inativa' || !f.status).length : 0;
 
-        // Estatísticas de Equipamentos
+        // 3. Estatísticas de Equipamentos (NOVO)
         const totalEquipamentos = equipamentos ? equipamentos.length : 0;
-        const equipamentosAtivos = equipamentos ? equipamentos.filter(e => 
-            e.status === 'ativo' || e.status === 'em_viagem'
+        const equipamentosEmOperacao = equipamentos ? equipamentos.filter(e => 
+            e.status === 'ativo' && e.frente_id // Ativo E associado a uma frente
         ).length : 0;
-        const equipamentosParados = totalEquipamentos - equipamentosAtivos;
-
-        // Estatísticas de Fazendas (MODIFICADO)
-        const fazendasColhendoIds = new Set(
-            frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
+        const equipamentosDisponiveis = equipamentos ? equipamentos.filter(e => 
+            e.status === 'ativo' && !e.frente_id // Ativo E sem frente (livre)
+        ).length : 0;
+        const equipamentosCriticos = equipamentos ? equipamentos.filter(e => 
+            criticalStatuses.includes(e.status) // Parado ou Quebrado
+        ).length : 0;
+        
+        // 4. Estatísticas de Fazendas (NOVO)
+        const totalFazendas = fazendas ? fazendas.length : 0;
+        
+        const fazendasAtivasIds = new Set(
+            frentes_servico.filter(f => f.fazenda_id && f.status === 'ativa')
                             .map(f => f.fazenda_id)
         );
-        const fazendasColhendo = fazendasColhendoIds.size;
+        const fazendasCataIds = new Set(
+            frentes_servico.filter(f => f.fazenda_id && f.status === 'fazendo_cata')
+                            .map(f => f.fazenda_id)
+        );
+        const fazendasAssociadasIds = new Set([...fazendasAtivasIds, ...fazendasCataIds]);
         
-        const totalFazendas = fazendas ? fazendas.length : 0;
-        const fazendasDisponiveis = totalFazendas - fazendasColhendo;
+        const fazendasColhendo = fazendasAtivasIds.size;
+        const fazendasEmCata = fazendasCataIds.size;
+        const fazendasDisponiveis = totalFazendas - fazendasAssociadasIds.size;
 
-
-        // Atualizar elementos
-        this.updateStatElement('caminhoes-em-operacao', caminhoesEmOperacao); // MUDANÇA: Novo ID
-        this.updateStatElement('caminhoes-prontos', caminhoesProntos); // MUDANÇA: Novo KPI
-        this.updateStatElement('caminhoes-criticos', caminhoesCriticos); // MUDANÇA: Novo KPI
+        // --- ATUALIZAÇÃO DOS ELEMENTOS ---
+        
+        // Caminhões
+        this.updateStatElement('caminhoes-em-operacao', caminhoesEmOperacao);
+        this.updateStatElement('caminhoes-prontos', caminhoesProntos); 
+        this.updateStatElement('caminhoes-criticos', caminhoesCriticos); 
         this.updateStatElement('caminhoes-total', totalCaminhoes);
 
-        this.updateStatElement('frentes-ativas', frentesAtivasColheita);
+        // Frentes
+        this.updateStatElement('frentes-ativas', frentesAtivas);
+        this.updateStatElement('frentes-cata', frentesCata);
         this.updateStatElement('frentes-inativas', frentesInativas);
         this.updateStatElement('frentes-total', totalFrentes);
 
-        this.updateStatElement('equipamentos-ativos', equipamentosAtivos);
-        this.updateStatElement('equipamentos-parados', equipamentosParados);
+        // Equipamentos
+        this.updateStatElement('equipamentos-em-operacao', equipamentosEmOperacao);
+        this.updateStatElement('equipamentos-disponiveis', equipamentosDisponiveis);
+        this.updateStatElement('equipamentos-criticos', equipamentosCriticos);
         this.updateStatElement('equipamentos-total', totalEquipamentos);
 
+        // Fazendas
         this.updateStatElement('fazendas-colhendo', fazendasColhendo);
+        this.updateStatElement('fazendas-cata', fazendasEmCata);
         this.updateStatElement('fazendas-disponiveis', fazendasDisponiveis);
         this.updateStatElement('fazendas-total', totalFazendas);
 
-        // Calcular eficiência geral
-        const totalAtivos = caminhoesEmOperacao + equipamentosAtivos;
+        // --- CÁLCULOS GERAIS ---
+        const totalAtivos = caminhoesEmOperacao + equipamentosEmOperacao;
         const totalRecursos = totalCaminhoes + totalEquipamentos;
         const eficiencia = totalRecursos > 0 ? Math.round((totalAtivos / totalRecursos) * 100) : 0;
         
         this.updateStatElement('eficiencia-geral', `${eficiencia}%`);
         this.updateEfficiencyBar(eficiencia);
 
-        // Operações ativas
-        const operacoesAtivas = caminhoesEmOperacao + equipamentosAtivos + fazendasColhendo;
+        const operacoesAtivas = caminhoesEmOperacao + equipamentosEmOperacao + fazendasColhendo + fazendasEmCata;
         this.updateStatElement('operacoes-ativas', operacoesAtivas);
     }
 
@@ -517,7 +554,3 @@ export class DashboardView {
         }
     }
 }
-
-// Coordenadas da usina (definir se não estiver definido)
-const USINA_COORDS = [-17.642301, -40.181525];
-const INITIAL_ZOOM = 14;

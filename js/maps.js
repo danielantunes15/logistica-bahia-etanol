@@ -55,8 +55,8 @@ export class MapManager {
             });
             
             L.marker(USINA_COORDS, { icon: usinaIcon }).addTo(map)
-                .bindPopup('<b>Usina LOGISTICA BEL</b><br>Localização principal')
-                .openPopup();
+                .bindPopup('<b>Usina LOGISTICA BEL</b><br>Localização principal');
+                // LINHA REMOVIDA: .openPopup();
         }
         return map;
     }
