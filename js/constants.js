@@ -8,7 +8,8 @@ export const CAMINHAO_STATUS_LABELS = {
     patio_carregado: 'Pátio Carregado',
     descarregando: 'Descarregando',
     patio_vazio: 'Pátio Vazio',
-    quebrado: 'Quebrado'
+    quebrado: 'Quebrado',
+    parado: 'Parado (Obs.)' // Status de parada com observação
 };
 
 export const CAMINHAO_STATUS_CYCLE = [
