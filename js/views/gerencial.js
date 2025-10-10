@@ -103,6 +103,8 @@ export class GerencialView {
                  const userNameElement = btnDelete.closest('tr').querySelector('td:nth-child(1)');
                  const userName = userNameElement ? userNameElement.textContent.trim() : 'Usuário Desconhecido';
                  this.showDeleteUserModal(userId, userName); 
+                 e.preventDefault();
+                 return;
              }
         });
     }
@@ -233,17 +235,11 @@ export class GerencialView {
         `;
         openModal(`Editar Perfil: ${user.nome_completo}`, modalContent);
 
-        // CORREÇÃO FINAL: Usando setTimeout para garantir que o elemento da modal seja injetado antes de anexar o listener.
-        setTimeout(() => {
-             const form = document.getElementById('edit-user-form');
-             if(form) {
-                 form.addEventListener('submit', (e) => this.handleUserEdit(e));
-                 console.log("DEBUG: Listener de Edição anexado ao formulário.");
-             } else {
-                 // Este erro aparecerá no console se o formulário não for encontrado
-                 console.error("ERRO CRÍTICO: Formulário 'edit-user-form' não encontrado após abrir modal. O modal pode não ter sido injetado corretamente.");
-             }
-        }, 100); // Aumentei o delay para 100ms para maior segurança.
+        // CORREÇÃO APLICADA: Listener anexado diretamente, eliminando setTimeout
+        const form = document.getElementById('edit-user-form');
+        if(form) {
+            form.addEventListener('submit', (e) => this.handleUserEdit(e));
+        }
     }
 
     // --- Handler de Edição de Usuário ---
@@ -348,7 +344,11 @@ export class GerencialView {
         `;
         openModal('Cadastrar Novo Usuário', modalContent);
         
-        document.getElementById('register-user-form').addEventListener('submit', this.handleUserRegistration.bind(this));
+        // CORREÇÃO APLICADA: Listener anexado diretamente
+        const form = document.getElementById('register-user-form');
+        if(form) {
+            form.addEventListener('submit', this.handleUserRegistration.bind(this));
+        }
     }
     
     async handleUserRegistration(e) {
