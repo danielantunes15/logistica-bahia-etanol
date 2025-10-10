@@ -64,7 +64,14 @@ body {
 }
 
 /* Navegação */
-.sidebar nav { display: flex; flex-direction: column; gap: 8px; }
+.sidebar nav { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 8px; 
+    flex-grow: 1; 
+    overflow-y: auto; 
+    padding-bottom: 10px;
+}
 .nav-button, .nav-button-group { 
     width: 100%; 
     display: flex; 
@@ -665,3 +672,113 @@ body {
         right: 5px;
     }
 }
+
+
+/* --- NOVOS ESTILOS PARA O MENU DE PERFIL NO RODAPÉ --- */
+
+.profile-menu-container {
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+    margin-top: auto; 
+    position: relative;
+    z-index: 50; 
+}
+
+.profile-details {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    padding: 0 12px 10px 12px;
+    
+}
+
+.profile-menu-container .user-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-menu-container .user-role {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.nav-profile-button {
+    /* Estilo do botão "Meu Perfil" */
+    width: 100%;
+    justify-content: flex-start;
+    padding: 12px;
+    border-radius: 6px;
+    background-color: var(--accent-edit); /* Cor de destaque */
+    color: white;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.nav-profile-button:hover {
+    background-color: #26558d;
+}
+
+.profile-menu-container.open .nav-profile-button {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.nav-profile-button i.ph-user-circle {
+    font-size: 20px;
+}
+
+/* Rotação do Caret */
+.profile-menu-container.open .nav-profile-button .caret {
+    transform: rotate(180deg);
+}
+
+.profile-submenu {
+    /* O submenu que aparece acima do botão */
+    position: absolute;
+    bottom: 100%; /* Posiciona acima do botão */
+    left: 0;
+    right: 0;
+    background-color: var(--bg-light); 
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.2);
+    
+    /* Configurações de transição */
+    max-height: 0; 
+    overflow: hidden; 
+    transition: max-height 0.3s ease-in-out; 
+    
+    padding: 0 0 5px 0;
+    z-index: 40;
+}
+
+.profile-menu-container.open .profile-submenu {
+    max-height: 200px; /* Altura suficiente para mostrar o menu */
+}
+
+/* Estilo do botão Sair dentro do submenu */
+.profile-submenu .nav-button.btn-danger {
+    background-color: rgba(197, 48, 48, 0.1);
+    color: var(--accent-danger);
+    margin-top: 5px;
+}
+
+.profile-submenu .nav-button.btn-danger:hover {
+    background-color: var(--accent-danger);
+    color: white;
+}
+
+/* Remove estilos antigos relacionados ao bloco de topo */
+.user-info-block, .user-info-block-wrapper, .logout-btn-top, .sidebar-divider {
+    /* Garante que os estilos de topo anteriores não causem conflito */
+    display: none !important; 
+}
+
+/* --- FIM NOVOS ESTILOS --- */

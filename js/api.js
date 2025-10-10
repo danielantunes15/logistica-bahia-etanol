@@ -124,7 +124,7 @@ export async function fetchTable(tableName, select = '*') {
 }
 
 
-// --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (CORRIGIDO COM LOCALSTORAGE) ---
+// --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS ---
 
 /**
  * Realiza o login do usuário contra a tabela app_users (CHECK INSEGURO).
@@ -191,6 +191,43 @@ export async function getLocalSession() {
 export async function fetchUserRole() {
     if (!localUserSession) return { role: null };
     return { role: localUserSession.role };
+}
+
+/**
+ * NOVO: Atualiza a senha do usuário logado após verificar a senha atual.
+ * @param {string} userId - O ID do usuário logado.
+ * @param {string} currentPassword - A senha atual (para verificação).
+ * @param {string} newPassword - A nova senha.
+ */
+export async function updateUserPassword(userId, currentPassword, newPassword) {
+    // 1. Verifica se a senha atual está correta
+    const { data: user, error: verifyError } = await supabase
+        .from('app_users')
+        .select('id')
+        .eq('id', userId)
+        .eq('senha_app', currentPassword) // CHECK INSEGURO
+        .single();
+
+    if (verifyError && verifyError.code === 'PGRST116') {
+        throw new Error('A senha atual está incorreta.');
+    }
+    if (verifyError) {
+        throw verifyError;
+    }
+
+    // 2. Atualiza a senha no banco
+    const { error: updateError } = await supabase
+        .from('app_users')
+        .update({ senha_app: newPassword }) // SALVAMENTO INSEGURO
+        .eq('id', userId);
+
+    if (updateError) {
+        throw updateError;
+    }
+    
+    // 3. NÃO atualiza o localUserSession com a nova senha para forçar o login na próxima vez.
+
+    return { error: null };
 }
 
 

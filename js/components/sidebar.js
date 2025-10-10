@@ -1,7 +1,11 @@
 // js/components/sidebar.js
 
-// MODIFICADO: Agora recebe o papel do usuário para renderizar
-export async function loadSidebar(userRole) { 
+/**
+ * Carrega a barra lateral e os itens de navegação.
+ * @param {string} userRole - O papel do usuário logado ('admin' ou 'usuario').
+ * @param {string} userNameDisplay - O nome completo do usuário para exibição.
+ */
+export async function loadSidebar(userRole, userNameDisplay = 'Usuário') { 
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
     
@@ -14,9 +18,9 @@ export async function loadSidebar(userRole) {
         </button>
     ` : '';
     
-    // Conteúdo existente de Cadastros
+    // Conteúdo da seção Cadastros
     const cadastrosGroup = `
-        <div class="nav-group">
+        <div class="nav-group" id="cadastros-group">
             <button class="nav-button-group">
                 <i class="ph-fill ph-database"></i>
                 <span>Cadastros</span>
@@ -54,12 +58,40 @@ export async function loadSidebar(userRole) {
             </div>
         </div>
     `;
+    
+    // NOVO: Bloco de Perfil que fica no final
+    const profileFooterBlock = `
+        <div class="profile-menu-container">
+            <div class="profile-details">
+                <span class="user-name">${userNameDisplay}</span>
+                <span class="user-role">${userRole.charAt(0).toUpperCase() + userRole.slice(1)}</span>
+            </div>
+            
+            <button class="nav-button-group nav-profile-button" id="btn-profile-menu-toggle">
+                <i class="ph-fill ph-user-circle"></i>
+                <span>Meu Perfil</span>
+                <i class="ph ph-caret-up caret"></i>
+            </button>
+
+            <div class="submenu profile-submenu" id="profile-submenu">
+                <button class="nav-button" data-action="change-password">
+                    <i class="ph-fill ph-key"></i>
+                    <span>Trocar Senha</span>
+                </button>
+                <button class="nav-button btn-danger" data-action="logout">
+                    <i class="ph-fill ph-sign-out"></i>
+                    <span>Sair</span>
+                </button>
+            </div>
+        </div>
+    `;
 
     sidebar.innerHTML = `
         <div class="sidebar-header">
             <i class="ph-fill ph-tractor"></i>
             <h2>LOGISTICA BEL</h2>
         </div>
+        
         <nav id="main-nav-buttons">
             <button class="nav-button active" data-view="dashboard">
                 <i class="ph-fill ph-map-trifold"></i>
@@ -93,24 +125,16 @@ export async function loadSidebar(userRole) {
             ${cadastrosGroup}
         </nav>
         
-        <div style="margin-top: auto; padding-top: 20px; border-top: 1px solid var(--border-color);">
-            <button class="btn-primary" id="btn-logout" style="width: 100%;">
-                <i class="ph-fill ph-sign-out"></i> Sair
-            </button>
-        </div>
+        ${profileFooterBlock}
     `;
 
     addSidebarEventListeners();
 }
 
+// Refactoring event listeners to handle the new profile menu structure.
 function addSidebarEventListeners() {
-    // Listener para o botão de logout
-    document.getElementById('btn-logout').addEventListener('click', () => {
-        window.app.handleLogout();
-    });
-
     // Listener para os botões de navegação
-    document.querySelectorAll('#main-nav-buttons .nav-button').forEach(button => {
+    document.querySelectorAll('.nav-button').forEach(button => {
         button.addEventListener('click', (e) => {
             if (e.target.closest('.nav-button-group')) return;
             
@@ -121,12 +145,42 @@ function addSidebarEventListeners() {
         });
     });
 
-    const navGroup = document.querySelector('.nav-group');
-    const navButtonGroup = document.querySelector('.nav-button-group');
+    // Toggle para o submenu Cadastros
+    const cadastrosGroup = document.getElementById('cadastros-group');
+    if (cadastrosGroup) {
+        const navButtonGroup = cadastrosGroup.querySelector('.nav-button-group');
+        if (navButtonGroup) {
+            navButtonGroup.addEventListener('click', () => {
+                cadastrosGroup.classList.toggle('open');
+            });
+        }
+    }
     
-    if (navButtonGroup) {
-        navButtonGroup.addEventListener('click', () => {
-            navGroup.classList.toggle('open');
+    // NOVO: Toggle para o submenu Meu Perfil
+    const profileMenuContainer = document.querySelector('.profile-menu-container');
+    const profileMenuToggle = document.getElementById('btn-profile-menu-toggle');
+    const profileSubmenu = document.getElementById('profile-submenu');
+
+    if (profileMenuToggle) {
+        profileMenuToggle.addEventListener('click', () => {
+            profileMenuContainer.classList.toggle('open');
+        });
+    }
+    
+    // NOVO: Ações dentro do submenu de perfil
+    if (profileSubmenu) {
+        profileSubmenu.addEventListener('click', (e) => {
+            const actionButton = e.target.closest('.nav-button');
+            if (!actionButton) return;
+            
+            const action = actionButton.dataset.action;
+            if (action === 'change-password') {
+                profileMenuContainer.classList.remove('open');
+                window.app.showChangePasswordModal();
+            } else if (action === 'logout') {
+                profileMenuContainer.classList.remove('open');
+                window.app.handleLogout();
+            }
         });
     }
 }
