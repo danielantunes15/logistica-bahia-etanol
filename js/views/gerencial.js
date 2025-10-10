@@ -1,5 +1,5 @@
 // js/views/gerencial.js
-import { registerAppUser, fetchAppLogs, fetchAppUsers, deleteAppUser } from '../api.js';
+import { registerAppUser, fetchAppLogs, fetchAppUsers, deleteAppUser, updateAppUser } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
 
@@ -7,8 +7,8 @@ export class GerencialView {
     constructor() {
         this.container = null;
         this.activeTab = 'usuarios';
-        this.users = []; // Placeholder para usuários
-        this.logs = [];  // Placeholder para logs
+        this.users = []; 
+        this.logs = [];  
     }
 
     async show() {
@@ -24,7 +24,7 @@ export class GerencialView {
         container.innerHTML = `
             <div id="gerencial-view" class="view active-view gerencial-view">
                 <div class="gerencial-header">
-                    <h1>Painel Gerencial e Logs</h1>
+                    <h1>Painel Gerencial de Usuários e Logs</h1>
                 </div>
 
                 <div class="report-internal-menu gerencial-internal-menu">
@@ -36,7 +36,7 @@ export class GerencialView {
                     </button>
                 </div>
 
-                <div id="gerencial-content" class="gerencial-content">
+                <div id="gerencial-content" class="gerencial-content" style="padding: 24px; background-color: var(--bg-light); border-radius: 12px; margin-top: 24px; border: 1px solid var(--border-color);">
                     </div>
             </div>
         `;
@@ -56,28 +56,38 @@ export class GerencialView {
             });
         });
         
-        // Listener específico para o botão de Adicionar Usuário (se a aba for Usuários)
+        // Listener específico para ações na tabela de usuários
         document.getElementById('gerencial-content').addEventListener('click', (e) => {
              const btn = e.target.closest('#btn-add-user');
              if (btn) {
                  this.showRegisterUserModal();
+                 return;
              }
              
-             // Listener para aplicar filtros de Logs
              const btnFilter = e.target.closest('#apply-log-filters');
              if (btnFilter) {
                  this.loadLogData(true);
+                 return;
+             }
+
+             // NOVO: Listener para editar usuário
+             const btnEdit = e.target.closest('.edit-user-btn');
+             if (btnEdit) {
+                 const userId = parseInt(btnEdit.dataset.userId);
+                 const user = this.users.find(u => u.id === userId);
+                 if (user) {
+                     this.showEditUserModal(user);
+                 }
+                 return;
              }
              
-             // NOVO: Listener para deletar usuário
+             // Listener para deletar usuário
              const btnDelete = e.target.closest('.delete-user-btn');
              if (btnDelete) {
-                 // Usa o ID primário da tabela app_users (que é 'id' neste fluxo)
                  const userId = btnDelete.dataset.userId; 
-                 // Tenta encontrar o nome completo na linha da tabela
                  const userNameElement = btnDelete.closest('tr').querySelector('td:nth-child(1)');
                  const userName = userNameElement ? userNameElement.textContent.trim() : 'Usuário Desconhecido';
-                 this.showDeleteUserModal(userId, userName); // Chama o modal de confirmação
+                 this.showDeleteUserModal(userId, userName); 
              }
         });
     }
@@ -89,7 +99,7 @@ export class GerencialView {
         showLoading();
         try {
             if (this.activeTab === 'usuarios') {
-                await this.loadUserData(); // Carrega dados reais
+                await this.loadUserData(); 
                 contentContainer.innerHTML = this.renderUsersTab();
             } else if (this.activeTab === 'logs') {
                 await this.loadLogData();
@@ -118,42 +128,107 @@ export class GerencialView {
             <tr>
                 <td>${user.nome_completo}</td>
                 <td>${user.username_app}</td>
-                <td><span class="caminhao-status-badge status-${user.tipo_usuario === 'admin' ? 'ativo' : 'disponivel'}">${user.tipo_usuario.charAt(0).toUpperCase() + user.tipo_usuario.slice(1)}</span></td>
+                <td><span class="caminhao-status-badge status-${user.tipo_usuario === 'admin' ? 'ativa' : 'disponivel'}">${user.tipo_usuario.charAt(0).toUpperCase() + user.tipo_usuario.slice(1)}</span></td>
                 <td>
-                    <button class="action-btn delete-btn-modern delete-user-btn" data-user-id="${user.id}">
-                        <i class="ph-fill ph-trash"></i>
-                    </button>
+                    <div class="action-buttons-modern" style="justify-content: center;">
+                        <button class="action-btn edit-btn-modern edit-user-btn" data-user-id="${user.id}" title="Editar Nome, Usuário e Tipo">
+                            <i class="ph-fill ph-pencil-simple"></i>
+                        </button>
+                        <button class="action-btn delete-btn-modern delete-user-btn" data-user-id="${user.id}" title="Excluir Usuário">
+                            <i class="ph-fill ph-trash"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `).join('');
         
         const usersTableHTML = `
-            <table class="data-table-modern">
-                <thead>
-                    <tr>
-                        <th>Nome Completo</th>
-                        <th>Usuário</th>
-                        <th>Tipo</th>
-                        <th style="width: 1%;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${userRowsHTML.length > 0 ? userRowsHTML : '<tr><td colspan="4">Nenhum usuário cadastrado.</td></tr>'}
-                </tbody>
-            </table>
+            <div class="list-container-modern" style="padding: 0; border: none; background: transparent;">
+                <h2 style="padding-bottom: 12px; border-bottom: 1px solid var(--border-color); font-size: 1.3rem;">Lista de Usuários</h2>
+                <div class="table-wrapper" style="overflow-x: auto;">
+                    <table class="data-table-modern" style="min-width: 600px;">
+                        <thead>
+                            <tr>
+                                <th>Nome Completo</th>
+                                <th>Usuário</th>
+                                <th>Tipo</th>
+                                <th style="width: 120px; text-align: center;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${userRowsHTML.length > 0 ? userRowsHTML : '<tr><td colspan="4">Nenhum usuário cadastrado.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         `;
         
         return `
             <div class="users-tab">
-                <button class="btn-primary" id="btn-add-user" style="margin-bottom: 20px;">
+                <button class="btn-primary" id="btn-add-user" style="margin-bottom: 24px;">
                     <i class="ph-fill ph-user-plus"></i> Adicionar Novo Usuário
                 </button>
-                <div class="table-wrapper">
-                    ${usersTableHTML}
-                </div>
+                ${usersTableHTML}
             </div>
         `;
     }
+
+    // --- NOVO: Modal de Edição de Usuário ---
+    showEditUserModal(user) {
+        const modalContent = `
+            <form id="edit-user-form" class="action-modal-form">
+                <input type="hidden" name="userId" value="${user.id}">
+                <div class="form-group">
+                    <label for="nome_completo_edit">Nome Completo</label>
+                    <input type="text" id="nome_completo_edit" name="nome_completo" class="form-input" value="${user.nome_completo}" required>
+                </div>
+                <div class="form-group">
+                    <label for="username_app_edit">Usuário (Sem espaços ou caracteres especiais)</label>
+                    <input type="text" id="username_app_edit" name="username_app" class="form-input" value="${user.username_app}" required placeholder="ex: joao.silva">
+                </div>
+                <div class="form-group">
+                    <label for="tipo_usuario_edit">Tipo de Usuário</label>
+                    <select id="tipo_usuario_edit" name="tipo_usuario" class="form-select" required>
+                        <option value="usuario" ${user.tipo_usuario === 'usuario' ? 'selected' : ''}>Usuário Padrão</option>
+                        <option value="admin" ${user.tipo_usuario === 'admin' ? 'selected' : ''}>Administrador (Acesso Gerencial)</option>
+                    </select>
+                    <p class="form-help">Para alterar a senha, use o menu 'Meu Perfil' na lateral.</p>
+                </div>
+                <button type="submit" class="btn-primary">Salvar Alterações</button>
+            </form>
+        `;
+        openModal(`Editar Perfil: ${user.nome_completo}`, modalContent);
+
+        document.getElementById('edit-user-form').addEventListener('submit', this.handleUserEdit.bind(this));
+    }
+
+    // --- NOVO: Handler de Edição de Usuário ---
+    async handleUserEdit(e) {
+        e.preventDefault();
+        const form = e.target;
+        const userId = parseInt(form.userId.value);
+        const nome_completo = form.nome_completo.value;
+        const username_app = form.username_app.value;
+        const tipo_usuario = form.tipo_usuario.value;
+        
+        const updateData = { nome_completo, username_app, tipo_usuario };
+
+        showLoading();
+        try {
+            await updateAppUser(userId, updateData);
+            showToast(`Usuário ${nome_completo} atualizado com sucesso!`, 'success');
+            closeModal();
+            await this.loadUserData(); 
+            this.renderUsersTab();
+        } catch (error) {
+            handleOperation(error);
+            showToast(`Erro ao editar usuário: ${error.message}`, 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+    // --- FIM NOVO ---
+
 
     showRegisterUserModal() {
         const modalContent = `
@@ -199,7 +274,7 @@ export class GerencialView {
             await registerAppUser(username_app, password, nome_completo, tipo_usuario);
             showToast(`Usuário ${username_app} criado com sucesso!`, 'success');
             closeModal();
-            await this.loadUserData(); // Recarrega a lista
+            await this.loadUserData(); 
             this.renderUsersTab();
         } catch (error) {
             handleOperation(error);
@@ -209,7 +284,6 @@ export class GerencialView {
         }
     }
 
-    // Modal de Confirmação de Exclusão
     showDeleteUserModal(userId, userName) {
         const modalContent = `
             <p>Deseja realmente excluir o usuário <strong>${userName}</strong>?</p>
@@ -227,7 +301,6 @@ export class GerencialView {
         document.getElementById('cancel-delete-btn').onclick = closeModal;
     }
 
-    // Função para exclusão real (AGORA É UMA EXCLUSÃO ÚNICA)
     async handleRealDeleteUser(userId, userName) {
         closeModal();
         showLoading();
@@ -236,7 +309,7 @@ export class GerencialView {
             
             showToast(`Usuário ${userName} excluído com sucesso!`, 'success');
             
-            await this.loadUserData(); // Recarrega a lista
+            await this.loadUserData(); 
             this.renderUsersTab();
 
         } catch (error) {
@@ -247,16 +320,14 @@ export class GerencialView {
         }
     }
 
-    // --- LOGS ---
     async loadLogData(applyFilter = false) {
-         // Esta função deve ser chamada após o renderLogsTab ter criado os filtros
          if (!applyFilter) {
               const mockLogs = [
                 { timestamp: new Date(), tipo_log: 'LOGIN', mensagem: 'Usuário daniel.antunes logou com sucesso.', tipo_usuario: 'admin' },
                 { timestamp: new Date(Date.now() - 3600000), tipo_log: 'UPDATE', mensagem: 'Status do caminhão 101 alterado para Carregando.', tipo_usuario: 'usuario' },
                 { timestamp: new Date(Date.now() - 7200000), tipo_log: 'INSERT', mensagem: 'Novo caminhão CAM-90 cadastrado.', tipo_usuario: 'admin' },
             ];
-            this.logs = mockLogs; // Usa mocklogs se não for para aplicar o filtro
+            this.logs = mockLogs; 
             return;
          }
          
@@ -268,10 +339,8 @@ export class GerencialView {
          
          showLoading();
          try {
-             // Mockando a busca de logs para demonstrar o filtro
-             // Em produção, a tabela 'app_logs' deve ser populada por triggers no DB
              this.logs = await fetchAppLogs(filters); 
-             this.renderLogsTab(); // Re-renderiza a tabela com os novos dados
+             this.renderLogsTab(); 
          } catch (error) {
               handleOperation(error);
               this.logs = [];
@@ -281,7 +350,6 @@ export class GerencialView {
     }
 
     renderLogsTab() {
-        // Mock de Logs se a tabela real não for populada
         const mockLogs = [
             { timestamp: new Date(), tipo_log: 'LOGIN', mensagem: 'Usuário daniel.antunes logou com sucesso.', tipo_usuario: 'admin' },
             { timestamp: new Date(Date.now() - 3600000), tipo_log: 'UPDATE', mensagem: 'Status do caminhão 101 alterado para Carregando.', tipo_usuario: 'usuario' },
@@ -301,7 +369,7 @@ export class GerencialView {
 
         return `
             <div class="logs-tab">
-                <div class="report-filters log-filters" style="margin-bottom: 20px;">
+                <div class="report-filters log-filters" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background-color: var(--bg-dark); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
                     <select id="log-filter-role" class="form-select">
                         <option value="">Tipo Usuário (Todos)</option>
                         <option value="admin">Administrador</option>
@@ -316,8 +384,8 @@ export class GerencialView {
                     </button>
                 </div>
                 
-                <div class="table-wrapper">
-                    <table class="data-table-modern">
+                <div class="table-wrapper" style="overflow-x: auto;">
+                    <table class="data-table-modern" style="min-width: 800px;">
                         <thead>
                             <tr>
                                 <th>Horário</th>

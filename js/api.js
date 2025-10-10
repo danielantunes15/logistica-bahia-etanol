@@ -243,6 +243,45 @@ export async function finalizeFirstLogin(userId) {
      }
 }
 
+/* NOVO: Função para atualizar nome, username e tipo de usuário */
+/**
+ * Atualiza dados de um usuário (nome, username, tipo_usuario) na tabela app_users.
+ * Não permite alterar a senha por esta rota.
+ */
+export async function updateAppUser(userId, updateData) {
+    // Remove a senha do objeto de dados se ela estiver presente, para evitar alterações acidentais
+    // (A senha é tratada na rota updateUserPassword)
+    delete updateData.password;
+    
+    // 1. Verifica se o username já existe (apenas se estiver mudando o username)
+    if (updateData.username_app) {
+        const { data: existingUser, error: fetchError } = await supabase
+            .from('app_users')
+            .select('id')
+            .eq('username_app', updateData.username_app);
+            
+        if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+        
+        // Se encontrar outro usuário com o mesmo username
+        if (existingUser && existingUser.length > 0 && existingUser[0].id !== userId) {
+            throw new Error(`O usuário '${updateData.username_app}' já existe e pertence a outro perfil.`);
+        }
+    }
+
+    // 2. Atualiza os dados
+    const { data, error: updateError } = await supabase
+        .from('app_users')
+        .update(updateData)
+        .eq('id', userId)
+        .select()
+        .single();
+        
+    if (updateError) throw updateError;
+    
+    return { data, error: null };
+}
+/* FIM NOVO */
+
 
 /**
  * Registra um novo usuário na tabela app_users (SALVAMENTO INSEGURO).
