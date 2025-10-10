@@ -60,7 +60,7 @@
         0 20px 40px rgba(0, 0, 0, 0.3),
         0 0 0 1px rgba(255, 255, 255, 0.1);
     margin: 0 auto;
-    max-width: 1200px;
+    max-width: 1400px; /* ALTERADO: Limita a largura para telas grandes e o centraliza */
 }
 
 .panel-header {
@@ -93,6 +93,7 @@
 
 .stats-grid {
     display: grid;
+    /* Ajustado para garantir 4 colunas em telas grandes (a partir de 1200px) */
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 16px;
     margin-bottom: 20px;
@@ -417,5 +418,13 @@
         flex-direction: row;
         justify-content: space-between;
         width: 100%;
+    }
+}
+
+/* NOVO: Garante o layout de 4 colunas em telas grandes */
+@media (min-width: 1200px) {
+    .stats-grid {
+        /* Garante 4 colunas de tamanho igual quando há espaço suficiente */
+        grid-template-columns: repeat(4, 1fr); 
     }
 }
