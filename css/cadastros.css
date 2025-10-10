@@ -79,6 +79,22 @@
     box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.2);
 }
 
+/* NOVO: Estilo para campo inválido */
+.form-input.is-invalid,
+.form-select.is-invalid {
+    border-color: var(--accent-danger) !important;
+    box-shadow: 0 0 0 2px rgba(197, 48, 48, 0.2) !important;
+}
+
+/* NOVO: Estilo para mensagem de erro de validação */
+.validation-message {
+    font-size: 0.75rem;
+    color: var(--accent-danger);
+    margin-top: -4px;
+    font-weight: 500;
+}
+
+
 .form-select {
     padding: 12px;
     border: 1px solid var(--border-color);

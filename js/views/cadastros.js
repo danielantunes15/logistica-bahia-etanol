@@ -22,6 +22,8 @@ export class CadastrosView {
             this.initializeMap();
         }
         this.addEventListeners();
+        // NOVO: Adicionar listeners de validação após a renderização do formulário
+        this.setupValidationListeners(document.getElementById(`form-${this.tipo}`));
     }
 
     async hide() {}
@@ -193,7 +195,11 @@ export class CadastrosView {
                 
                 if (field.source && this.data[field.source]) {
                     this.data[field.source].forEach(optionItem => {
-                        const isSelected = isEdit && (value == optionItem.id || (Array.isArray(value) && value.some(val => val.terceiro_id == optionItem.id)));
+                        // Correção para lidar com arrays de IDs no modo de edição (caminhao_terceiros/equipamento_terceiros)
+                        const isSelected = isEdit && (
+                            value == optionItem.id || 
+                            (Array.isArray(item[field.name]) && item[field.name].includes(optionItem.id)) // Verifica o array de IDs
+                        );
                         inputHTML += `<option value="${optionItem.id}" ${isSelected ? 'selected' : ''}>${optionItem[field.displayField]}</option>`;
                     });
                 } else if (field.options) {
@@ -206,6 +212,10 @@ export class CadastrosView {
                 if (field.type === 'select-multiple') inputHTML += `<div class="select-multiple-hint"><i class="ph-fill ph-info"></i> Mantenha Ctrl pressionado</div>`;
             } else {
                 inputHTML += `<input type="${field.type}" name="${field.name}" id="${id}" class="form-input" value="${value}" ${requiredAttr} data-validation="${field.validation || ''}">`; // ADD data-validation
+            }
+            // NOVO: Placeholder para mensagem de erro de validação
+            if (field.validation) {
+                 inputHTML += `<div class="validation-message" id="error-${id}" style="display: none;"></div>`;
             }
             inputHTML += `</div>`;
             return inputHTML;
@@ -223,6 +233,60 @@ export class CadastrosView {
         return option.charAt(0).toUpperCase() + option.slice(1).replace('_', ' ');
     }
     // -----------------------------
+    
+    // NOVO: Função para configurar listeners de validação
+    setupValidationListeners(form) {
+        if (!form) return;
+
+        form.querySelectorAll('[data-validation]').forEach(input => {
+            const validationType = input.dataset.validation;
+            if (validationType) {
+                // Adiciona listener para input e blur para validação em tempo real
+                ['input', 'blur'].forEach(eventType => {
+                    input.addEventListener(eventType, () => this.validateField(input, validationType));
+                });
+            }
+        });
+    }
+    
+    // NOVO: Função para validar um campo e exibir o feedback
+    validateField(input, validationType) {
+        const value = input.value;
+        const errorMessageElement = document.getElementById(`error-${input.id}`);
+        let isValid = true;
+        let errorMessage = '';
+
+        // Se o campo não é obrigatório e está vazio, considera válido para validação on-input/blur
+        if (!input.hasAttribute('required') && !value) {
+            input.classList.remove('is-invalid');
+            if (errorMessageElement) errorMessageElement.style.display = 'none';
+            return true;
+        }
+
+        if (value) {
+            if (validationType === 'cpfcnpj') {
+                isValid = validateCPFCNPJ(value);
+                errorMessage = 'CPF/CNPJ inválido (deve ter 11 ou 14 dígitos).';
+            } else if (validationType === 'phone') {
+                isValid = validatePhone(value);
+                errorMessage = 'Telefone inválido (deve ter 10 ou 11 dígitos).';
+            }
+        }
+        
+        if (isValid) {
+            input.classList.remove('is-invalid');
+            if (errorMessageElement) errorMessageElement.style.display = 'none';
+        } else {
+            input.classList.add('is-invalid');
+            if (errorMessageElement) {
+                errorMessageElement.textContent = errorMessage;
+                errorMessageElement.style.display = 'block';
+            }
+        }
+        
+        return isValid;
+    }
+
 
     renderTable() {
         const tableContainer = document.getElementById('table-container');
@@ -289,23 +353,38 @@ export class CadastrosView {
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
         
-        // 1. Validação de campos específicos (CPF/CNPJ e Telefone)
-        for (const field of this.formFields) {
-            const value = data[field.name];
-            if (field.validation === 'cpfcnpj' && value && !validateCPFCNPJ(value)) {
-                return showToast(`CPF/CNPJ inválido para o campo ${field.label}.`, 'error');
+        // 1. Validação de campos específicos (CPF/CNPJ e Telefone) - AGORA USANDO A FUNÇÃO validateField
+        let formIsValid = true;
+        form.querySelectorAll('[data-validation]').forEach(input => {
+            // A validação final também verifica se o campo obrigatório está vazio
+            if (input.hasAttribute('required') && !input.value) {
+                formIsValid = false;
             }
-            if (field.validation === 'phone' && value && !validatePhone(value)) {
-                return showToast(`Telefone inválido para o campo ${field.label}.`, 'error');
+            if (!this.validateField(input, input.dataset.validation)) {
+                formIsValid = false;
             }
+        });
+        
+        if (!formIsValid) {
+             showToast('Corrija os campos em vermelho antes de prosseguir.', 'error');
+             return;
         }
 
         // 2. Tratamento de campos de múltiplas opções
         if (this.tipo === 'caminhoes') {
             data.motoristas = formData.getAll('motoristas');
+            // Mapeia o array de IDs para o formato esperado pelo updateCaminhao (array de IDs)
+            if (isEdit) {
+                // A API espera o array de IDs
+                data.motoristas = data.motoristas.map(id => parseInt(id)); 
+            }
         }
         if (this.tipo === 'equipamentos') {
             data.operadores = formData.getAll('operadores');
+            // Mapeia o array de IDs para o formato esperado pelo updateEquipment (array de IDs)
+            if (isEdit) {
+                 data.operadores = data.operadores.map(id => parseInt(id));
+            }
         }
         
         showLoading();
@@ -339,19 +418,27 @@ export class CadastrosView {
 
     async handleEdit(id) {
         showLoading();
+        // Inclui as tabelas de junção para pré-seleção dos terceiros
         const selectQuery = this.tipo === 'caminhoes' ? '*, caminhao_terceiros(terceiro_id)' : this.tipo === 'equipamentos' ? '*, equipamento_terceiros(terceiro_id)' : '*';
         const { data: item, error } = await fetchItemById(this.tipo, id, selectQuery);
         hideLoading();
     
         if (error) return handleOperation(error);
-    
-        if (this.tipo === 'caminhoes' && item.caminhao_terceiros) item.motoristas = item.caminhao_terceiros.map(ct => ct.terceiro_id);
-        if (this.tipo === 'equipamentos' && item.equipamento_terceiros) item.operadores = item.equipamento_terceiros.map(et => et.terceiro_id);
+        
+        // Mapeia os dados da tabela de junção para o formato de array de IDs (para o select-multiple)
+        if (this.tipo === 'caminhoes' && item.caminhao_terceiros) {
+            item.motoristas = item.caminhao_terceiros.map(ct => ct.terceiro_id);
+        }
+        if (this.tipo === 'equipamentos' && item.equipamento_terceiros) {
+            item.operadores = item.equipamento_terceiros.map(et => et.terceiro_id);
+        }
     
         const formHTML = this.generateFormHTML(item);
         openModal(`Editar ${this.getTipoDisplayName().slice(0, -1)}`, formHTML);
         
         const editForm = document.getElementById(`form-edit-${this.tipo}`);
+        // Configura listeners de validação para o formulário do modal
+        this.setupValidationListeners(editForm);
         // USANDO NOVA FUNÇÃO: isEdit=true, id=id
         if (editForm) editForm.addEventListener('submit', (e) => this.handleFormSubmit(e, true, id)); 
     }
