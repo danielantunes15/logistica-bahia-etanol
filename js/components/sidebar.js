@@ -88,7 +88,7 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário') {
 
     sidebar.innerHTML = `
         <div class="sidebar-header">
-            <i class="ph-fill ph-tractor"></i>
+            <img src="assets/logo-bel.png" alt="Logo LOGISTICA BEL" id="sidebar-logo">
             <h2>LOGISTICA BEL</h2>
         </div>
         

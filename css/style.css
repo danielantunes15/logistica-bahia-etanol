@@ -42,8 +42,15 @@ body {
     gap: 12px; 
 }
 .sidebar-header i { 
-    font-size: 32px; 
-    color: var(--accent-primary); 
+    /* Antigo ícone do trator - agora oculto */
+    display: none; 
+}
+
+.sidebar-header #sidebar-logo { 
+    /* NOVO: Estilo para o logo na sidebar */
+    width: 40px; /* ALTERADO: Aumentado de 32px para 40px */
+    height: 40px; /* ALTERADO: Aumentado de 32px para 40px */
+    object-fit: contain;
 }
 
 .sidebar-header h2 {
@@ -664,7 +671,6 @@ body {
 @media (max-width: 480px) {
     .sidebar {
         width: 180px;
-        padding: 16px;
     }
     
     .modern-dashboard-overlay {

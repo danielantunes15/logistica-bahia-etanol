@@ -33,6 +33,17 @@
     margin-bottom: 30px;
 }
 
+.login-header #login-logo {
+    /* NOVO: Estilo para o logo no login */
+    width: 72px; /* ALTERADO: Aumentado de 56px para 72px */
+    height: 72px; /* ALTERADO: Aumentado de 56px para 72px */
+    margin-bottom: 15px;
+    display: block;
+    object-fit: contain; /* Garante que a imagem se ajuste sem distorcer */
+    /* Centraliza a imagem no container */
+    margin: 0 auto 15px auto; 
+}
+
 .login-header i {
     /* Estilo moderno para o ícone */
     font-size: 56px;
@@ -41,7 +52,7 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     margin-bottom: 15px;
-    display: block;
+    display: none; /* NOVO: Oculta o ícone antigo */
 }
 
 .login-header h2 {
@@ -80,6 +91,13 @@
     background: var(--bg-dark);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
+}
+
+#login-form .form-input:focus {
+    /* Garante o foco visual */
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(56, 161, 105, 0.2);
 }
 
 #login-form .btn-primary {
