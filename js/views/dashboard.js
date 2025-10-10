@@ -36,7 +36,7 @@ export class DashboardView {
         return `
             <div id="dashboard-view" class="view active-view">
                 <div class="dashboard-header">
-                    <h1>Dashboard de Operações - LOGISTICA BEL</h1>
+                    <h1>Dashboard de Operações Agrícolas</h1>
                     <div class="dashboard-actions">
                         <button class="btn-primary" id="refresh-operations">
                             <i class="ph-fill ph-arrows-clockwise"></i>
