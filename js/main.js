@@ -3,6 +3,7 @@
 import { loadSidebar } from './components/sidebar.js';
 import { loadModal, openModal, closeModal } from './components/modal.js'; 
 import { initializeViews } from './views/viewManager.js';
+// CORRIGIDO: Certifica-se que a importação é relativa
 import { fetchUserRole, logoutAppUser, getLocalSession, updateUserPassword, finalizeFirstLogin } from './api.js'; 
 import { showToast, showLoading, hideLoading, handleOperation } from './helpers.js';
 
@@ -57,13 +58,8 @@ class App {
         // 2. Carrega a sidebar com o nome do usuário para exibição
         await loadSidebar(this.userRole, session.fullName); 
         
-        // 3. NOVO: Verifica se é o primeiro login e força a troca de senha
-        if (session.isFirstLogin) {
-            this.showFirstLoginChangePasswordModal(session);
-        } else {
-            // 4. Se não for primeiro login, mostra o Dashboard
-            window.viewManager.showView('dashboard');
-        }
+        // 3. A verificação de 'isFirstLogin' foi REMOVIDA para desativar a troca obrigatória.
+        window.viewManager.showView('dashboard');
     }
     
     showLoginScreen() {
@@ -85,7 +81,7 @@ class App {
         }
     }
     
-    // --- NOVO: Lógica para exibir o modal de TROCA DE SENHA NO PRIMEIRO LOGIN ---
+    // --- LÓGICA DE TROCA DE SENHA OBRIGATÓRIA (MANTIDA, MAS NÃO SERÁ CHAMADA NO FLUXO NORMAL) ---
     showFirstLoginChangePasswordModal(session) {
          // Desabilita a sidebar e o main-content para forçar a interação com o modal
          document.getElementById('sidebar').style.pointerEvents = 'none';
@@ -99,11 +95,6 @@ class App {
                     Por favor, defina uma nova senha para continuar.
                 </p>
                 <div class="form-group">
-                    <label for="current_password">Senha Atual</label>
-                    <input type="password" id="current_password" name="current_password" class="form-input" required value="1234" readonly>
-                    <p class="form-help">Sua senha inicial é '1234'.</p>
-                </div>
-                <div class="form-group">
                     <label for="new_password">Nova Senha (Mínimo 4 caracteres)</label>
                     <input type="password" id="new_password" name="new_password" class="form-input" required minlength="4">
                 </div>
@@ -113,7 +104,7 @@ class App {
                 </div>
                 <button type="submit" class="btn-primary">Criar Nova Senha e Continuar</button>
             </form>
-            <p class="form-help" style="color: var(--accent-danger); margin-top: 10px;">AVISO: A nova senha será salva em texto simples. Segurança comprometida!</p>
+            <p class="form-help" style="color: var(--accent-danger); margin-top: 10px;">AVISO: A senha será salva de forma segura pelo Supabase Auth.</p>
         `;
 
         // Abre o modal. O parâmetro 'false' impede que ele seja fechado pelo overlay.
@@ -128,7 +119,7 @@ class App {
     async handleFirstLoginChangePasswordSubmit(userId, e) {
         e.preventDefault();
         const form = e.target;
-        const currentPassword = form.current_password.value;
+        // REMOVIDO: const currentPassword = form.current_password.value;
         const newPassword = form.new_password.value;
         const confirmPassword = form.confirm_password.value;
 
@@ -145,10 +136,10 @@ class App {
         showLoading();
         try {
             // 1. Tenta atualizar a senha e desativa a flag 'primeiro_login' no DB
-            await updateUserPassword(userId, currentPassword, newPassword);
+            // ALTERADO: A API agora só precisa do userId e newPassword
+            await updateUserPassword(userId, newPassword);
             
-            // 2. Finaliza o processo de primeiro login (remove a flag da sessão local)
-            await finalizeFirstLogin(userId);
+            // REMOVIDO: finalizeFirstLogin é obsoleto
             
             showToast('Senha atualizada com sucesso! Acesso liberado.', 'success');
             
@@ -176,10 +167,9 @@ class App {
         const modalContent = `
             <form id="change-password-form" class="action-modal-form">
                 <p>Alterando senha para: <strong>${session.fullName}</strong></p>
-                <div class="form-group">
-                    <label for="current_password">Senha Atual</label>
-                    <input type="password" id="current_password" name="current_password" class="form-input" required>
-                </div>
+                <p class="form-help" style="color: var(--accent-danger); font-size: 1rem; margin-bottom: 20px;">
+                    Ao alterar sua senha, sua sessão será encerrada.
+                </p>
                 <div class="form-group">
                     <label for="new_password">Nova Senha (Mínimo 4 caracteres)</label>
                     <input type="password" id="new_password" name="new_password" class="form-input" required minlength="4">
@@ -190,7 +180,7 @@ class App {
                 </div>
                 <button type="submit" class="btn-primary">Trocar Senha</button>
             </form>
-            <p class="form-help" style="color: var(--accent-danger); margin-top: 10px;">AVISO: A nova senha será salva em texto simples. Segurança comprometida!</p>
+            <p class="form-help" style="color: var(--accent-danger); margin-top: 10px;">AVISO: A senha será salva de forma segura pelo Supabase Auth.</p>
         `;
 
         openModal('Trocar Senha do Usuário', modalContent);
@@ -201,7 +191,7 @@ class App {
     async handleChangePasswordSubmit(userId, e) {
         e.preventDefault();
         const form = e.target;
-        const currentPassword = form.current_password.value;
+        // REMOVIDO: const currentPassword = form.current_password.value;
         const newPassword = form.new_password.value;
         const confirmPassword = form.confirm_password.value;
 
@@ -217,7 +207,8 @@ class App {
         
         showLoading();
         try {
-            await updateUserPassword(userId, currentPassword, newPassword);
+            // ALTERADO: A API agora só precisa do userId e newPassword
+            await updateUserPassword(userId, newPassword);
             
             showToast('Senha alterada com sucesso! Você será desconectado para logar novamente.', 'success');
             closeModal();

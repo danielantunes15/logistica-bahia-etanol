@@ -1,4 +1,5 @@
 // js/views/login.js
+// CORRIGIDO: Certifica-se que a importação é relativa
 import { loginAppUser, fetchUserRole } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 
@@ -8,7 +9,8 @@ export class LoginView {
     }
 
     async show() {
-        await this.loadHTML();
+        // CORRIGIDO: loadHTML chamado diretamente
+        this.loadHTML();
         this.addEventListeners();
     }
     
@@ -59,7 +61,7 @@ export class LoginView {
         
         showLoading();
         try {
-            await loginAppUser(username, password);
+            await loginAppUser(username, password); // Passa apenas o username
             showToast('Login realizado com sucesso!', 'success');
             
             // Sucesso: Chama o método de inicialização da aplicação

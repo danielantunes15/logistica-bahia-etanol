@@ -1,5 +1,5 @@
 // js/views/gerencial.js
-import { registerAppUser, fetchAppLogs } from '../api.js';
+import { registerAppUser, fetchAppLogs, fetchAppUsers } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
 
@@ -68,6 +68,14 @@ export class GerencialView {
              if (btnFilter) {
                  this.loadLogData(true);
              }
+             
+             // NOVO: Listener para deletar usuário (Apenas implementado no frontend)
+             const btnDelete = e.target.closest('.delete-user-btn');
+             if (btnDelete) {
+                 // A exclusão real deve ser feita pelo Admin do Supabase (por segurança),
+                 // mas podemos simular a chamada ou dar a instrução.
+                 showToast('Para excluir, utilize o painel do Supabase Auth. Esta ação é restrita.', 'info');
+             }
         });
     }
     
@@ -78,9 +86,8 @@ export class GerencialView {
         showLoading();
         try {
             if (this.activeTab === 'usuarios') {
+                await this.loadUserData(); // Carrega dados reais
                 contentContainer.innerHTML = this.renderUsersTab();
-                // Assumindo que a lista de usuários pode ser buscada da tabela app_users
-                // await this.loadUserData(); 
             } else if (this.activeTab === 'logs') {
                 await this.loadLogData();
                 contentContainer.innerHTML = this.renderLogsTab();
@@ -94,31 +101,41 @@ export class GerencialView {
     }
     
     // --- USUÁRIOS ---
+    async loadUserData() {
+        try {
+            this.users = await fetchAppUsers();
+        } catch (error) {
+            handleOperation(error);
+            this.users = [];
+        }
+    }
+    
     renderUsersTab() {
-        // Mockup da lista de usuários, você precisará buscar isso da tabela 'app_users'
+        const userRowsHTML = this.users.map(user => `
+            <tr>
+                <td>${user.nome_completo}</td>
+                <td>${user.username_app}</td>
+                <td><span class="caminhao-status-badge status-${user.tipo_usuario === 'admin' ? 'ativo' : 'disponivel'}">${user.tipo_usuario.charAt(0).toUpperCase() + user.tipo_usuario.slice(1)}</span></td>
+                <td>
+                    <button class="action-btn delete-btn-modern delete-user-btn" data-user-id="${user.user_id}">
+                        <i class="ph-fill ph-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+        
         const usersTableHTML = `
             <table class="data-table-modern">
                 <thead>
                     <tr>
                         <th>Nome Completo</th>
-                        <th>Usuário App</th>
+                        <th>Usuário</th>
                         <th>Tipo</th>
                         <th style="width: 1%;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td>Daniel Antunes (Admin)</td>
-                        <td>daniel.antunes</td>
-                        <td><span class="caminhao-status-badge status-ativo">Admin</span></td>
-                        <td><button class="action-btn delete-btn-modern"><i class="ph-fill ph-trash"></i></button></td>
-                    </tr>
-                    <tr>
-                        <td>Operador de Teste</td>
-                        <td>op.teste</td>
-                        <td><span class="caminhao-status-badge status-disponivel">Usuário</span></td>
-                        <td><button class="action-btn delete-btn-modern"><i class="ph-fill ph-trash"></i></button></td>
-                    </tr>
+                    ${userRowsHTML.length > 0 ? userRowsHTML : '<tr><td colspan="4">Nenhum usuário cadastrado.</td></tr>'}
                 </tbody>
             </table>
         `;
@@ -131,7 +148,7 @@ export class GerencialView {
                 <div class="table-wrapper">
                     ${usersTableHTML}
                 </div>
-                <p style="margin-top: 15px; font-size: 0.9rem; color: var(--text-secondary);">Atenção: Ações como editar ou resetar senha devem ser gerenciadas via console do Supabase (Auth > Users) ou implementadas separadamente.</p>
+                <p style="margin-top: 15px; font-size: 0.9rem; color: var(--text-secondary);">Atenção: A exclusão de usuários deve ser feita diretamente no painel do Supabase Auth para garantir a remoção total.</p>
             </div>
         `;
     }
@@ -146,6 +163,7 @@ export class GerencialView {
                 <div class="form-group">
                     <label for="username_app">Usuário (Sem espaços ou caracteres especiais)</label>
                     <input type="text" id="username_app" name="username_app" class="form-input" required placeholder="ex: joao.silva">
+                    <p class="form-help">Este será seu nome de usuário para login.</p>
                 </div>
                 <div class="form-group">
                     <label for="password">Senha (Mínimo 6 caracteres)</label>
@@ -176,11 +194,12 @@ export class GerencialView {
         
         showLoading();
         try {
+            // registerAppUser agora lida com a conversão interna para email
             await registerAppUser(username_app, password, nome_completo, tipo_usuario);
             showToast(`Usuário ${username_app} criado com sucesso!`, 'success');
             closeModal();
-            // Recarrega a lista de usuários (após implementação)
-            // await this.loadUserData(); 
+            await this.loadUserData(); // Recarrega a lista
+            this.renderUsersTab();
         } catch (error) {
             handleOperation(error);
             showToast(`Erro ao registrar usuário: ${error.message}`, 'error');
@@ -192,7 +211,15 @@ export class GerencialView {
     // --- LOGS ---
     async loadLogData(applyFilter = false) {
          // Esta função deve ser chamada após o renderLogsTab ter criado os filtros
-         if (!applyFilter) return; // Se não for para aplicar o filtro, apenas retorna o mock
+         if (!applyFilter) {
+              const mockLogs = [
+                { timestamp: new Date(), tipo_log: 'LOGIN', mensagem: 'Usuário daniel.antunes logou com sucesso.', tipo_usuario: 'admin' },
+                { timestamp: new Date(Date.now() - 3600000), tipo_log: 'UPDATE', mensagem: 'Status do caminhão 101 alterado para Carregando.', tipo_usuario: 'usuario' },
+                { timestamp: new Date(Date.now() - 7200000), tipo_log: 'INSERT', mensagem: 'Novo caminhão CAM-90 cadastrado.', tipo_usuario: 'admin' },
+            ];
+            this.logs = mockLogs; // Usa mocklogs se não for para aplicar o filtro
+            return;
+         }
          
          const filters = {
              tipo_usuario: document.getElementById('log-filter-role')?.value,
