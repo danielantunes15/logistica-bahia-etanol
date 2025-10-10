@@ -73,22 +73,26 @@ export class GerencialView {
              // Listener para editar usuário
              const btnEdit = e.target.closest('.edit-user-btn');
              if (btnEdit) {
+                 console.log("Ação: Clicou no botão Editar."); // DEBUG LOG
                  const userId = parseInt(btnEdit.dataset.userId);
                  const user = this.users.find(u => u.id === userId);
                  if (user) {
                      this.showEditUserModal(user);
                  }
+                 e.preventDefault();
                  return;
              }
              
-             // NOVO: Listener para ativar/inativar usuário
+             // Listener para ativar/inativar usuário
              const btnToggleActive = e.target.closest('.toggle-active-btn');
              if (btnToggleActive) {
+                 console.log("Ação: Clicou no botão Ativar/Inativar."); // DEBUG LOG
                  const userId = parseInt(btnToggleActive.dataset.userId);
                  const user = this.users.find(u => u.id === userId);
                  if (user) {
                      this.showToggleActiveModal(user);
                  }
+                 e.preventDefault();
                  return;
              }
              
@@ -141,6 +145,9 @@ export class GerencialView {
             const toggleIcon = user.ativo ? 'ph-fill ph-user-x' : 'ph-fill ph-user-check';
             const toggleTitle = user.ativo ? 'Inativar Usuário (Bloquear Acesso)' : 'Ativar Usuário (Permitir Acesso)';
             
+            // CORRIGIDO: Variável de cor CSS e estilos de padding forçados.
+            const toggleBgColor = user.ativo ? 'var(--accent-danger)' : 'var(--accent-primary)'; 
+            
             return `
                 <tr class="${user.ativo ? '' : 'inactive-row'}">
                     <td>${user.nome_completo}</td>
@@ -156,7 +163,7 @@ export class GerencialView {
                                     data-user-id="${user.id}" 
                                     data-is-active="${user.ativo}"
                                     title="${toggleTitle}"
-                                    style="background-color: ${user.ativo ? 'var(--accent-danger)' : 'var(--accent-success)'};">
+                                    style="background-color: ${toggleBgColor}; color: white; padding: 8px 10px; border-radius: 6px;">
                                 <i class="${toggleIcon}"></i>
                             </button>
                             <button class="action-btn delete-btn-modern delete-user-btn" data-user-id="${user.id}" title="Excluir Usuário">
@@ -226,8 +233,17 @@ export class GerencialView {
         `;
         openModal(`Editar Perfil: ${user.nome_completo}`, modalContent);
 
-        // Corrigido: Binding do evento
-        document.getElementById('edit-user-form').addEventListener('submit', (e) => this.handleUserEdit(e));
+        // CORREÇÃO FINAL: Usando setTimeout para garantir que o elemento da modal seja injetado antes de anexar o listener.
+        setTimeout(() => {
+             const form = document.getElementById('edit-user-form');
+             if(form) {
+                 form.addEventListener('submit', (e) => this.handleUserEdit(e));
+                 console.log("DEBUG: Listener de Edição anexado ao formulário.");
+             } else {
+                 // Este erro aparecerá no console se o formulário não for encontrado
+                 console.error("ERRO CRÍTICO: Formulário 'edit-user-form' não encontrado após abrir modal. O modal pode não ter sido injetado corretamente.");
+             }
+        }, 100); // Aumentei o delay para 100ms para maior segurança.
     }
 
     // --- Handler de Edição de Usuário ---
