@@ -35,8 +35,8 @@
 
 .login-header #login-logo {
     /* NOVO: Estilo para o logo no login */
-    width: 72px; /* ALTERADO: Aumentado de 56px para 72px */
-    height: 72px; /* ALTERADO: Aumentado de 56px para 72px */
+    width: 120px; /* ALTERADO: Aumentado para 120px */
+    height: 120px; /* ALTERADO: Aumentado para 120px */
     margin-bottom: 15px;
     display: block;
     object-fit: contain; /* Garante que a imagem se ajuste sem distorcer */

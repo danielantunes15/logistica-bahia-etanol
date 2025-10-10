@@ -21,8 +21,8 @@ export class LoginView {
             <div class="login-wrapper">
                 <div class="login-card">
                     <div class="login-header">
-                        <img src="assets/logo-bel.png" alt="Logo LOGISTICA BEL" id="login-logo">
-                        <h2>LOGISTICA BEL</h2>
+                        <img src="assets/logo-bel.png" alt="Logo LOGÍSTICA  BEL" id="login-logo">
+                        <h2>LOGÍSTICA  BEL</h2>
                         <p>Acesse o Painel de Controle</p>
                     </div>
                     
