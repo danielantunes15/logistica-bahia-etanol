@@ -1,7 +1,7 @@
 // js/views/relatorios.js
 
 import { fetchAllData } from '../api.js';
-import { showToast, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js';
+import { showToast, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes } from '../helpers.js';
 import { dataCache } from '../dataCache.js';
 import { CAMINHAO_STATUS_LABELS, EQUIPAMENTO_STATUS_LABELS } from '../constants.js';
 
@@ -308,6 +308,19 @@ export class RelatoriosView {
         return downtimeSessions;
     }
     
+    // Método para obter valores dos filtros (CORREÇÃO AQUI)
+    getFilterValues() {
+        return {
+            equipamento: document.getElementById('filter-equipamento')?.value,
+            frente: document.getElementById('filter-frente')?.value,
+            proprietario: document.getElementById('filter-proprietario')?.value,
+            dataInicio: document.getElementById('filter-data-inicio')?.value,
+            dataFim: document.getElementById('filter-data-fim')?.value
+        };
+    }
+    // FIM DA CORREÇÃO
+
+    // NOVO: Gerador de HTML de Tabela de Parada
     generateDowntimeTableHTML(sessions, title, resourceLabel, statusLabels) {
         if (sessions.length === 0) {
             return `<div class="empty-state" style="padding: 50px;">
@@ -316,8 +329,20 @@ export class RelatoriosView {
                     </div>`;
         }
 
+        // 1. Calcular o total de inatividade
+        let totalDowntimeMillis = 0;
+
         const rows = sessions.map(session => {
             const duration = calculateDowntimeDuration(session.start_time, session.end_time);
+            
+            // Soma a duração em milissegundos para o total
+            const start = new Date(session.start_time).getTime();
+            const end = session.end_time ? new Date(session.end_time).getTime() : new Date().getTime();
+            const diffMillis = end - start;
+            if (diffMillis > 0) {
+                totalDowntimeMillis += diffMillis;
+            }
+
             const startStatusBadge = `<span class="caminhao-status-badge status-${session.start_status}">${statusLabels[session.start_status] || session.start_status}</span>`;
             
             let endStatusLabel;
@@ -342,6 +367,20 @@ export class RelatoriosView {
                 </tr>
             `;
         }).join('');
+        
+        // 2. Formatar o total
+        const totalDurationFormatted = formatMillisecondsToHoursMinutes(totalDowntimeMillis);
+
+        // 3. Gerar o footer da tabela
+        const tableFooter = `
+            <tfoot>
+                <tr>
+                    <td colspan="7" style="text-align: right; font-weight: 700; font-size: 1.1rem; color: var(--text-primary);">Total de Horas de Inatividade:</td>
+                    <td><strong style="font-size: 1.1rem; color: var(--accent-danger);">${totalDurationFormatted}</strong></td>
+                </tr>
+            </tfoot>
+        `;
+
 
         return `
             <div class="report-table-container">
@@ -363,26 +402,18 @@ export class RelatoriosView {
                         <tbody>
                             ${rows}
                         </tbody>
+                        ${tableFooter}
                     </table>
                 </div>
             </div>
         `;
     }
-
-    getFilterValues() {
-        return {
-            equipamento: document.getElementById('filter-equipamento')?.value,
-            frente: document.getElementById('filter-frente')?.value,
-            proprietario: document.getElementById('filter-proprietario')?.value,
-            dataInicio: document.getElementById('filter-data-inicio')?.value,
-            dataFim: document.getElementById('filter-data-fim')?.value
-        };
-    }
     
+    // ... (restante da classe RelatoriosView)
+
     async renderReports() {
         showLoading(); 
         const container = document.getElementById('report-content-container');
-        // NOVO HTML PARA GRÁFICOS
         container.innerHTML = `
             <div class="charts-grid">
                 <div class="chart-container">
