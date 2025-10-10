@@ -1,4 +1,5 @@
 // js/api.js
+
 import { supabase } from './supabase.js';
 
 async function setRelatedTerceiros(itemId, terceiroIds, joinTableName, idColumnName) {
@@ -129,7 +130,7 @@ export async function assignCaminhaoToFrente(caminhaoId, frenteId, statusInicial
 }
 
 
-export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = null) {
+export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = null, motivoParada = null, timestamp) {
     const { data: caminhaoAtual, error: fetchError } = await supabase
         .from('caminhoes')
         .select('status')
@@ -138,7 +139,9 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
 
     if (fetchError) throw fetchError;
     const statusAnterior = caminhaoAtual.status;
-    const timestamp = new Date().toISOString();
+    
+    // CORREÇÃO: Verifica se o timestamp é nulo/indefinido e usa a hora atual se for o caso.
+    const logTimestamp = timestamp || new Date().toISOString(); 
 
     const { error: historyError } = await supabase
         .from('caminhao_historico')
@@ -146,19 +149,19 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
             caminhao_id: caminhaoId,
             status_anterior: statusAnterior,
             status_novo: novoStatus,
-            timestamp_mudanca: timestamp
+            timestamp_mudanca: logTimestamp, // USANDO O TIMESTAMP CORRIGIDO
+            motivo_parada: motivoParada
         });
     
     if (historyError) throw historyError;
 
-    // --- Lógica de Desassociação Automática (NOVO/CORRIGIDO) ---
+    // --- Lógica de Desassociação Automática ---
     let frenteParaAtualizar = frenteId;
 
-    // Se o novo status é 'disponivel' (fim de ciclo) ou 'quebrado', desassocia da frente.
-    if (novoStatus === 'disponivel' || novoStatus === 'quebrado') {
+    // Se o novo status é 'disponivel' (fim de ciclo), 'quebrado' ou 'parado', desassocia da frente.
+    if (novoStatus === 'disponivel' || novoStatus === 'quebrado' || novoStatus === 'parado') {
         frenteParaAtualizar = null; 
     }
-    // O valor de frenteParaAtualizar será o frenteId original apenas se o status for de ciclo (ex: patio_vazio, carregando)
     // ------------------------------------------
 
     const { data, error } = await supabase
