@@ -2,8 +2,10 @@
 
 import { supabase } from './supabase.js';
 
-// --- NOVO: Variável local para simular a sessão do usuário (substitui Supabase Auth Session) ---
-let localUserSession = null;
+// --- CHAVE DE STORAGE ---
+const USER_SESSION_KEY = 'appUserSession';
+// Variável local para simular a sessão do usuário (Agora cacheia o localStorage)
+let localUserSession = JSON.parse(localStorage.getItem(USER_SESSION_KEY)) || null;
 
 async function setRelatedTerceiros(itemId, terceiroIds, joinTableName, idColumnName) {
     const { error: deleteError } = await supabase.from(joinTableName).delete().eq(idColumnName, itemId);
@@ -69,7 +71,7 @@ export async function fetchMetadata() {
     }
 }
 
-// --- NOVA FUNÇÃO INTERNA: Busca Logs Históricos com Filtro de Tempo ---
+// --- NOVA FUNÇÃO INTERNA: Busca Logs Históricos com Filtro de Tempo (90 dias) ---
 async function fetchHistoricalTable(tableName, select, dateLimitISO) {
     // Busca logs mais recentes que a data limite
     const { data, error } = await supabase
@@ -83,8 +85,7 @@ async function fetchHistoricalTable(tableName, select, dateLimitISO) {
 // -------------------------------------------------------------------
 
 /**
- * CORRIGIDO: Função para buscar todos os dados, incluindo histórico, usada por Relatórios e Vistas detalhadas.
- * MELHORIA: Adiciona limite de 90 dias para histórico para mitigar grandes volumes de dados.
+ * CORRIGIDO: Função para buscar todos os dados, incluindo histórico (90 dias), usada por Relatórios e Vistas detalhadas.
  */
 export async function fetchAllData(daysBack = 90) {
     try {
@@ -122,11 +123,12 @@ export async function fetchTable(tableName, select = '*') {
     return data;
 }
 
-// --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (NOVAS FUNÇÕES CORRIGIDAS) ---
+
+// --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (CORRIGIDO COM LOCALSTORAGE) ---
 
 /**
  * Realiza o login do usuário contra a tabela app_users (CHECK INSEGURO).
- * Corrigido para não usar supabase.auth.signInWithPassword.
+ * Corrigido para persistir a sessão no localStorage.
  * @param {string} username - O nome de usuário.
  * @param {string} password - A senha.
  */
@@ -134,42 +136,51 @@ export async function loginAppUser(username, password) {
     // 1. Consulta a tabela diretamente
     const { data, error } = await supabase
         .from('app_users')
-        .select('*')
+        .select('id, username_app, nome_completo, tipo_usuario') 
         .eq('username_app', username)
         .eq('senha_app', password) // CHECK INSEGURO: Verificação em texto simples
         .single();
 
     if (error && error.code === 'PGRST116') {
-        // PGRST116 significa "linha não encontrada" - ou seja, credenciais inválidas.
         throw new Error('Credenciais de login inválidas.'); 
     }
     if (error) {
-        // Lançar outros erros do banco
         throw error;
     }
 
-    // 2. Simula a sessão localmente
-    localUserSession = {
+    // 2. Cria o objeto de sessão
+    const sessionData = {
         id: data.id,
         username: data.username_app,
-        role: data.tipo_usuario
+        role: data.tipo_usuario,
+        fullName: data.nome_completo // Adiciona o nome completo para exibição
     };
+
+    // 3. Simula a sessão localmente e persiste no localStorage
+    localUserSession = sessionData;
+    localStorage.setItem(USER_SESSION_KEY, JSON.stringify(sessionData));
     
     return data;
 }
 
 /**
- * Faz o logout do usuário, limpando a sessão local.
+ * Faz o logout do usuário, limpando a sessão local e o localStorage.
  */
 export async function logoutAppUser() {
     localUserSession = null;
+    localStorage.removeItem(USER_SESSION_KEY);
     return { error: null };
 }
 
 /**
- * Busca a sessão do usuário logado (simula supabase.auth.getSession()).
+ * Busca a sessão do usuário logado (agora verifica o localStorage).
  */
 export async function getLocalSession() {
+    // Retorna o valor já carregado ou atualiza a partir do storage
+    if (!localUserSession) {
+        const storedSession = localStorage.getItem(USER_SESSION_KEY);
+        localUserSession = storedSession ? JSON.parse(storedSession) : null;
+    }
     return localUserSession;
 }
 
@@ -307,7 +318,7 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
     // --- Lógica de Desassociação Automática ---
     let frenteParaAtualizar = frenteId;
 
-    // Se o novo status é 'disponivel' (fim de ciclo), 'quebrado' ou 'parado', desassocia da frente.
+    // Se o novo status é 'disponivel' (fim de ciclo), 'quebrado' ou 'parado), desassocia da frente.
     if (novoStatus === 'disponivel' || novoStatus === 'quebrado' || novoStatus === 'parado') {
         frenteParaAtualizar = null; 
     }
