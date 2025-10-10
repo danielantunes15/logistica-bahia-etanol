@@ -6,14 +6,14 @@ import { hashPassword, comparePassword } from './auth_utils.js';
 
 // --- CONSTANTES DE SEGURANÇA ---
 const USER_SESSION_KEY = 'appUserSession';
-const SESSION_TIMEOUT = 24 * 60 * 60 * 1000; // 24 horas
+// MANTIDO: Validade da sessão estendida para 30 dias
+const SESSION_TIMEOUT = 30 * 24 * 60 * 60 * 1000; // 30 dias (em milissegundos)
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutos
 
 // Cache de tentativas de login
 const loginAttempts = new Map();
 
-// --- CHAVE DE STORAGE ---
 // Variável local para simular a sessão do usuário (Agora cacheia o localStorage)
 let localUserSession = JSON.parse(localStorage.getItem(USER_SESSION_KEY)) || null;
 

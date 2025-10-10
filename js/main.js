@@ -13,7 +13,8 @@ class App {
         this.userRole = null;
         this.sessionTimer = null;
         this.inactivityTimer = null;
-        this.INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos de inatividade
+        // MANTIDO: O timeout é irrelevante, mas o AppManager exige a propriedade.
+        this.INACTIVITY_TIMEOUT = 10 * 60 * 60 * 1000; // 10 horas de inatividade
         this.init();
     }
 
@@ -61,7 +62,7 @@ class App {
         // 2. Carrega a sidebar com o nome do usuário para exibição
         await loadSidebar(this.userRole, session.fullName); 
         
-        // 3. Inicia o monitoramento de sessão e inatividade
+        // 3. Inicia o monitoramento de sessão (REMOVIDO TIMER, MANTIDO APENAS A ESTRUTURA)
         this.setupSessionManagement();
         
         // 4. Verifica se é primeiro login para forçar troca de senha
@@ -83,27 +84,25 @@ class App {
     
     // --- GERENCIAMENTO DE SESSÃO E INATIVIDADE ---
     
+    // MUDANÇA PRINCIPAL: Desativa todos os timers automáticos.
     setupSessionManagement() {
-        // Monitora inatividade
-        this.resetInactivityTimer();
+        // MUDANÇA: Timer de Inatividade e listeners de mouse/teclado desativados.
         
-        // Eventos que resetam o timer de inatividade
-        const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-        events.forEach(event => {
-            document.addEventListener(event, this.resetInactivityTimer.bind(this), true);
-        });
+        // MUDANÇA: A verificação periódica de sessão (que causava o logout) foi removida.
+        // O logout só ocorrerá se o usuário limpar o localStorage ou clicar em 'Sair'.
         
-        // Verifica sessão a cada minuto
-        this.sessionTimer = setInterval(() => this.checkSession(), 60000);
+        console.log('Monitoramento de Inatividade Desativado para Modo TV.');
     }
     
     resetInactivityTimer() {
+        // Função mantida, mas não é chamada por eventos do usuário no setupSessionManagement
         if (this.inactivityTimer) {
             clearTimeout(this.inactivityTimer);
         }
         
         this.inactivityTimer = setTimeout(() => {
-            this.handleInactivity();
+            // Se o AppManager for mantido aberto por mais de 10h, este código será executado uma vez.
+            this.handleInactivity(); 
         }, this.INACTIVITY_TIMEOUT);
     }
     
@@ -112,11 +111,13 @@ class App {
         if (session) {
             await forceLogout();
             this.handleLogout();
-            showToast('Sessão expirada por inatividade. Faça login novamente.', 'warning');
+            showToast('Sessão expirada por inatividade prolongada. Faça login novamente.', 'warning');
         }
     }
     
     async checkSession() {
+        // MUDANÇA: A função de verificação periódica de sessão foi removida
+        // do setInterval em setupSessionManagement, portando este método não é mais usado para logout automático.
         const session = await getLocalSession();
         if (!session) {
             this.handleLogout();
