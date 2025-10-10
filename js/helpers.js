@@ -78,14 +78,9 @@ export function formatCurrency(value) {
     }).format(value);
 }
 
-// --- NOVO: Função para calcular e formatar o tempo de inatividade ---
-export function calculateDowntimeDuration(startTime, endTime) {
-    const start = new Date(startTime).getTime();
-    // Se endTime for nulo, usa o tempo atual (ainda parado)
-    const end = endTime ? new Date(endTime).getTime() : new Date().getTime();
-    const diffMillis = end - start;
-
-    if (diffMillis < 0) return 'Tempo Inválido';
+// --- MODIFICADO: Função para formatar milissegundos em H/M (Adicionado tratamento para NaN) ---
+export function formatMillisecondsToHoursMinutes(diffMillis) {
+    if (diffMillis < 0 || isNaN(diffMillis)) return 'Tempo Inválido'; // CORREÇÃO AQUI
 
     const diffHours = Math.floor(diffMillis / (1000 * 60 * 60));
     const diffMinutes = Math.floor((diffMillis % (1000 * 60 * 60)) / (1000 * 60));
@@ -95,6 +90,18 @@ export function calculateDowntimeDuration(startTime, endTime) {
     } else {
         return `${diffMinutes}m`;
     }
+}
+// -------------------------------------------------------------------
+
+// --- MODIFICADO: Função para calcular e formatar o tempo de inatividade ---
+export function calculateDowntimeDuration(startTime, endTime) {
+    const start = new Date(startTime).getTime();
+    // Se endTime for nulo, usa o tempo atual (ainda parado)
+    const end = endTime ? new Date(endTime).getTime() : new Date().getTime();
+    const diffMillis = end - start;
+
+    // Reutiliza a nova função de formatação
+    return formatMillisecondsToHoursMinutes(diffMillis);
 }
 // -------------------------------------------------------------------
 
