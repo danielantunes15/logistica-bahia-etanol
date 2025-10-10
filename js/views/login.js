@@ -96,12 +96,13 @@ export class LoginView {
             
             if (userData.isFirstLogin) {
                 showToast('Login realizado! Como é seu primeiro acesso, você deve alterar sua senha.', 'warning');
-                // Redireciona para troca de senha obrigatória
-                window.dispatchEvent(new CustomEvent('showChangePassword'));
             } else {
                 showToast(`Bem-vindo, ${userData.fullName}!`, 'success');
-                this.appManager.initializeAfterLogin();
             }
+            
+            // CORREÇÃO: Chama o initializeAfterLogin em todos os casos de sucesso.
+            // O AppManager em js/main.js lida com a lógica de showFirstLoginChangePasswordModal.
+            this.appManager.initializeAfterLogin(); 
             
         } catch (error) {
             console.error('Erro no login:', error);
