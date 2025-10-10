@@ -1,10 +1,11 @@
 // js/views/relatorios.js
 
 import { fetchAllData } from '../api.js';
-// NOVO: Importa groupDowntimeSessions
-import { showToast, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes, groupDowntimeSessions } from '../helpers.js';
+// NOVO: Importa groupDowntimeSessions e calculateCycleDuration
+import { showToast, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes, groupDowntimeSessions, calculateCycleDuration } from '../helpers.js';
 import { dataCache } from '../dataCache.js';
-import { CAMINHAO_STATUS_LABELS, EQUIPAMENTO_STATUS_LABELS } from '../constants.js';
+// NOVO: Importa CAMINHAO_STATUS_CYCLE
+import { CAMINHAO_STATUS_LABELS, EQUIPAMENTO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE } from '../constants.js';
 
 // Variáveis globais para as bibliotecas de exportação
 let html2canvas;
@@ -21,9 +22,13 @@ export class RelatoriosView {
         this.currentReport = 'charts'; 
         this.caminhaoStatusLabels = CAMINHAO_STATUS_LABELS; 
         this.equipamentoStatusLabels = EQUIPAMENTO_STATUS_LABELS; 
+        // NOVO: Adiciona a constante de ciclo
+        this.cycleStatus = CAMINHAO_STATUS_CYCLE;
     }
 
     async show() {
+        // Pré-carregar libs de PDF para melhorar UX (Início)
+        this.loadPdfLibs(); 
         await this.loadHTML();
         await this.loadInitialData();
         await this.showReport('charts'); 
@@ -35,6 +40,27 @@ export class RelatoriosView {
         if (this.downtimeHoursChart) this.downtimeHoursChart.destroy();
         if (this.utilizationChart) this.utilizationChart.destroy();
     }
+    
+    // NOVO: Função para pré-carregar libs de PDF
+    async loadPdfLibs() {
+        if (!html2canvas) {
+            await new Promise(resolve => {
+                const script = document.createElement('script');
+                script.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
+                script.onload = () => { html2canvas = window.html2canvas; resolve(); };
+                document.head.appendChild(script);
+            });
+        }
+        if (!jspdf) {
+            await new Promise(resolve => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                script.onload = () => { jspdf = window.jspdf; resolve(); };
+                document.head.appendChild(script);
+            });
+        }
+    }
+
 
     async loadHTML() {
         const container = document.getElementById('views-container');
@@ -69,6 +95,12 @@ export class RelatoriosView {
                         <select id="filter-proprietario" class="form-select">
                             <option value="">Proprietário (Todos)</option>
                         </select>
+                        <select id="filter-downtime-status" class="form-select" style="min-width: 150px; display: none;">
+                            <option value="">Status Parada (Todos)</option>
+                            <option value="parado">Parado (Obs.)</option>
+                            <option value="quebrado">Quebrado</option>
+                        </select>
+
                         <button class="btn-primary" id="apply-report-filters" style="margin-left: 20px;">
                             <i class="ph-fill ph-funnel"></i>
                             Filtrar
@@ -97,7 +129,9 @@ export class RelatoriosView {
         const buttons = [
             { name: 'Gráficos de Utilização', id: 'charts' },
             { name: 'Relatório de Paradas (Caminhões)', id: 'downtime-caminhao' },
-            { name: 'Relatório de Paradas (Equipamentos)', id: 'downtime-equipamento' }
+            { name: 'Relatório de Paradas (Equipamentos)', id: 'downtime-equipamento' },
+            // NOVO: Botão para Tempo de Ciclo
+            { name: 'Tempo Médio de Ciclo (Caminhões)', id: 'time-cycle' }
         ];
         
         return `
@@ -166,8 +200,15 @@ export class RelatoriosView {
         });
         
         const filters = document.getElementById('filter-resource-group');
+        const downtimeStatusFilter = document.getElementById('filter-downtime-status');
+        
         if (filters) {
             filters.style.display = 'flex';
+        }
+        
+        // NOVO: Mostrar/Esconder o filtro de status de inatividade
+        if (downtimeStatusFilter) {
+            downtimeStatusFilter.style.display = reportName.startsWith('downtime') ? 'flex' : 'none';
         }
 
         switch (reportName) {
@@ -180,12 +221,17 @@ export class RelatoriosView {
             case 'downtime-equipamento':
                 await this.renderDowntimeEquipamentoTable();
                 break;
+            // NOVO: Case para Tempo de Ciclo
+            case 'time-cycle':
+                await this.renderTimeCycleReport();
+                break;
             default:
                 document.getElementById('report-content-container').innerHTML = `<div class="empty-state">Selecione um relatório.</div>`;
         }
     }
     
-    async renderDowntimeCaminhaoTable() {
+    // NOVO: Renderiza Relatório de Tempo de Ciclo
+    async renderTimeCycleReport() {
         showLoading();
         const container = document.getElementById('report-content-container');
         
@@ -193,13 +239,49 @@ export class RelatoriosView {
             const filters = this.getFilterValues();
             const caminhãoMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
             
+            // 1. Filtra o histórico apenas por tempo e recursos
             const filteredHistory = this.filterHistory(
                 this.data.caminhao_historico, caminhãoMap, filters.dataInicio, filters.dataFim, 
                 filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             
-            // NOVO: Usa o helper groupDowntimeSessions
-            const sessions = groupDowntimeSessions(filteredHistory, 'caminhao_id', ['parado', 'quebrado']);
+            // 2. Calcula todas as sessões de ciclo
+            const cycles = calculateCycleDuration(filteredHistory, this.cycleStatus);
+            
+            // 3. Calcula as médias e formata os dados
+            const cycleAverages = this.calculateCycleAverages(cycles);
+
+            let tableHTML = this.generateCycleTableHTML(
+                cycles, 
+                cycleAverages,
+                'Relatório Detalhado de Tempo de Ciclo (Caminhões)'
+            );
+            
+            container.innerHTML = tableHTML;
+        } catch (error) {
+            container.innerHTML = `<div class="empty-state">Erro ao gerar relatório de tempo de ciclo: ${error.message}</div>`;
+        } finally {
+            hideLoading();
+        }
+    }
+
+    async renderDowntimeCaminhaoTable() {
+        showLoading();
+        const container = document.getElementById('report-content-container');
+        
+        try {
+            const filters = this.getFilterValues();
+            // NOVO: Define os status de inatividade a serem filtrados
+            const downtimeStatusFilter = filters.downtimeStatus ? [filters.downtimeStatus] : ['parado', 'quebrado'];
+            const caminhãoMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
+            
+            const filteredHistory = this.filterHistory(
+                this.data.caminhao_historico, caminhãoMap, filters.dataInicio, filters.dataFim, 
+                filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
+            );
+            
+            // NOVO: Usa o filtro de status na função de agrupamento
+            const sessions = groupDowntimeSessions(filteredHistory, 'caminhao_id', downtimeStatusFilter);
             
             // Adiciona informações de recurso e frente (que não estão no log do caminhão)
             sessions.forEach(session => {
@@ -231,6 +313,8 @@ export class RelatoriosView {
         
         try {
             const filters = this.getFilterValues();
+            // NOVO: Define os status de inatividade a serem filtrados
+            const downtimeStatusFilter = filters.downtimeStatus ? [filters.downtimeStatus] : ['parado', 'quebrado'];
             const equipamentoMap = new Map((this.data.equipamentos || []).map(e => [e.id, e]));
             
             const filteredHistory = this.filterHistory(
@@ -238,8 +322,8 @@ export class RelatoriosView {
                 filters.equipamento, filters.frente, filters.proprietario, 'equipamento_id'
             );
             
-            // NOVO: Usa o helper groupDowntimeSessions (o helper já puxa frente/código se existir no log de equipamento)
-            const sessions = groupDowntimeSessions(filteredHistory, 'equipamento_id', ['parado', 'quebrado']);
+            // NOVO: Usa o filtro de status na função de agrupamento
+            const sessions = groupDowntimeSessions(filteredHistory, 'equipamento_id', downtimeStatusFilter);
             
             let tableHTML = this.generateDowntimeTableHTML(
                 sessions, 
@@ -256,18 +340,102 @@ export class RelatoriosView {
         }
     }
     
-    // Método para obter valores dos filtros (CORREÇÃO AQUI)
+    // Método para obter valores dos filtros (ADICIONA downtimeStatus)
     getFilterValues() {
         return {
             equipamento: document.getElementById('filter-equipamento')?.value,
             frente: document.getElementById('filter-frente')?.value,
             proprietario: document.getElementById('filter-proprietario')?.value,
             dataInicio: document.getElementById('filter-data-inicio')?.value,
-            dataFim: document.getElementById('filter-data-fim')?.value
+            dataFim: document.getElementById('filter-data-fim')?.value,
+            // NOVO: Filtro de status de inatividade
+            downtimeStatus: document.getElementById('filter-downtime-status')?.value
         };
     }
     // FIM DA CORREÇÃO
 
+    // NOVO: Gerador de HTML de Tabela de Ciclo
+    generateCycleTableHTML(cycles, averages, title) {
+        if (cycles.length === 0) {
+            return `<div class="empty-state" style="padding: 50px;">
+                        <i class="ph-fill ph-warning" style="font-size: 3rem;"></i>
+                        <p>Nenhum ciclo de caminhão encontrado para os filtros e recursos selecionados.</p>
+                    </div>`;
+        }
+
+        const rows = cycles.map(session => {
+            const durationFormatted = formatMillisecondsToHoursMinutes(session.duration);
+            const frente = this.data.frentes_servico.find(f => f.id === session.frente_id);
+            const frenteNome = frente?.nome || 'N/A';
+            const isComplete = session.is_complete;
+
+            return `
+                <tr>
+                    <td><strong>${session.start_cod}</strong></td>
+                    <td>${frenteNome}</td>
+                    <td>${formatDateTime(session.start_time)}</td>
+                    <td>${isComplete ? formatDateTime(session.end_time) : '<span style="color: var(--accent-danger);">Em Andamento</span>'}</td>
+                    <td><strong style="color: ${isComplete ? 'var(--accent-primary)' : 'var(--accent-danger)'};">${durationFormatted}</strong></td>
+                    <td>${isComplete ? 'Completo' : session.status_final}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        // Tabela de Médias
+        const averageRows = Object.entries(averages).map(([frenteNome, data]) => {
+            const avgFormatted = formatMillisecondsToHoursMinutes(data.averageDuration);
+            return `
+                <tr>
+                    <td><strong>${frenteNome}</strong></td>
+                    <td>${data.count}</td>
+                    <td><strong style="font-size: 1.0rem; color: var(--accent-primary);">${avgFormatted}</strong></td>
+                </tr>
+            `;
+        }).join('');
+
+
+        return `
+            <div class="report-table-container">
+                <h3 style="padding: 0 24px; margin-bottom: 16px;">${title} (${cycles.length} Registros)</h3>
+                
+                <div style="padding: 0 24px 24px; overflow-x: auto;">
+                    <h4 style="margin-bottom: 10px; font-size: 1.1rem; color: var(--text-primary);">Médias por Frente de Serviço (Apenas Ciclos Completos)</h4>
+                    <table class="data-table-modern" style="width: 500px;">
+                        <thead>
+                            <tr>
+                                <th>Frente de Serviço</th>
+                                <th>Qtd. Ciclos Completos</th>
+                                <th>Tempo Médio de Ciclo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${averageRows.length > 0 ? averageRows : '<tr><td colspan="3">Nenhuma média calculada.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 style="padding: 0 24px; margin-bottom: 16px;">Detalhe dos Ciclos</h3>
+                <div style="padding: 0 24px; overflow-x: auto;">
+                    <table class="data-table-modern">
+                        <thead>
+                            <tr>
+                                <th>Cód. Caminhão</th>
+                                <th>Frente de Origem</th>
+                                <th>Início do Ciclo (Saída)</th>
+                                <th>Fim do Ciclo (Disponível)</th>
+                                <th>Duração</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    
     // NOVO: Gerador de HTML de Tabela de Parada
     generateDowntimeTableHTML(sessions, title, resourceLabel, statusLabels) {
         if (sessions.length === 0) {
@@ -361,7 +529,33 @@ export class RelatoriosView {
         `;
     }
     
-    // ... (restante da classe RelatoriosView)
+    // NOVO: Calcula médias do tempo de ciclo
+    calculateCycleAverages(cycles) {
+        const averages = {};
+        const frentesMap = new Map(this.data.frentes_servico.map(f => [f.id, f.nome]));
+
+        cycles.filter(c => c.is_complete).forEach(cycle => {
+            const frenteNome = frentesMap.get(cycle.frente_id) || 'Frente Desconhecida';
+            
+            if (!averages[frenteNome]) {
+                averages[frenteNome] = { totalDuration: 0, count: 0 };
+            }
+            
+            averages[frenteNome].totalDuration += cycle.duration;
+            averages[frenteNome].count++;
+        });
+
+        const finalAverages = {};
+        for (const frenteNome in averages) {
+            const { totalDuration, count } = averages[frenteNome];
+            finalAverages[frenteNome] = {
+                count: count,
+                averageDuration: count > 0 ? totalDuration / count : 0
+            };
+        }
+        
+        return finalAverages;
+    }
 
     async renderReports() {
         showLoading(); 
@@ -927,27 +1121,7 @@ export class RelatoriosView {
         
         if (!html2canvas || !jspdf) {
             showToast('Carregando bibliotecas de exportação...', 'info');
-            try {
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
-                    script.onload = () => { html2canvas = window.html2canvas; resolve(); };
-                    script.onerror = reject;
-                    document.head.appendChild(script);
-                });
-                
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-                    script.onload = () => { jspdf = window.jspdf; resolve(); };
-                    script.onerror = reject;
-                    document.head.appendChild(script);
-                });
-
-            } catch (error) {
-                 showToast('Erro ao carregar bibliotecas de exportação.', 'error');
-                 return;
-            }
+            await this.loadPdfLibs(); // Garante o carregamento das libs
         }
         
         showLoading();
@@ -969,37 +1143,74 @@ export class RelatoriosView {
             doc.text(`Filtros: Equipamento=${this.exportData.filterContext.equipamento} | Frente=${this.exportData.filterContext.frente} | Proprietário=${this.exportData.filterContext.proprietario}`, margin, y);
             y += 10;
             
-            const chartContainers = this.container.querySelectorAll('.chart-container');
+            const contentContainer = document.getElementById('report-content-container');
             
-            for (const container of chartContainers) {
-                const canvas = container.querySelector('canvas');
-                if (!canvas) continue;
-
-                const chartTitle = container.querySelector('h3')?.textContent || 'Gráfico';
-                
-                const canvasImage = await html2canvas(canvas, {
-                    scale: 2,
-                    useCORS: true,
-                    backgroundColor: '#1A202C' 
-                });
-                
-                const imgData = canvasImage.toDataURL('image/png');
-                const imgWidth = 180; 
-                const imgHeight = canvasImage.height * imgWidth / canvasImage.width / canvasImage.scale;
-                
-                if (y + imgHeight + 10 > doc.internal.pageSize.height) {
-                    doc.addPage();
-                    y = margin;
-                }
-                
-                doc.setFontSize(14);
-                doc.setTextColor(247, 250, 252); 
-                doc.text(chartTitle, margin, y);
-                y += 5;
-
-                doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
-                y += imgHeight + 10;
-            }
+            // 1. Exportar Gráficos (se for a view ativa)
+            if (this.currentReport === 'charts') {
+                 const chartContainers = contentContainer.querySelectorAll('.chart-container');
+            
+                 for (const container of chartContainers) {
+                     const canvas = container.querySelector('canvas');
+                     if (!canvas) continue;
+                     
+                     const chartTitle = container.querySelector('h3')?.textContent || 'Gráfico';
+                     
+                     const canvasImage = await html2canvas(canvas, {
+                         scale: 2,
+                         useCORS: true,
+                         backgroundColor: '#1A202C' 
+                     });
+                     
+                     const imgData = canvasImage.toDataURL('image/png');
+                     const imgWidth = 180; 
+                     const imgHeight = canvasImage.height * imgWidth / canvasImage.width / canvasImage.scale;
+                     
+                     if (y + imgHeight + 10 > doc.internal.pageSize.height) {
+                         doc.addPage();
+                         y = margin;
+                     }
+                     
+                     doc.setFontSize(14);
+                     doc.setTextColor(247, 250, 252); 
+                     doc.text(chartTitle, margin, y);
+                     y += 5;
+                     
+                     doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+                     y += imgHeight + 10;
+                 }
+             } else {
+                 // 2. Exportar Tabela (se for a view ativa)
+                 const tableContainer = contentContainer.querySelector('.report-table-container');
+                 if (tableContainer) {
+                     const tableTitle = tableContainer.querySelector('h3')?.textContent || 'Tabela de Relatório';
+                     
+                     // Converte o container da tabela em imagem para o PDF
+                     const tableImage = await html2canvas(tableContainer, {
+                         scale: 2,
+                         useCORS: true,
+                         backgroundColor: '#1A202C' 
+                     });
+                     
+                     const imgData = tableImage.toDataURL('image/png');
+                     const imgWidth = 180; 
+                     const imgHeight = tableImage.height * imgWidth / tableImage.width / tableImage.scale;
+                     
+                     if (y + imgHeight + 10 > doc.internal.pageSize.height) {
+                         doc.addPage();
+                         y = margin;
+                     }
+                     
+                     doc.setFontSize(14);
+                     doc.setTextColor(247, 250, 252); 
+                     doc.text(tableTitle, margin, y);
+                     y += 5;
+                     
+                     doc.addImage(imgData, 'PNG', margin, y, imgWidth, imgHeight);
+                     y += imgHeight + 10;
+                 } else {
+                      throw new Error('Nenhum gráfico ou tabela encontrado para exportar.');
+                 }
+             }
             
             doc.save(`Relatorio_Logistica_BEL_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
             showToast('Relatório exportado para PDF com sucesso!', 'success');
@@ -1060,6 +1271,41 @@ export class RelatoriosView {
                 const downtime = aggregatedData.downtimeData[index];
                 csvContent += `${type};${work.toFixed(2).replace('.', ',')};${downtime.toFixed(2).replace('.', ',')}\r\n`;
             });
+            
+            // NOVO: Adicionar Relatório de Ciclo ao Export Excel
+            if (this.currentReport === 'time-cycle') {
+                 const filters = this.getFilterValues();
+                 const caminhãoMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
+                 const filteredHistory = this.filterHistory(
+                     this.data.caminhao_historico, caminhãoMap, filters.dataInicio, filters.dataFim, 
+                     filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
+                 );
+                 const cycles = calculateCycleDuration(filteredHistory, this.cycleStatus);
+                 const cycleAverages = this.calculateCycleAverages(cycles);
+
+                 csvContent += `\r\n--- Tabela 3: Tempo Médio de Ciclo (Ciclos Completos) ---\r\n`;
+                 let header3 = "Frente de Serviço;Qtd. Ciclos;Tempo Medio (HH:MM)\r\n";
+                 csvContent += header3;
+                 
+                 Object.entries(cycleAverages).forEach(([frenteNome, data]) => {
+                     const avgFormatted = formatMillisecondsToHoursMinutes(data.averageDuration);
+                     csvContent += `${frenteNome};${data.count};${avgFormatted}\r\n`;
+                 });
+                 
+                 csvContent += `\r\n--- Tabela 4: Detalhe dos Ciclos ---\r\n`;
+                 let header4 = "Caminhao;Frente;Inicio Ciclo;Fim Ciclo;Duracao (HH:MM);Status\r\n";
+                 csvContent += header4;
+
+                 cycles.forEach(session => {
+                     const durationFormatted = formatMillisecondsToHoursMinutes(session.duration);
+                     const frente = this.data.frentes_servico.find(f => f.id === session.frente_id);
+                     const frenteNome = frente?.nome || 'N/A';
+                     const endTime = session.end_time ? formatDateTime(session.end_time) : 'EM ANDAMENTO';
+                     const status = session.is_complete ? 'Completo' : session.status_final;
+
+                     csvContent += `${session.start_cod};${frenteNome};${formatDateTime(session.start_time)};${endTime};${durationFormatted};${status}\r\n`;
+                 });
+            }
 
 
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
