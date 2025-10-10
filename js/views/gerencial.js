@@ -1,5 +1,5 @@
 // js/views/gerencial.js
-import { registerAppUser, fetchAppLogs, fetchAppUsers } from '../api.js';
+import { registerAppUser, fetchAppLogs, fetchAppUsers, deleteAppUser } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
 
@@ -69,12 +69,15 @@ export class GerencialView {
                  this.loadLogData(true);
              }
              
-             // NOVO: Listener para deletar usuário (Apenas implementado no frontend)
+             // NOVO: Listener para deletar usuário
              const btnDelete = e.target.closest('.delete-user-btn');
              if (btnDelete) {
-                 // A exclusão real deve ser feita pelo Admin do Supabase (por segurança),
-                 // mas podemos simular a chamada ou dar a instrução.
-                 showToast('Para excluir, utilize o painel do Supabase Auth. Esta ação é restrita.', 'info');
+                 // Usa o ID primário da tabela app_users (que é 'id' neste fluxo)
+                 const userId = btnDelete.dataset.userId; 
+                 // Tenta encontrar o nome completo na linha da tabela
+                 const userNameElement = btnDelete.closest('tr').querySelector('td:nth-child(1)');
+                 const userName = userNameElement ? userNameElement.textContent.trim() : 'Usuário Desconhecido';
+                 this.showDeleteUserModal(userId, userName); // Chama o modal de confirmação
              }
         });
     }
@@ -117,7 +120,7 @@ export class GerencialView {
                 <td>${user.username_app}</td>
                 <td><span class="caminhao-status-badge status-${user.tipo_usuario === 'admin' ? 'ativo' : 'disponivel'}">${user.tipo_usuario.charAt(0).toUpperCase() + user.tipo_usuario.slice(1)}</span></td>
                 <td>
-                    <button class="action-btn delete-btn-modern delete-user-btn" data-user-id="${user.user_id}">
+                    <button class="action-btn delete-btn-modern delete-user-btn" data-user-id="${user.id}">
                         <i class="ph-fill ph-trash"></i>
                     </button>
                 </td>
@@ -148,7 +151,7 @@ export class GerencialView {
                 <div class="table-wrapper">
                     ${usersTableHTML}
                 </div>
-                <p style="margin-top: 15px; font-size: 0.9rem; color: var(--text-secondary);">Atenção: A exclusão de usuários deve ser feita diretamente no painel do Supabase Auth para garantir a remoção total.</p>
+                <p style="margin-top: 15px; font-size: 0.9rem; color: var(--accent-danger);">AVISO DE SEGURANÇA: Esta alternativa não usa hashing de senha. A exclusão é imediata.</p>
             </div>
         `;
     }
@@ -194,7 +197,6 @@ export class GerencialView {
         
         showLoading();
         try {
-            // registerAppUser agora lida com a conversão interna para email
             await registerAppUser(username_app, password, nome_completo, tipo_usuario);
             showToast(`Usuário ${username_app} criado com sucesso!`, 'success');
             closeModal();
@@ -203,6 +205,44 @@ export class GerencialView {
         } catch (error) {
             handleOperation(error);
             showToast(`Erro ao registrar usuário: ${error.message}`, 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Modal de Confirmação de Exclusão
+    showDeleteUserModal(userId, userName) {
+        const modalContent = `
+            <p>Deseja realmente excluir o usuário <strong>${userName}</strong>?</p>
+            <p style="color: var(--accent-danger); font-size: 0.9rem;">
+                ATENÇÃO: A exclusão é irreversível e remove a conta de login e o perfil da tabela de usuários.
+            </p>
+            <div class="modal-actions">
+                <button id="cancel-delete-btn" class="btn-secondary">Cancelar</button>
+                <button id="confirm-delete-btn" class="btn-primary" style="background-color: var(--accent-danger);">Excluir Usuário</button>
+            </div>
+        `;
+        openModal('Confirmar Exclusão de Usuário', modalContent);
+
+        document.getElementById('confirm-delete-btn').onclick = () => this.handleRealDeleteUser(userId, userName);
+        document.getElementById('cancel-delete-btn').onclick = closeModal;
+    }
+
+    // Função para exclusão real (AGORA É UMA EXCLUSÃO ÚNICA)
+    async handleRealDeleteUser(userId, userName) {
+        closeModal();
+        showLoading();
+        try {
+            await deleteAppUser(userId);
+            
+            showToast(`Usuário ${userName} excluído com sucesso!`, 'success');
+            
+            await this.loadUserData(); // Recarrega a lista
+            this.renderUsersTab();
+
+        } catch (error) {
+            handleOperation(error);
+            showToast(`Erro ao excluir usuário: ${error.message}`, 'error');
         } finally {
             hideLoading();
         }

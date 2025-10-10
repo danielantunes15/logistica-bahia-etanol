@@ -4,16 +4,8 @@ import { supabase } from './supabase.js';
 
 // --- CHAVE DE STORAGE ---
 const USER_SESSION_KEY = 'appUserSession';
-
-// NOVO: DOMÍNIO INTERNO PARA SUPABASE AUTH
-const AUTH_DOMAIN = '@logistica.bel';
-
-// Função auxiliar para converter username para email
-const toEmail = (username) => {
-    // Garante que o usuário não tenha inserido o domínio por engano
-    const cleanUsername = username.split('@')[0];
-    return `${cleanUsername}${AUTH_DOMAIN}`;
-};
+// Variável local para simular a sessão do usuário (Agora cacheia o localStorage)
+let localUserSession = JSON.parse(localStorage.getItem(USER_SESSION_KEY)) || null;
 
 async function setRelatedTerceiros(itemId, terceiroIds, joinTableName, idColumnName) {
     const { error: deleteError } = await supabase.from(joinTableName).delete().eq(idColumnName, itemId);
@@ -58,7 +50,7 @@ export async function updateCaminhao(id, data) {
 }
 
 /**
- * NOVO: Função otimizada para buscar apenas metadados necessários para o Dashboard e Cadastros.
+ * Função otimizada para buscar apenas metadados necessários para o Dashboard e Cadastros.
  */
 export async function fetchMetadata() {
     try {
@@ -93,7 +85,7 @@ async function fetchHistoricalTable(tableName, select, dateLimitISO) {
 // -------------------------------------------------------------------
 
 /**
- * CORRIGIDO: Função para buscar todos os dados, incluindo histórico (90 dias), usada por Relatórios e Vistas detalhadas.
+ * Função para buscar todos os dados, incluindo histórico (90 dias), usada por Relatórios e Vistas detalhadas.
  */
 export async function fetchAllData(daysBack = 90) {
     try {
@@ -132,116 +124,71 @@ export async function fetchTable(tableName, select = '*') {
 }
 
 
-// --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS ---
+// --- AUTENTICAÇÃO E GERENCIAMENTO DE USUÁRIOS (REVERTIDO PARA LÓGICA DB) ---
 
 /**
- * Realiza o login do usuário usando Supabase Auth (username e password).
- * @param {string} username - O nome de usuário.
- * @param {string} password - A senha.
+ * Realiza o login do usuário contra a tabela app_users (CHECK INSEGURO).
  */
 export async function loginAppUser(username, password) {
-    const email = toEmail(username);
-
-    // 1. Tenta fazer login com Supabase Auth (seguro)
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: email,
-        password: password,
-    });
-
-    if (authError) {
-         // Retorna a mensagem de erro do Supabase
-         throw new Error('Credenciais de login inválidas.');
-    }
-
-    const user = authData.user;
-
-    // 2. Busca o perfil do usuário (metadata: nome, role, primeiro_login)
-    const { data: profile, error: profileError } = await supabase
+    // 1. Consulta a tabela, incluindo senha_app
+    const { data, error } = await supabase
         .from('app_users')
-        .select('nome_completo, tipo_usuario, primeiro_login, username_app')
-        .eq('user_id', user.id) // Filtra pelo ID do Auth
+        .select('id, username_app, nome_completo, tipo_usuario, senha_app, primeiro_login')
+        .eq('username_app', username)
+        .eq('senha_app', password) // CHECK INSEGURO: Verificação em texto simples
         .single();
-        
-    if (profileError && profileError.code === 'PGRST116') {
-         console.error('Perfil de usuário não encontrado:', profileError);
-         await supabase.auth.signOut();
-         throw new Error('Perfil de usuário não encontrado. Contate o administrador.');
-    }
 
-    // 3. Cria o objeto de sessão localmente (apenas para metadados)
+    if (error && error.code === 'PGRST116') {
+        throw new Error('Credenciais de login inválidas.'); 
+    }
+    if (error) {
+        throw error;
+    }
+    
+    // --- LÓGICA DE PRIMEIRO LOGIN ---
+    let isFirstLogin = false;
+    
+    // Simulação: A senha '1234' é a senha inicial/padrão.
+    if (data.senha_app === '1234' || data.primeiro_login === true) { 
+        isFirstLogin = true;
+    }
+    // ------------------------------------
+
+    // 2. Cria o objeto de sessão
     const sessionData = {
-        id: user.id, // O ID do auth.user
-        username: profile.username_app, // Usa o username limpo
-        role: profile.tipo_usuario,
-        fullName: profile.nome_completo,
-        isFirstLogin: profile.primeiro_login 
+        id: data.id, // O ID primário da tabela app_users
+        username: data.username_app,
+        role: data.tipo_usuario,
+        fullName: data.nome_completo,
+        isFirstLogin: isFirstLogin
     };
 
-    // 4. Persiste no localStorage (para a lógica do main.js)
+    // 3. Simula a sessão localmente e persiste no localStorage
+    localUserSession = sessionData;
     localStorage.setItem(USER_SESSION_KEY, JSON.stringify(sessionData));
     
-    return sessionData;
+    return data;
 }
 
 /**
- * Faz o logout do usuário usando Supabase Auth.
+ * Faz o logout do usuário, limpando a sessão local e o localStorage.
  */
 export async function logoutAppUser() {
-    // 1. Faz o logout no Supabase Auth
-    const { error: authError } = await supabase.auth.signOut();
-    
-    // 2. Limpa o localStorage local
+    localUserSession = null;
     localStorage.removeItem(USER_SESSION_KEY);
-    
-    if (authError) {
-         throw authError;
-    }
     return { error: null };
 }
 
 /**
- * Busca a sessão do usuário logado, usando o Supabase Auth.
+ * Busca a sessão do usuário logado (agora verifica o localStorage).
  */
 export async function getLocalSession() {
-    const { data: sessionData, error } = await supabase.auth.getSession();
-    
-    if (error || !sessionData.session) {
-         // Se não houver sessão Supabase, tenta o localStorage fallback
-         const storedSession = localStorage.getItem(USER_SESSION_KEY);
-         return storedSession ? JSON.parse(storedSession) : null;
+    // Retorna o valor já carregado ou atualiza a partir do storage
+    if (!localUserSession) {
+        const storedSession = localStorage.getItem(USER_SESSION_KEY);
+        localUserSession = storedSession ? JSON.parse(storedSession) : null;
     }
-
-    const user = sessionData.session.user;
-    
-    const storedSession = localStorage.getItem(USER_SESSION_KEY);
-    let localProfile = storedSession ? JSON.parse(storedSession) : null;
-
-    if (!localProfile || localProfile.id !== user.id) {
-        // Recarrega o perfil se a sessão Auth estiver ativa, mas o perfil local está ausente/incorreto
-        const { data: profile, error: profileError } = await supabase
-            .from('app_users')
-            .select('nome_completo, tipo_usuario, primeiro_login, username_app')
-            .eq('user_id', user.id) 
-            .single();
-
-        if (profileError) {
-             console.error('Perfil de usuário ausente durante getLocalSession', profileError);
-             await supabase.auth.signOut();
-             localStorage.removeItem(USER_SESSION_KEY);
-             return null;
-        }
-
-        localProfile = {
-            id: user.id,
-            username: profile.username_app,
-            role: profile.tipo_usuario,
-            fullName: profile.nome_completo,
-            isFirstLogin: profile.primeiro_login 
-        };
-        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(localProfile));
-    }
-
-    return localProfile;
+    return localUserSession;
 }
 
 
@@ -249,105 +196,106 @@ export async function getLocalSession() {
  * Busca o papel (role) do usuário logado na sessão local.
  */
 export async function fetchUserRole() {
-    const session = await getLocalSession();
-    if (!session) return { role: null };
-    return { role: session.role };
+    if (!localUserSession) return { role: null };
+    return { role: localUserSession.role };
 }
 
 /**
- * NOVO: Atualiza a senha do usuário logado usando Supabase Auth (não requer senha atual).
- * @param {string} userId - O ID do usuário logado.
- * @param {string} newPassword - A nova senha.
+ * Atualiza a senha do usuário logado após verificar a senha atual.
  */
-export async function updateUserPassword(userId, newPassword) {
-    
-    // 1. Atualiza a senha no Supabase Auth (a sessão ativa prova a identidade)
-    const { error: updateError } = await supabase.auth.updateUser({ 
-        password: newPassword 
-    });
+export async function updateUserPassword(userId, currentPassword, newPassword) {
+    // 1. Verifica se a senha atual está correta
+    const { data: user, error: verifyError } = await supabase
+        .from('app_users')
+        .select('id')
+        .eq('id', userId)
+        .eq('senha_app', currentPassword) // CHECK INSEGURO
+        .single();
+
+    if (verifyError && verifyError.code === 'PGRST116') {
+        throw new Error('A senha atual está incorreta.');
+    }
+    if (verifyError) {
+        throw verifyError;
+    }
+
+    // 2. Atualiza a senha no banco e DESATIVA a flag de primeiro login
+    const { error: updateError } = await supabase
+        .from('app_users')
+        .update({ senha_app: newPassword, primeiro_login: false })
+        .eq('id', userId);
 
     if (updateError) {
-         throw updateError;
+        throw updateError;
     }
     
-    // 2. DESATIVA a flag de primeiro login no perfil do usuário
-    const { error: profileUpdateError } = await supabase
-        .from('app_users')
-        .update({ primeiro_login: false }) 
-        .eq('user_id', userId); 
-
-    if (profileUpdateError) {
-         console.error("Erro ao atualizar a flag de primeiro login:", profileUpdateError);
-    }
-    
-    // O Supabase Auth encerra a sessão após a troca de senha, forçando um novo login.
     return { error: null };
 }
 
 /**
- * Funções obsoletas (A lógica de primeiro login é tratada em updateUserPassword).
+ * Função para marcar o primeiro login como concluído na sessão local (após troca de senha).
  */
 export async function finalizeFirstLogin(userId) {
-     const session = localStorage.getItem(USER_SESSION_KEY);
-     let localSession = session ? JSON.parse(session) : null;
-     
-     if (localSession && localSession.id === userId) {
-         localSession.isFirstLogin = false;
-         localStorage.setItem(USER_SESSION_KEY, JSON.stringify(localSession));
+     // Apenas limpa a flag isFirstLogin na sessão local.
+     if (localUserSession && localUserSession.id === userId) {
+         localUserSession.isFirstLogin = false;
+         localStorage.setItem(USER_SESSION_KEY, JSON.stringify(localUserSession));
      }
 }
 
 
 /**
- * Registra um novo usuário no Supabase Auth e insere o perfil no DB.
+ * Registra um novo usuário na tabela app_users (SALVAMENTO INSEGURO).
  */
 export async function registerAppUser(username_app, password, nome_completo, tipo_usuario) {
-    const email = toEmail(username_app);
-    
-    // 1. Cria o usuário no Supabase Auth
-    const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-    });
-
-    if (signUpError) {
-         throw signUpError;
+    // 1. Verifica se o username já existe
+    const { data: existingUser, error: fetchError } = await supabase
+        .from('app_users')
+        .select('id')
+        .eq('username_app', username_app);
+        
+    if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+    if (existingUser && existingUser.length > 0) {
+        throw new Error(`O usuário '${username_app}' já existe.`);
     }
 
-    const userId = authData.user.id;
-    
-    // 2. Insere o perfil do usuário na tabela app_users (com link para o Auth ID)
-    const { data: profileData, error: insertError } = await supabase.from('app_users').insert({
-        user_id: userId, // Link para o Auth ID
+    // 2. Insere o novo registro (SALVAMENTO INSEGURO)
+    const { data, error: insertError } = await supabase.from('app_users').insert({
         nome_completo: nome_completo,
         tipo_usuario: tipo_usuario,
-        username_app: username_app, // Salva o nome de usuário limpo
-        primeiro_login: true 
+        username_app: username_app,
+        senha_app: password, // SALVAMENTO INSEGURO
+        primeiro_login: true
     }).select().single();
 
-    if (insertError) {
-         console.error('Erro ao inserir perfil na tabela app_users:', insertError);
-         throw new Error('Usuário criado, mas falha ao salvar perfil. Contate o administrador.');
-    }
+    if (insertError) throw insertError;
 
-    return { data: profileData, error: null };
+    return { data, error: null };
 }
 
 /**
  * Busca todos os usuários da aplicação (Gerencial).
  */
 export async function fetchAppUsers() {
-    // Busca a lista de perfis (que contém o nome e a role)
-    const { data: appUsers, error } = await supabase.from('app_users').select('user_id, nome_completo, tipo_usuario, username_app');
+    // Busca a lista de perfis (incluindo o ID para exclusão)
+    const { data, error } = await supabase.from('app_users').select('id, nome_completo, tipo_usuario, username_app').order('username_app');
     if (error) throw error;
+    return data;
+}
+
+/**
+ * EXCLUSÃO TOTAL: Exclui o registro do usuário da tabela app_users (controle total).
+ */
+export async function deleteAppUser(userId) {
+    const { error } = await supabase.from('app_users').delete().eq('id', userId);
     
-    return appUsers;
+    if (error) throw error;
+    return { error: null };
 }
 
 
 /**
  * Busca logs da aplicação (Simulação).
- * RESTAURADO: Esta função estava faltando e causava o erro Uncaught SyntaxError.
  */
 export async function fetchAppLogs(filters = {}) {
      let query = supabase.from('app_logs').select('*');
@@ -372,10 +320,6 @@ export async function fetchAppLogs(filters = {}) {
 
 // --- FIM NOVAS FUNÇÕES DE AUTENTICAÇÃO ---
 
-
-/**
- * MUDANÇA AQUI: Designa um caminhão para uma frente com status e horário.
- */
 export async function assignCaminhaoToFrente(caminhaoId, frenteId, statusInicial, horaSaida) {
      // 1. Atualiza o caminhão com o novo status e frente
     const { data: updatedCaminhao, error: updateError } = await supabase
