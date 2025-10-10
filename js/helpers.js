@@ -134,3 +134,76 @@ export function validatePhone(value) {
     return cleaned.length >= 10 && cleaned.length <= 11; 
 }
 // ---------------------------------------------
+
+
+/**
+ * NOVO: Agrupa logs de histórico em sessões de inatividade abertas ou fechadas.
+ * @param {Array} history - Logs de histórico (caminhao_historico ou equipamento_historico).
+ * @param {string} idColumn - Nome da coluna de ID ('caminhao_id' ou 'equipamento_id').
+ * @param {Array} downtimeStatuses - Array de strings com os status de inatividade (ex: ['parado', 'quebrado']).
+ * @returns {Array} Array de objetos de sessão de inatividade.
+ */
+export function groupDowntimeSessions(history, idColumn, downtimeStatuses) {
+    // 1. Classifica os logs por tempo, do mais antigo para o mais recente (para reconstruir a linha do tempo)
+    const sortedLogs = history.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
+
+    const downtimeSessions = [];
+    // Mapeia { id: { startLog, startTime, startStatus, endStatus } }
+    const activeSessions = new Map(); 
+
+    // 2. Percorre os logs para agrupar em sessões de inatividade
+    for (const log of sortedLogs) {
+        const itemId = log[idColumn];
+        const isDowntimeStatus = downtimeStatuses;
+        
+        const isDowntimeStart = isDowntimeStatus.includes(log.status_novo) && !isDowntimeStatus.includes(log.status_anterior);
+        const isStatusChangeDowntime = isDowntimeStatus.includes(log.status_novo) && isDowntimeStatus.includes(log.status_anterior);
+        const isDowntimeEnd = !isDowntimeStatus.includes(log.status_novo) && isDowntimeStatus.includes(log.status_anterior);
+        
+        // Se a sessão está aberta: é um log de início (para o novo status)
+        if (isDowntimeStart) {
+            // Início de uma nova parada
+            activeSessions.set(itemId, {
+                startLog: log,
+                startTime: new Date(log.timestamp_mudanca),
+                startStatus: log.status_novo,
+                // Associa a frente de serviço, se existir no log (apenas para equipamento)
+                frente: log.equipamentos?.frentes_servico?.nome || 'N/A', 
+                cod_equipamento: log.equipamentos?.cod_equipamento || log.caminhoes?.cod_equipamento || 'N/A',
+                finalidade: log.equipamentos?.finalidade || 'Caminhão',
+            });
+        } else if (isDowntimeEnd) {
+            const session = activeSessions.get(itemId);
+            if (session) {
+                // Fim da parada
+                downtimeSessions.push({
+                    ...session,
+                    end_time: new Date(log.timestamp_mudanca),
+                    end_status: log.status_novo, 
+                });
+                activeSessions.delete(itemId);
+            }
+        } else if (isStatusChangeDowntime) {
+            // Se o status mudar entre 'parado' e 'quebrado', atualiza o log inicial com o motivo mais recente
+            const session = activeSessions.get(itemId);
+            if (session) {
+                session.startStatus = log.status_novo; 
+                session.startLog.motivo_parada = log.motivo_parada || session.startLog.motivo_parada;
+            }
+        }
+    }
+    
+    // 3. Adiciona sessões que ainda estão abertas
+    for (const [id, session] of activeSessions.entries()) {
+        downtimeSessions.push({
+            ...session,
+            end_time: null, // Ainda em aberto
+            end_status: session.startStatus, // O status final é o status atual (parado/quebrado)
+        });
+    }
+    
+    // 4. Ordena as sessões para exibição (mais recente primeiro)
+    downtimeSessions.sort((a, b) => b.startTime - a.startTime);
+    
+    return downtimeSessions;
+}

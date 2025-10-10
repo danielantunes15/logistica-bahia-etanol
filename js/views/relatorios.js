@@ -1,7 +1,8 @@
 // js/views/relatorios.js
 
 import { fetchAllData } from '../api.js';
-import { showToast, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes } from '../helpers.js';
+// NOVO: Importa groupDowntimeSessions
+import { showToast, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes, groupDowntimeSessions } from '../helpers.js';
 import { dataCache } from '../dataCache.js';
 import { CAMINHAO_STATUS_LABELS, EQUIPAMENTO_STATUS_LABELS } from '../constants.js';
 
@@ -197,7 +198,17 @@ export class RelatoriosView {
                 filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             
-            const sessions = this.groupDowntimeSessions(filteredHistory, caminhãoMap, 'caminhao_id', ['parado', 'quebrado'], this.data.frentes_servico);
+            // NOVO: Usa o helper groupDowntimeSessions
+            const sessions = groupDowntimeSessions(filteredHistory, 'caminhao_id', ['parado', 'quebrado']);
+            
+            // Adiciona informações de recurso e frente (que não estão no log do caminhão)
+            sessions.forEach(session => {
+                const caminhao = caminhãoMap.get(session.startLog.caminhao_id);
+                session.cod_equipamento = caminhao?.cod_equipamento || 'N/A';
+                session.tipo = 'Caminhão';
+                const frente = this.data.frentes_servico.find(f => f.id === caminhao?.frente_id);
+                session.frente = frente?.nome || 'N/A';
+            });
             
             let tableHTML = this.generateDowntimeTableHTML(
                 sessions, 
@@ -227,7 +238,8 @@ export class RelatoriosView {
                 filters.equipamento, filters.frente, filters.proprietario, 'equipamento_id'
             );
             
-            const sessions = this.groupDowntimeSessions(filteredHistory, equipamentoMap, 'equipamento_id', ['parado', 'quebrado'], this.data.frentes_servico);
+            // NOVO: Usa o helper groupDowntimeSessions (o helper já puxa frente/código se existir no log de equipamento)
+            const sessions = groupDowntimeSessions(filteredHistory, 'equipamento_id', ['parado', 'quebrado']);
             
             let tableHTML = this.generateDowntimeTableHTML(
                 sessions, 
@@ -242,70 +254,6 @@ export class RelatoriosView {
         } finally {
             hideLoading();
         }
-    }
-    
-    groupDowntimeSessions(history, itemMap, idColumn, downtimeStatuses, frentesServico) {
-        const sortedLogs = history.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
-        const downtimeSessions = [];
-        const activeSessions = new Map(); 
-        const frentesMap = new Map(frentesServico.map(f => [f.id, f.nome]));
-
-        for (const log of sortedLogs) {
-            const itemId = log[idColumn];
-            const isDowntimeStart = downtimeStatuses.includes(log.status_novo) && !downtimeStatuses.includes(log.status_anterior);
-            const isStatusChangeDowntime = downtimeStatuses.includes(log.status_novo) && downtimeStatuses.includes(log.status_anterior);
-            const isDowntimeEnd = !downtimeStatuses.includes(log.status_novo) && downtimeStatuses.includes(log.status_anterior);
-
-            const itemDetails = itemMap.get(itemId);
-            if (!itemDetails) continue;
-
-            if (isDowntimeStart) {
-                activeSessions.set(itemId, {
-                    startLog: log,
-                    startTime: new Date(log.timestamp_mudanca),
-                    startStatus: log.status_novo,
-                    frenteId: itemDetails.frente_id 
-                });
-            } else if (isDowntimeEnd) {
-                const session = activeSessions.get(itemId);
-                if (session) {
-                    downtimeSessions.push({
-                        cod_equipamento: itemDetails.cod_equipamento,
-                        tipo: itemDetails.finalidade || 'Caminhão',
-                        frente: frentesMap.get(session.frenteId) || 'N/A',
-                        start_time: session.startTime,
-                        end_time: new Date(log.timestamp_mudanca),
-                        start_status: session.startStatus,
-                        end_status: log.status_novo, 
-                        motivo: session.startLog.motivo_parada || 'Não informado',
-                    });
-                    activeSessions.delete(itemId);
-                }
-            } else if (isStatusChangeDowntime) {
-                const session = activeSessions.get(itemId);
-                if (session) {
-                    session.startStatus = log.status_novo; 
-                    session.startLog.motivo_parada = log.motivo_parada || session.startLog.motivo_parada;
-                }
-            }
-        }
-        
-        for (const [id, session] of activeSessions.entries()) {
-            const itemDetails = itemMap.get(id);
-            downtimeSessions.push({
-                cod_equipamento: itemDetails.cod_equipamento,
-                tipo: itemDetails.finalidade || 'Caminhão',
-                frente: frentesMap.get(session.frenteId) || 'N/A',
-                start_time: session.startTime,
-                end_time: null, 
-                start_status: session.startStatus,
-                end_status: session.startStatus, 
-                motivo: session.startLog.motivo_parada || 'Não informado',
-            });
-        }
-        
-        downtimeSessions.sort((a, b) => b.start_time - a.start_time);
-        return downtimeSessions;
     }
     
     // Método para obter valores dos filtros (CORREÇÃO AQUI)
@@ -333,23 +281,27 @@ export class RelatoriosView {
         let totalDowntimeMillis = 0;
 
         const rows = sessions.map(session => {
-            const duration = calculateDowntimeDuration(session.start_time, session.end_time);
+            const duration = calculateDowntimeDuration(session.startTime, session.end_time);
             
             // Soma a duração em milissegundos para o total
-            const start = new Date(session.start_time).getTime();
+            const start = new Date(session.startTime).getTime();
             const end = session.end_time ? new Date(session.end_time).getTime() : new Date().getTime();
             const diffMillis = end - start;
-            if (diffMillis > 0) {
+            if (diffMillis > 0) { // Apenas soma se a duração for positiva
                 totalDowntimeMillis += diffMillis;
             }
 
-            const startStatusBadge = `<span class="caminhao-status-badge status-${session.start_status}">${statusLabels[session.start_status] || session.start_status}</span>`;
+            const startStatusBadge = `<span class="caminhao-status-badge status-${session.startStatus}">${statusLabels[session.startStatus] || session.startStatus}</span>`;
             
             let endStatusLabel;
             if (session.end_time) {
-                endStatusLabel = `<span class="caminhao-status-badge status-${session.end_status}" style="background-color: var(--accent-primary);">${statusLabels[session.end_status] || session.end_status}</span>`;
+                // Se a sessão terminou (end_time existe), o status final é Ativo ou Disponível
+                const finalStatus = session.endStatus === 'ativo' ? 'ativo' : 'disponivel';
+                const finalLabel = statusLabels[finalStatus] || 'Ativo/Disponível';
+                endStatusLabel = `<span class="caminhao-status-badge status-${finalStatus}" style="background-color: var(--accent-primary);">${finalLabel}</span>`;
             } else {
-                endStatusLabel = `<span class="caminhao-status-badge status-${session.end_status}" style="background-color: var(--accent-danger);">EM ABERTO (${statusLabels[session.end_status]})</span>`;
+                // Se ainda está aberta, o status final é o status atual (Parado/Quebrado)
+                endStatusLabel = `<span class="caminhao-status-badge status-${session.endStatus}" style="background-color: var(--accent-danger);">EM ABERTO (${statusLabels[session.endStatus]})</span>`;
             }
             
             const endTimeDisplay = session.end_time ? formatDateTime(session.end_time) : '---';
@@ -357,11 +309,11 @@ export class RelatoriosView {
             return `
                 <tr>
                     <td>${session.cod_equipamento}</td>
-                    <td>${session.tipo}</td>
+                    <td>${session.finalidade || session.tipo}</td>
                     <td>${session.frente}</td>
                     <td>${startStatusBadge}</td>
-                    <td>${session.motivo}</td>
-                    <td>${formatDateTime(session.start_time)}</td>
+                    <td>${session.startLog.motivo_parada || 'Não informado'}</td>
+                    <td>${formatDateTime(session.startTime)}</td>
                     <td>${endTimeDisplay}</td>
                     <td><strong style="color: ${session.end_time ? 'var(--text-primary)' : 'var(--accent-danger)'};">${duration}</strong></td>
                 </tr>
@@ -717,41 +669,25 @@ export class RelatoriosView {
         const nonProductiveStatus = ['parado', 'quebrado'];
         const groupedResults = {};
 
-        const calculateDowntimeDurationFromLogs = (logs, itemType) => {
-            const itemDowntimeLogs = {};
-            
-            logs.forEach(log => {
-                const idColumn = itemType === 'Caminhão' ? 'caminhao_id' : 'equipamento_id';
-                const id = log[idColumn];
-                if (!itemDowntimeLogs[id]) {
-                    itemDowntimeLogs[id] = { sessions: [] };
-                }
-                itemDowntimeLogs[id].sessions.push({ 
-                    status: log.status_novo, 
-                    time: new Date(log.timestamp_mudanca) 
-                });
-            });
-
-            let totalMillis = 0;
-            for (const id in itemDowntimeLogs) {
-                const { sessions } = itemDowntimeLogs[id];
-                const sortedSessions = sessions.sort((a, b) => a.time - b.time);
-                
-                for(let i = 0; i < sortedSessions.length - 1; i++) {
-                    if (nonProductiveStatus.includes(sortedSessions[i].status)) {
-                        totalMillis += sortedSessions[i+1].time - sortedSessions[i].time;
-                    }
-                }
-                
-                const lastSession = sortedSessions[sortedSessions.length - 1];
-                if (lastSession && nonProductiveStatus.includes(lastSession.status)) {
-                    totalMillis += new Date() - lastSession.time; 
-                }
-            }
-            return totalMillis;
+        // Funções para calcular downtime usando o novo helper
+        const calculateDowntimeDurationByItem = (history, idColumn) => {
+             const sessions = groupDowntimeSessions(history, idColumn, nonProductiveStatus);
+             let totalMillis = 0;
+             sessions.forEach(session => {
+                 const start = session.startTime.getTime();
+                 const end = session.end_time ? session.end_time.getTime() : new Date().getTime();
+                 // Só soma se estiver no período de filtro (isso já foi feito no filterHistory),
+                 // mas garante que a duração seja maior que zero
+                 if (end - start > 0) {
+                      totalMillis += (end - start);
+                 }
+             });
+             return totalMillis;
         };
+        
+        const finalByType = {};
 
-        // 1. Mapeia logs de Equipamentos por ID para agregar o tempo
+        // 1. Processa Equipamentos
         const equipamentoMap = new Map(equipamentos.map(i => [i.id, i]));
         equipamentoHistory.forEach(log => {
             const item = equipamentoMap.get(log.equipamento_id);
@@ -764,7 +700,7 @@ export class RelatoriosView {
             }
         });
 
-        // 2. Mapeia logs de Caminhões por ID para agregar o tempo
+        // 2. Processa Caminhões
         const caminhaoMap = new Map(caminhoes.map(i => [i.id, i]));
         caminhaoHistory.forEach(log => {
             const item = caminhaoMap.get(log.caminhao_id);
@@ -777,14 +713,13 @@ export class RelatoriosView {
             }
         });
         
-        const finalByType = {};
-
         // 3. Calcula o tempo total de inatividade e agrega por tipo
         for (const key in groupedResults) {
             const { groupKey, logs } = groupedResults[key];
             const type = groupKey;
             
-            const totalMillis = calculateDowntimeDurationFromLogs(logs, type);
+            const idColumn = type === 'Caminhão' ? 'caminhao_id' : 'equipamento_id';
+            const totalMillis = calculateDowntimeDurationByItem(logs, idColumn);
             
             if (!finalByType[type]) {
                 finalByType[type] = 0;

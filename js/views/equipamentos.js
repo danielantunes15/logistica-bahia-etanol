@@ -1,6 +1,7 @@
 // js/views/equipamentos.js
 import { fetchAllData, updateEquipamentoStatus } from '../api.js';
-import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js';
+// NOVO: Importa groupDowntimeSessions
+import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration, groupDowntimeSessions } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
 // NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
@@ -90,49 +91,33 @@ export class EquipamentosView {
         this.container = container.querySelector('#equipamentos-view');
     }
 
-    // --- PAINEL DE MAQUINÁRIO PARADO/QUEBRADO GERAL (COM BOTÃO DE AÇÃO) ---
+    // --- PAINEL DE MAQUINÁRIO PARADO/QUEBRADO GERAL (COM DURAÇÃO ATUAL) ---
     renderParadosPanel() {
         const { equipamentos = [], proprietarios = [], equipamento_historico = [] } = this.data;
         
         const proprietariosMap = new Map(proprietarios.map(p => [p.id, p]));
         const parados = equipamentos.filter(e => e.status === 'parado' || e.status === 'quebrado');
+        const downtimeStatuses = ['parado', 'quebrado'];
 
-        // NOVO: Lógica mais eficiente para encontrar o último motivo de parada *aberta*
-        const latestDowntime = {};
-        const isDowntimeStatus = ['parado', 'quebrado'];
-
-        // Ordenar os logs do mais antigo para o mais recente
-        const sortedLogs = equipamento_historico.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
-        
-        for (const log of sortedLogs) {
-            // Um log é um evento de START se o status MUDOU para inativo/quebrado
-            const isStart = isDowntimeStatus.includes(log.status_novo) && log.status_anterior === 'ativo';
-            // Um log é um evento de UPDATE se MUDOU entre inativo e quebrado
-            const isUpdate = isDowntimeStatus.includes(log.status_novo) && isDowntimeStatus.includes(log.status_anterior);
-            // Um log é um evento de END se o status MUDOU para ativo
-            const isEnd = log.status_novo === 'ativo';
-
-            if (isStart) {
-                // Início de uma parada
-                latestDowntime[log.equipamento_id] = {
-                    motivo: log.motivo_parada || 'Não informado',
-                    frenteNome: log.equipamentos?.frentes_servico?.nome || 'N/A'
-                };
-            } else if (isUpdate && latestDowntime[log.equipamento_id]) {
-                // Atualização de status/motivo durante a parada
-                latestDowntime[log.equipamento_id].motivo = log.motivo_parada || latestDowntime[log.equipamento_id].motivo;
-            } else if (isEnd && latestDowntime[log.equipamento_id]) {
-                // Fim da parada, remove o estado aberto
-                delete latestDowntime[log.equipamento_id];
+        // NOVO: Usa a função de agrupamento para obter o estado mais recente/aberto
+        const openDowntimeSessions = groupDowntimeSessions(equipamento_historico, 'equipamento_id', downtimeStatuses).filter(s => s.end_time === null);
+        const latestDowntime = new Map(openDowntimeSessions.map(s => [
+            s.startLog.equipamento_id, {
+                motivo: s.startLog.motivo_parada || 'Não informado',
+                frenteNome: s.frente,
+                startTime: s.startTime, // Adiciona o tempo de início
             }
-        }
+        ]));
         
         // Se o equipamento atual estiver na lista de parados, seu motivo mais recente estará em latestDowntime
         
         const rows = parados.map(e => {
             const proprietario = proprietariosMap.get(e.proprietario_id)?.nome || 'N/A';
-            const downtimeInfo = latestDowntime[e.id] || { motivo: 'Não informado', frenteNome: 'N/A' };
+            const downtimeInfo = latestDowntime.get(e.id) || { motivo: 'Não informado', frenteNome: 'N/A', startTime: e.created_at };
             const statusLabel = this.statusLabels[e.status];
+            
+            // NOVO: Calcula a duração da parada atual
+            const duration = calculateDowntimeDuration(downtimeInfo.startTime, null);
 
             return `
                 <tr>
@@ -142,6 +127,7 @@ export class EquipamentosView {
                     <td>${proprietario}</td>
                     <td><span class="caminhao-status-badge status-${e.status}">${statusLabel}</span></td>
                     <td>${downtimeInfo.motivo}</td>
+                    <td><strong style="color: var(--accent-danger);">${duration}</strong></td>
                     <td>
                         <button class="action-btn edit-btn-modern btn-parados-action" data-equipamento-id="${e.id}" data-frente-id="${e.frente_id || ''}" title="Finalizar Parada / Mudar Status">
                             <i class="ph-fill ph-pencil-simple"></i>
@@ -166,11 +152,12 @@ export class EquipamentosView {
                                 <th>Proprietário</th>
                                 <th>Status</th>
                                 <th>Motivo da Parada</th>
+                                <th>Duração Atual</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${rows.length > 0 ? rows : '<tr><td colspan="7">Nenhum equipamento parado ou quebrado.</td></tr>'}
+                            ${rows.length > 0 ? rows : '<tr><td colspan="8">Nenhum equipamento parado ou quebrado.</td></tr>'}
                         </tbody>
                     </table>
                 </div>
@@ -282,88 +269,27 @@ export class EquipamentosView {
         `;
     }
 
-    // --- CORREÇÃO COMPLETA: Agrupa logs em sessões de inatividade e calcula a duração ---
+    // --- CORREÇÃO COMPLETA: Utiliza o helper groupDowntimeSessions ---
     renderHistorico(equipamentoId = null, frenteId = null, date = null) {
         const { equipamento_historico = [] } = this.data;
+        const downtimeStatuses = ['parado', 'quebrado'];
         
-        // 1. Classifica os logs por tempo, do mais antigo para o mais recente (para reconstruir a linha do tempo)
-        const sortedLogs = equipamento_historico.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
-
-        const downtimeSessions = [];
-        const activeSessions = new Map(); // Para rastrear inícios de parada (log de status_novo != 'ativo' e status_anterior == 'ativo')
-
-        // 2. Percorre os logs para agrupar em sessões de inatividade
-        for (const log of sortedLogs) {
-            // CORREÇÃO: Usar o status anterior do log para determinar se é o início/fim de uma sessão
-            const isDowntimeStatus = ['parado', 'quebrado'];
-            const isDowntimeStart = isDowntimeStatus.includes(log.status_novo) && log.status_anterior === 'ativo';
-            const isStatusChangeDowntime = isDowntimeStatus.includes(log.status_novo) && isDowntimeStatus.includes(log.status_anterior);
-            const isDowntimeEnd = log.status_novo === 'ativo' && isDowntimeStatus.includes(log.status_anterior);
-
-
-            if (isDowntimeStart) {
-                // Início de uma nova parada
-                activeSessions.set(log.equipamento_id, {
-                    startLog: log,
-                    startTime: new Date(log.timestamp_mudanca),
-                    startStatus: log.status_novo,
-                });
-            } else if (isDowntimeEnd) {
-                const session = activeSessions.get(log.equipamento_id);
-                if (session) {
-                    // Fim da parada
-                    downtimeSessions.push({
-                        cod_equipamento: log.equipamentos?.cod_equipamento || 'N/A',
-                        finalidade: log.equipamentos?.finalidade || 'N/A',
-                        frente: session.startLog.equipamentos?.frentes_servico?.nome || 'N/A',
-                        start_time: session.startTime,
-                        end_time: new Date(log.timestamp_mudanca),
-                        start_status: session.startStatus,
-                        end_status: log.status_novo, // 'ativo'
-                        motivo: session.startLog.motivo_parada || 'Não informado',
-                    });
-                    activeSessions.delete(log.equipamento_id);
-                }
-            } else if (isStatusChangeDowntime) {
-                // Se o status mudar entre 'parado' e 'quebrado', atualiza o log inicial com o motivo mais recente
-                const session = activeSessions.get(log.equipamento_id);
-                if (session) {
-                    session.startStatus = log.status_novo; 
-                    session.startLog.motivo_parada = log.motivo_parada || session.startLog.motivo_parada;
-                }
-            }
-        }
+        // 1. Agrupa os logs em sessões usando a nova função de helper
+        const downtimeSessions = groupDowntimeSessions(equipamento_historico, 'equipamento_id', downtimeStatuses);
         
-        // 3. Adiciona sessões que ainda estão abertas
-        for (const [id, session] of activeSessions.entries()) {
-            downtimeSessions.push({
-                cod_equipamento: session.startLog.equipamentos?.cod_equipamento || 'N/A',
-                finalidade: session.startLog.equipamentos?.finalidade || 'N/A',
-                frente: session.startLog.equipamentos?.frentes_servico?.nome || 'N/A',
-                start_time: session.startTime,
-                end_time: null, // Ainda em aberto
-                start_status: session.startStatus,
-                end_status: session.startStatus, // O status final é o status atual (parado/quebrado)
-                motivo: session.startLog.motivo_parada || 'Não informado',
-            });
-        }
-        
-        // 4. Ordena as sessões para exibição (mais recente primeiro)
-        downtimeSessions.sort((a, b) => b.start_time - a.start_time);
-        
-        // 5. Gera as linhas da tabela a partir das sessões
+        // 2. Gera as linhas da tabela a partir das sessões
         return downtimeSessions.map(session => {
-            const duration = calculateDowntimeDuration(session.start_time, session.end_time);
+            const duration = calculateDowntimeDuration(session.startTime, session.end_time);
             
-            const startStatusBadge = `<span class="caminhao-status-badge status-${session.start_status}">${this.statusLabels[session.start_status] || session.start_status}</span>`;
+            const startStatusBadge = `<span class="caminhao-status-badge status-${session.startStatus}">${this.statusLabels[session.startStatus] || session.startStatus}</span>`;
             
             let endStatusLabel;
             if (session.end_time) {
-                // Se a sessão terminou (end_time existe), o status final é Ativo
+                // Se a sessão terminou (end_time existe), o status final é Ativo (baseado no log de fim)
                 endStatusLabel = `<span class="caminhao-status-badge status-ativo">${this.statusLabels['ativo']}</span>`;
             } else {
                 // Se ainda está aberta, o status final é o status atual (Parado/Quebrado)
-                endStatusLabel = `<span class="caminhao-status-badge status-${session.end_status}">${this.statusLabels[session.end_status] || session.end_status}</span>`;
+                endStatusLabel = `<span class="caminhao-status-badge status-${session.endStatus}">${this.statusLabels[session.endStatus] || session.endStatus}</span>`;
             }
             
             const endTimeDisplay = session.end_time ? formatDateTime(session.end_time) : '<span style="color: var(--accent-danger);">Em Aberto</span>';
@@ -375,8 +301,8 @@ export class EquipamentosView {
                     <td>${session.frente}</td>
                     <td>${startStatusBadge}</td>
                     <td>${endStatusLabel}</td> 
-                    <td>${session.motivo}</td>
-                    <td>${formatDateTime(session.start_time)}</td>
+                    <td>${session.startLog.motivo_parada || 'Não informado'}</td>
+                    <td>${formatDateTime(session.startTime)}</td>
                     <td>${endTimeDisplay}</td>
                     <td>${durationDisplay}</td>
                 </tr>
