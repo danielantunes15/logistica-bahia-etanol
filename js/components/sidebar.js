@@ -122,11 +122,11 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
             </button>
             <button class="nav-button" data-view="equipamentos">
                 <i class="ph-fill ph-tractor"></i>
-                <span>Gerenciador de Equipamentos</span>
+                <span>Equipamentos</span>
                 ${downtimeEquipamentos > 0 ? `<span class="badge alert">${downtimeEquipamentos}</span>` : ''}
             </button>
             <button class="nav-button" data-view="fila-estacionamento"> <i class="ph-fill ph-hourglass-simple"></i>
-                <span>Fila no Estacionamento</span>
+                <span>Estacionamento</span>
             </button>
             <button class="nav-button" data-view="fila-descarga"> <i class="ph-fill ph-factory"></i>
                 <span>Fila de Descarga</span>
