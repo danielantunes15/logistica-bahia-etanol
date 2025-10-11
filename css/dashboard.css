@@ -1,4 +1,119 @@
 /* css/dashboard.css */
+.report-header {
+    display: flex;
+    /* Altera para alinhar o título e o menu em duas linhas */
+    flex-direction: column; 
+    gap: 16px;
+    padding: 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* NOVO: Estilos para o menu interno */
+.report-internal-menu {
+    display: flex;
+    gap: 12px;
+    /* Faz o menu ocupar o container todo em telas maiores */
+    width: 100%; 
+    flex-wrap: wrap; 
+}
+
+.report-internal-menu .internal-menu-btn {
+    /* Base do btn-secondary já existe em style.css */
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.report-internal-menu .internal-menu-btn.active {
+    background-color: var(--accent-primary);
+    color: white;
+    border-color: var(--accent-primary);
+}
+/* FIM NOVO: Estilos para o menu interno */
+
+
+.report-filters {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    padding: 24px;
+}
+
+.chart-container {
+    background-color: var(--bg-light);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    padding: 20px;
+}
+
+.chart-container h3 {
+    margin-bottom: 16px;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 300px;
+}
+
+.report-export {
+    padding: 0 24px 24px;
+    display: flex;
+    gap: 12px;
+}
+
+/* Estilos para o container de tabela */
+.report-table-container {
+    padding-bottom: 24px;
+    /* Adiciona margem superior para separar dos filtros */
+    margin-top: 24px; 
+}
+
+/* Garante que o .data-table-modern dentro do relatório tenha espaço e scroll */
+.report-table-container .data-table-modern {
+    min-width: 800px; /* Garante que a tabela não quebre em 1 coluna */
+}
+
+@media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .report-header {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+    }
+    
+    .report-internal-menu {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .report-internal-menu .internal-menu-btn {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .report-table-container > div {
+        /* Permite scroll horizontal na tabela em telas pequenas */
+        overflow-x: auto; 
+    }
+    
+    .report-filters {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
+}
+/* css/dashboard.css */
 .dashboard-header {
     padding: 24px;
     border-bottom: 1px solid var(--border-color);
@@ -52,7 +167,7 @@
 }
 
 .stats-panel {
-    background: rgba(26, 32, 44, 0.95);
+    background: rgba(26, 32, 44, 0.9); /* ALTERADO: De 0.95 para 0.9 (Melhor organização/transparência) */
     backdrop-filter: blur(20px);
     border: 1px solid rgba(74, 85, 104, 0.3);
     border-radius: 16px;
@@ -77,10 +192,11 @@
     margin: 0;
     font-size: 1.3rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #38A169, #2B6CB0);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    background: none; /* ALTERADO: Removido gradiente */
+    color: var(--text-primary); /* ALTERADO: Cor branca */
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: var(--text-primary); /* ALTERADO: Cor branca */
+    background-clip: unset;
 }
 
 .last-update {
@@ -156,11 +272,11 @@
 .stat-title {
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--text-primary);
-    background: linear-gradient(135deg, #38A169, #2B6CB0);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--text-primary); /* ALTERADO: Cor branca */
+    background: none; /* ALTERADO: Removido gradiente */
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: var(--text-primary); /* ALTERADO: Cor branca */
+    background-clip: unset;
 }
 
 .stat-content {

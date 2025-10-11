@@ -23,14 +23,14 @@ body {
 
 /* Layout Base */
 .sidebar { 
-    width: 250px; 
+    width: 260px; /* ALTERADO: Aumentado de 250px para 260px */
     height: 100%; 
     background-color: var(--bg-light); 
     border-right: 1px solid var(--border-color); 
-    padding: 24px 24px 10px 24px; /* Redução do padding inferior para compactar */
+    padding: 24px 24px 24px 24px; /* ALTERADO: Aumentado o padding inferior */
     display: flex; 
     flex-direction: column; 
-    gap: 8px; 
+    gap: 12px; /* ALTERADO: Aumentado o gap para melhor espaçamento vertical */
     flex-shrink: 0; 
     overflow-y: auto; 
 }
@@ -48,19 +48,19 @@ body {
 
 .sidebar-header #sidebar-logo { 
     /* NOVO: Estilo para o logo na sidebar */
-    width: 48px; /* ALTERADO: Aumentado para 48px */
-    height: 48px; /* ALTERADO: Aumentado para 48px */
+    width: 48px; 
+    height: 48px; 
     object-fit: contain;
 }
 
 .sidebar-header h2 {
     font-size: 1.2rem;
     font-weight: 700;
-    color: var(--accent-primary);
-    background: linear-gradient(45deg, var(--accent-primary), #2F855A);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--text-primary); /* ALTERADO: Cor branca */
+    background: none; /* REMOVIDO: Gradiente de fundo */
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: var(--text-primary); /* ALTERADO: Cor branca */
+    background-clip: unset;
 }
 
 .main-content { 
@@ -74,10 +74,10 @@ body {
 .sidebar nav { 
     display: flex; 
     flex-direction: column; 
-    gap: 8px; 
+    gap: 6px; /* ALTERADO: Diminuído de 8px para 6px para mais itens caberem */
     flex-grow: 1; 
-    overflow-y: auto; 
-    padding-bottom: 5px; /* Redução do padding para ser mais compacto */
+    overflow-y: visible; /* ALTERADO: Removido o scroll interno para que o scroll do .sidebar funcione */
+    padding-bottom: 5px; 
 }
 .nav-button, .nav-button-group { 
     width: 100%; 
@@ -183,10 +183,11 @@ body {
     margin: 0;
     font-size: 1.5rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #38A169, #2B6CB0);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    background: none; /* ALTERADO: Removido gradiente */
+    color: var(--text-primary); /* ALTERADO: Cor branca */
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: var(--text-primary); /* ALTERADO: Cor branca */
+    background-clip: unset;
 }
 
 .dashboard-actions {
@@ -710,7 +711,6 @@ body {
         right: 5px;
     }
 }
-
 
 /* --- NOVOS ESTILOS PARA O MENU DE PERFIL NO RODAPÉ (COMPACTADO) --- */
 

@@ -108,7 +108,7 @@ export class DashboardView {
                                         <div class="stat-icon" style="background: linear-gradient(135deg, #2B6CB0, #4C77A5);">
                                             <i class="ph-fill ph-users-three"></i>
                                         </div>
-                                        <div class="stat-title" style="background: linear-gradient(135deg, #2B6CB0, #4C77A5); -webkit-background-clip: text;">Frentes</div>
+                                        <div class="stat-title">Frentes</div>
                                     </div>
                                     <div class="stat-content status-3-cols">
                                         <div class="stat-main">
@@ -134,7 +134,7 @@ export class DashboardView {
                                         <div class="stat-icon" style="background: linear-gradient(135deg, #D69E2E, #B7791F);">
                                             <i class="ph-fill ph-tractor"></i>
                                         </div>
-                                        <div class="stat-title" style="background: linear-gradient(135deg, #D69E2E, #B7791F); -webkit-background-clip: text;">Equipamentos</div>
+                                        <div class="stat-title">Equipamentos</div>
                                     </div>
                                     <div class="stat-content status-3-cols">
                                         <div class="stat-main">
@@ -160,7 +160,7 @@ export class DashboardView {
                                         <div class="stat-icon" style="background: linear-gradient(135deg, #805AD5, #6A49B8);">
                                             <i class="ph-fill ph-tree-evergreen"></i>
                                         </div>
-                                        <div class="stat-title" style="background: linear-gradient(135deg, #805AD5, #6A49B8); -webkit-background-clip: text;">Fazendas</div>
+                                        <div class="stat-title">Fazendas</div>
                                     </div>
                                     <div class="stat-content status-3-cols">
                                         <div class="stat-main">
