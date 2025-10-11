@@ -57,12 +57,10 @@ export class DashboardView {
             <div id="dashboard-view" class="view active-view">
                 <div class="dashboard-header">
                     <h1>Dashboard de Operações Agrícolas</h1>
-                    <div class="dashboard-actions">
-                        <button class="btn-primary" id="refresh-operations">
-                            <i class="ph-fill ph-arrows-clockwise"></i>
-                            Atualizar
-                        </button>
-                    </div>
+                    <button class="btn-primary" id="refresh-operations">
+                        <i class="ph-fill ph-arrows-clockwise"></i>
+                        Atualizar
+                    </button>
                 </div>
 
                 <div class="map-fullscreen">
