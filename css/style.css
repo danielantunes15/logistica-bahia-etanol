@@ -23,14 +23,14 @@ body {
 
 /* Layout Base */
 .sidebar { 
-    width: 260px; /* ALTERADO: Aumentado de 250px para 260px */
+    width: 260px; 
     height: 100%; 
     background-color: var(--bg-light); 
     border-right: 1px solid var(--border-color); 
-    padding: 24px 24px 24px 24px; /* ALTERADO: Aumentado o padding inferior */
+    padding: 24px 24px 24px 24px; 
     display: flex; 
     flex-direction: column; 
-    gap: 12px; /* ALTERADO: Aumentado o gap para melhor espaçamento vertical */
+    gap: 12px; 
     flex-shrink: 0; 
     overflow-y: auto; 
 }
@@ -56,10 +56,10 @@ body {
 .sidebar-header h2 {
     font-size: 1.2rem;
     font-weight: 700;
-    color: var(--text-primary); /* ALTERADO: Cor branca */
-    background: none; /* REMOVIDO: Gradiente de fundo */
+    color: var(--text-primary); 
+    background: none; 
     -webkit-background-clip: unset;
-    -webkit-text-fill-color: var(--text-primary); /* ALTERADO: Cor branca */
+    -webkit-text-fill-color: var(--text-primary); 
     background-clip: unset;
 }
 
@@ -74,9 +74,9 @@ body {
 .sidebar nav { 
     display: flex; 
     flex-direction: column; 
-    gap: 6px; /* ALTERADO: Diminuído de 8px para 6px para mais itens caberem */
+    gap: 6px; 
     flex-grow: 1; 
-    overflow-y: visible; /* ALTERADO: Removido o scroll interno para que o scroll do .sidebar funcione */
+    overflow-y: visible; 
     padding-bottom: 5px; 
 }
 .nav-button, .nav-button-group { 
@@ -183,10 +183,10 @@ body {
     margin: 0;
     font-size: 1.5rem;
     font-weight: 700;
-    background: none; /* ALTERADO: Removido gradiente */
-    color: var(--text-primary); /* ALTERADO: Cor branca */
+    background: none; 
+    color: var(--text-primary); 
     -webkit-background-clip: unset;
-    -webkit-text-fill-color: var(--text-primary); /* ALTERADO: Cor branca */
+    -webkit-text-fill-color: var(--text-primary); 
     background-clip: unset;
 }
 
@@ -207,6 +207,13 @@ body {
     width: 100%;
 }
 
+/* --- NOVO: Remove qualquer fundo ou borda dos contêineres do ícone Leaflet --- */
+.fazenda-marker, .usina-marker {
+    background: transparent !important;
+    border: none !important;
+}
+/* --- FIM NOVO --- */
+
 /* Marcadores Personalizados (Mantidos aqui pois são globais/do mapa) */
 .marker-pin {
     /* Base do pino: Círculo */
@@ -217,7 +224,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    box-shadow: none !important; /* ALTERADO: Remove a sombra residual */
     /* Remove a inclinação */
     transform: rotate(0deg); 
     margin: 0; 
