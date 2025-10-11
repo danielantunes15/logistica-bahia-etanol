@@ -349,7 +349,8 @@
 
 .stat-total {
     position: absolute;
-    bottom: 12px;
+    /* MODIFICADO: Desce o elemento para evitar que se junte aos números principais */
+    bottom: 8px; 
     right: 16px;
     font-size: 0.7rem;
     color: var(--text-secondary);
@@ -580,13 +581,22 @@
     grid-template-columns: 1fr 1fr 1fr;
     gap: 10px; 
     margin-top: 10px; 
+    /* MODIFICADO: Aumenta a margem inferior para afastar do texto 'Total' */
+    margin-bottom: 35px;
 }
 
 .stat-content.status-3-cols .stat-main,
 .stat-content.status-3-cols .stat-secondary {
-    padding: 5px; 
+    /* MODIFICADO: Adiciona min-height e centralização para uniformidade e proporção */
+    min-height: 70px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    
     background: rgba(45, 55, 72, 0.5); 
     border-radius: 8px;
+    padding: 5px; 
 }
 
 
