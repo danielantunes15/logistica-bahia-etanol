@@ -42,21 +42,10 @@ export class FrotaView {
                         Atualizar
                     </button>
                 </div>
-                <div class="frota-table-container">
-                    <table class="data-table-modern" id="frota-table">
-                        <thead>
-                            <tr>
-                                <th>Caminhão</th>
-                                <th>Status</th>
-                                <th>Frente de Serviço Atual</th>
-                                <th>Proprietário</th>
-                                <th style="text-align: center;">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
+                <div id="frota-owner-tables-container" class="frota-table-container">
+                    <div class="empty-state">Carregando dados...</div>
                 </div>
-            </div>
+                </div>
         `;
         this.container = container.querySelector('#frota-view');
     }
@@ -74,27 +63,88 @@ export class FrotaView {
     }
 
     renderTable() {
-        const tbody = this.container.querySelector('#frota-table tbody');
+        // Altera o seletor para o novo container
+        const tableContainer = this.container.querySelector('#frota-owner-tables-container');
+        if (!tableContainer) return;
+        
         const { caminhoes = [], frentes_servico = [] } = this.data;
 
         // Mapeia as frentes por ID para fácil acesso
         const frentesMap = new Map(frentes_servico.map(f => [f.id, f]));
+        
+        // 1. Agrupar caminhões por Proprietário
+        const trucksByOwner = new Map();
+        
+        caminhoes.forEach(caminhao => {
+            // Usa o nome do proprietário para o agrupamento
+            const ownerName = caminhao.proprietarios?.nome || 'Proprietário Não Informado';
+            
+            // Adiciona o caminhão ao seu grupo
+            if (!trucksByOwner.has(ownerName)) {
+                trucksByOwner.set(ownerName, []);
+            }
+            trucksByOwner.get(ownerName).push(caminhao);
+        });
 
-        tbody.innerHTML = caminhoes.map(caminhao => {
-            const status = caminhao.status || 'disponivel';
-            const frente = caminhao.frente_id ? frentesMap.get(caminhao.frente_id) : null;
-            const fazenda = frente?.fazendas;
+        if (caminhoes.length === 0) {
+            tableContainer.innerHTML = `<div class="empty-state"><i class="ph-fill ph-truck"></i><p>Nenhum caminhão cadastrado.</p></div>`;
+            return;
+        }
 
-            return `
-                <tr>
-                    <td><strong>${caminhao.cod_equipamento}</strong></td>
-                    <td><span class="caminhao-status-badge status-${status}">${this.statusLabels[status] || 'Disponível'}</span></td>
-                    <td>${frente ? `${frente.nome} ${fazenda ? `(${fazenda.nome})` : ''}` : '---'}</td>
-                    <td>${caminhao.proprietarios?.nome || 'N/A'}</td>
-                    <td style="text-align: center;">${this.renderActionMenu(caminhao)}</td>
-                </tr>
+        // 2. Ordenar os Proprietários alfabeticamente
+        const sortedOwnerNames = Array.from(trucksByOwner.keys()).sort((a, b) => a.localeCompare(b));
+        
+        let allTablesHTML = '';
+
+        // 3. Gerar HTML para cada grupo (Proprietário)
+        sortedOwnerNames.forEach(ownerName => {
+            const ownerTrucks = trucksByOwner.get(ownerName);
+            
+            // Ordena os caminhões dentro do grupo por código (numérico)
+            ownerTrucks.sort((a, b) => {
+                 const codA = parseInt(a.cod_equipamento, 10) || Infinity;
+                 const codB = parseInt(b.cod_equipamento, 10) || Infinity;
+                 return codA - codB;
+            });
+
+            const tbodyHTML = ownerTrucks.map(caminhao => {
+                const status = caminhao.status || 'disponivel';
+                const frente = caminhao.frente_id ? frentesMap.get(caminhao.frente_id) : null;
+                const fazenda = frente?.fazendas;
+
+                return `
+                    <tr>
+                        <td><strong>${caminhao.cod_equipamento}</strong></td>
+                        <td><span class="caminhao-status-badge status-${status}">${this.statusLabels[status] || 'Disponível'}</span></td>
+                        <td>${frente ? `${frente.nome} ${fazenda ? `(${fazenda.nome})` : ''}` : '---'}</td>
+                        <td style="text-align: center;">${this.renderActionMenu(caminhao)}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Estrutura do novo grupo
+            const tableHTML = `
+                <div class="owner-frota-group">
+                    <h2 class="owner-frota-title">${ownerName} (${ownerTrucks.length} Caminh${ownerTrucks.length === 1 ? 'ão' : 'ões'})</h2>
+                    <div class="table-wrapper" style="overflow-x: auto;">
+                        <table class="data-table-modern frota-owner-table">
+                            <thead>
+                                <tr>
+                                    <th>Caminhão</th>
+                                    <th>Status</th>
+                                    <th>Frente de Serviço Atual</th>
+                                    <th style="width: 150px; text-align: center;">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>${tbodyHTML}</tbody>
+                        </table>
+                    </div>
+                </div>
             `;
-        }).join('');
+            allTablesHTML += tableHTML;
+        });
+
+        tableContainer.innerHTML = allTablesHTML;
     }
 
     // Lógica do menu de ações refatorada

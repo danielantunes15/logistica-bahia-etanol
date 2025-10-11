@@ -15,12 +15,46 @@
     font-size: 1.8rem;
 }
 
+/* NOVO: Estilos para o container principal (agora apenas um wrapper) */
 .frota-table-container {
-    background-color: var(--bg-light);
+    padding: 0; /* Remove padding */
+    border: none; /* Remove borda */
+    background-color: transparent; /* Remove fundo */
+    /* Garante o espaçamento entre o header e o primeiro grupo */
+    margin-top: 0; 
+}
+/* FIM NOVO */
+
+/* ESTILOS DE AGRUPAMENTO POR PROPRIETÁRIO */
+.owner-frota-group {
+    background-color: var(--bg-dark); 
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 24px;
+    padding: 20px;
+    margin-bottom: 24px; /* Espaçamento entre os grupos */
+    transition: all 0.2s ease;
 }
+
+.owner-frota-group:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.owner-frota-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--accent-edit); /* Cor de destaque, como o azul/edição */
+    margin-top: 0;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.frota-owner-table {
+    /* Garante que o fundo da tabela interna tenha contraste */
+    background: var(--bg-light); 
+}
+/* FIM ESTILOS DE AGRUPAMENTO */
+
 
 .action-menu {
     position: relative;
