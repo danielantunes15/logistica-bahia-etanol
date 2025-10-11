@@ -28,7 +28,7 @@ export class DashboardView {
 
     async show() {
         await this.loadHTML();
-        await this.initializeMap();
+        await this.initializeMap(); // AGORA ESPERA A CONCLUSÃO DO MAPA
         await this.loadData();
         this.startAutoRefresh();
         this.addEventListeners();
@@ -225,20 +225,24 @@ export class DashboardView {
     }
 
     async initializeMap() {
-        setTimeout(() => {
-            const map = mapManager.initDashboardMap();
-            if (map) {
-                console.log('Mapa principal inicializado com sucesso');
-                mapManager.invalidateSize('dashboard-map');
-            }
-        }, 100);
+        return new Promise(resolve => {
+            // Usa um pequeno delay para garantir que o DOM esteja renderizado antes de inicializar o Leaflet
+            setTimeout(() => {
+                const map = mapManager.initDashboardMap();
+                if (map) {
+                    console.log('Mapa principal inicializado com sucesso');
+                    mapManager.invalidateSize('dashboard-map');
+                }
+                resolve(); // Resolve a Promise para que loadData() possa ser chamada
+            }, 100); 
+        });
     }
 
     async loadData(forceRefresh = false) {
-        showLoading();
+        // showLoading(); // REMOVIDO para atualização sutil
         try {
             // CORRIGIDO: Usa a função otimizada com CACHE para o Dashboard
-            this.data = await dataCache.fetchMetadata(); 
+            this.data = await dataCache.fetchMetadata(forceRefresh); 
             this.updateDashboardStats();
             this.updateMap();
             this.updateLastUpdateTime();
@@ -246,7 +250,7 @@ export class DashboardView {
             console.error('Erro ao carregar dados do dashboard:', error);
             showToast('Erro ao carregar dados', 'error');
         } finally {
-            hideLoading();
+            // hideLoading(); // REMOVIDO para atualização sutil
         }
     }
 
@@ -452,8 +456,9 @@ export class DashboardView {
         const { fazendas, frentes_servico, caminhoes, equipamentos } = this.data;
         if (!fazendas || fazendas.length === 0) {
              // Se não há fazendas no BD, centraliza na usina com zoom distante.
-            mapManager.clearMarkers('dashboard-fazendas');
             mapManager.maps.get('dashboard-map')?.setView(USINA_COORDS, 10); 
+            // Garante que a camada vazia seja processada para remover quaisquer marcadores antigos.
+            mapManager.updateFazendaMarkersWithStatus([], this.activeFilters);
             return;
         }
 
@@ -512,13 +517,14 @@ export class DashboardView {
         
         // --- FIM NOVO: Agregação de Dados Dinâmicos por Fazenda ---
 
+        // 1. ATUALIZA OS MARCADORES (REMOVER/ADICIONAR)
+        mapManager.updateFazendaMarkersWithStatus(fazendasNoMapa, this.activeFilters); 
+
+        // 2. AJUSTA O MAPA
         if (fazendasNoMapa.length > 0) {
-            // MUDANÇA: Passa os filtros ativos
-            mapManager.updateFazendaMarkersWithStatus(fazendasNoMapa, this.activeFilters); 
             this.adjustMapToShowFazendas(fazendasNoMapa); 
         } else {
-            // Se não há fazendas ativas, limpa os marcadores e centraliza na usina (zoom distante)
-            mapManager.clearMarkers('dashboard-fazendas');
+            // Apenas centraliza se a lista estiver vazia. O passo 1 já limpou.
             mapManager.maps.get('dashboard-map')?.setView(USINA_COORDS, 10);
             this.updateLastUpdateTime(); 
         }

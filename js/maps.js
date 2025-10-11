@@ -6,6 +6,7 @@ export class MapManager {
     constructor() {
         this.maps = new Map();
         this.markers = new Map();
+        this.fazendaLayer = null; // NOVO: Propriedade para armazenar o grupo de camadas das fazendas
     }
 
     initMap(containerId, center = USINA_COORDS, zoom = INITIAL_ZOOM) {
@@ -182,70 +183,65 @@ export class MapManager {
     }
 
     /**
-     * CORRIGIDO: Recebe fazendas com dados agregados (frenteStatus, trucksInRoute, activeEquipment, frenteNome)
-     * MUDANÇA: Recebe activeFilters e exibe cycleTime no popup
+     * MODIFICADO: Usa L.layerGroup para evitar o "flash" de marcadores.
      */
     updateFazendaMarkersWithStatus(fazendas, activeFilters = {}) {
         const map = this.maps.get('dashboard-map');
         if (!map) return;
         
-        // Limpar marcadores existentes de fazendas
-        this.clearMarkers('dashboard-fazendas');
+        // 1. Cria um novo grupo de camadas (LayerGroup) para os novos marcadores
+        const newFazendaLayer = L.layerGroup();
+
+        // Limpar o array de rastreamento (o LayerGroup faz a remoção do mapa)
+        this.markers.set('dashboard-fazendas', []);
         
-        // Adicionar marcadores para cada fazenda com cores diferentes
+        // 2. Adicionar marcadores ao novo grupo (mesma lógica de desenho)
         fazendas.forEach(fazenda => {
             if (fazenda.latitude && fazenda.longitude) {
                 
-                // MUDANÇA: Lógica de filtragem
                 const filterKey = fazenda.frenteStatus || 'inativa'; 
                 if (activeFilters[filterKey] === false) {
-                     return; // Pula este marcador se o filtro estiver desativado
+                     return; 
                 }
                 
                 const coords = [parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)];
                 
-                // Definir cor baseada no status da FRENTE (ativa/fazendo_cata/inativa)
                 let color;
                 let statusLabel;
                 let iconClass = fazenda.frenteStatus;
                 
                 switch(fazenda.frenteStatus) {
                     case 'ativa':
-                        color = '#38A169'; // Verde (Colhendo)
+                        color = '#38A169'; 
                         statusLabel = 'Colhendo';
                         break;
                     case 'fazendo_cata':
-                        color = '#ED8936'; // Laranja para Cata
+                        color = '#ED8936'; 
                         statusLabel = 'Fazendo Cata';
                         break;
                     case 'inativa':
-                        // MUDANÇA DE COR: Vermelho
-                        color = '#C53030'; // Vermelho para Frentes com Atenção
+                        color = '#C53030'; 
                         statusLabel = 'Com Atenção';
                         break;
                     default:
-                        // Se houver status inesperado, usa cinza como fallback
                         color = '#718096'; 
                         statusLabel = 'N/A';
                 }
                 
-                // Criar ícone personalizado
                 const customIcon = L.divIcon({
                     className: `fazenda-marker status-${iconClass}`, 
-                    // MUDANÇA: Novo HTML de marcador (círculo moderno com ícone e pulsação)
                     html: `
                         <div class="marker-pin" style="background-color: ${color}">
                             <i class="ph-fill ph-tree-evergreen"></i>
                         </div>
                         <div class="marker-pulse" style="background-color: ${color}"></div>
                     `,
-                    iconSize: [40, 40], // AUMENTADO
-                    iconAnchor: [20, 40] // MUDANÇA: Ajuste da âncora para o formato de pin
+                    iconSize: [40, 40], 
+                    iconAnchor: [20, 40] 
                 });
                 
-                const marker = L.marker(coords, { icon: customIcon }).addTo(map);
+                const marker = L.marker(coords, { icon: customIcon });
                 
-                // MUDANÇA: CONTEÚDO DO POPUP MELHORADO (Adiciona Tempo de Ciclo)
                 const popupContent = `
                     <div class="fazenda-popup">
                         <h4>${fazenda.nome}</h4>
@@ -270,12 +266,10 @@ export class MapManager {
                 
                 marker.bindPopup(popupContent);
                 
-                // Adicionar um listener para o botão de Ação no POPUP
                 marker.on('popupopen', () => {
                     const btn = document.querySelector(`.fazenda-marker.status-${iconClass} .btn-action-map`);
                     if (btn) {
                         btn.addEventListener('click', (e) => {
-                            // Disparar evento para o ViewManager
                             window.dispatchEvent(new CustomEvent('viewChanged', { 
                                 detail: { 
                                     view: 'controle', 
@@ -286,12 +280,21 @@ export class MapManager {
                     }
                 });
                 
-                if (!this.markers.has('dashboard-fazendas')) {
-                    this.markers.set('dashboard-fazendas', []);
-                }
-                this.markers.get('dashboard-fazendas').push(marker);
+                newFazendaLayer.addLayer(marker);
+                this.markers.get('dashboard-fazendas').push(marker); // Keep tracking if needed
             }
         });
+        
+        // 3. Troca a camada: Adiciona a nova camada e remove a antiga
+        if (this.fazendaLayer) {
+             map.removeLayer(this.fazendaLayer);
+        }
+        
+        if (newFazendaLayer.getLayers().length > 0) {
+            newFazendaLayer.addTo(map);
+        }
+        
+        this.fazendaLayer = newFazendaLayer; // Armazena a nova camada para ser removida na próxima atualização
     }
 
     clearMarkers(key) {
@@ -312,5 +315,4 @@ export class MapManager {
     }
 }
 
-// Instância global do gerenciador de mapas
 export const mapManager = new MapManager();
