@@ -126,6 +126,36 @@ body {
     max-height: 500px; 
 }
 
+/* --- NOVO ESTILO: BADGE DE NOTIFICAÇÃO NA SIDEBAR --- */
+.badge {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: white;
+    min-width: 24px;
+    text-align: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0; 
+}
+
+/* Badge de Alerta Crítico (Quebrado/Parado) */
+.badge.alert {
+    background-color: var(--accent-danger); 
+}
+
+/* Badge de Aviso (Descarga/Atenção) */
+.badge.warning {
+    background-color: #ED8936; /* Laranja */
+}
+
+.nav-button:hover .badge {
+    /* Mantém o badge visível e com cor sólida no hover */
+    opacity: 1;
+}
+
 /* Views */
 .view { 
     display: none; 
@@ -176,14 +206,7 @@ body {
     width: 100%;
 }
 
-/* --- MUDANÇA PRINCIPAL: NOVO ESTILO DE MARCADOR (Circular com base) --- */
-
-/* MUDANÇA: Garante que o contêiner do Leaflet seja transparente */
-.fazenda-marker, .usina-marker {
-    background: none !important;
-    border: none !important;
-}
-
+/* Marcadores Personalizados (Mantidos aqui pois são globais/do mapa) */
 .marker-pin {
     /* Base do pino: Círculo */
     width: 40px; 

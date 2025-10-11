@@ -6,6 +6,8 @@ import { initializeViews } from './views/viewManager.js';
 // Importações atualizadas para o novo sistema seguro
 import { getLocalSession, logoutAppUser, updateUserPassword, forceLogout } from './api.js'; 
 import { showToast, showLoading, hideLoading, handleOperation } from './helpers.js';
+// MUDANÇA: Importa dataCache para buscar os metadados
+import { dataCache } from './dataCache.js';
 
 class App {
     constructor() {
@@ -58,14 +60,30 @@ class App {
 
         // 1. Define o papel do usuário
         this.userRole = session.role; 
+
+        // 2. MUDANÇA: Busca dados leves para contadores e calcula.
+        let counts = {};
+        try {
+            const data = await dataCache.fetchMetadata(true); // Força refresh inicial para dados críticos
+            
+            const downtimeCaminhoes = data.caminhoes.filter(c => ['quebrado', 'parado'].includes(c.status)).length;
+            const downtimeEquipamentos = data.equipamentos.filter(e => ['quebrado', 'parado'].includes(e.status)).length;
+            const descargaCount = data.caminhoes.filter(c => c.status === 'descarregando').length;
+            
+            counts = { downtimeCaminhoes, downtimeEquipamentos, descargaCount };
+            
+        } catch (e) {
+            console.error('Erro ao buscar contadores iniciais:', e);
+            // Continua com counts vazios
+        }
         
-        // 2. Carrega a sidebar com o nome do usuário para exibição
-        await loadSidebar(this.userRole, session.fullName); 
+        // 3. Carrega a sidebar com o nome do usuário para exibição E AS CONTAGENS
+        await loadSidebar(this.userRole, session.fullName, counts); 
         
-        // 3. Inicia o monitoramento de sessão (AGORA APENAS LIMPA TIMERS ANTIGOS)
+        // 4. Inicia o monitoramento de sessão (REMOVIDO TIMER, MANTIDO APENAS A ESTRUTURA)
         this.setupSessionManagement();
         
-        // 4. Verifica se é primeiro login para forçar troca de senha
+        // 5. Verifica se é primeiro login para forçar troca de senha
         if (session.isFirstLogin) {
             this.showFirstLoginChangePasswordModal(session);
         } else {
@@ -85,8 +103,7 @@ class App {
     // --- GERENCIAMENTO DE SESSÃO E INATIVIDADE (TOTALMENTE DESATIVADO) ---
     
     setupSessionManagement() {
-        // MUDANÇA PRINCIPAL: Limpa quaisquer timers que possam estar rodando.
-        // Não inicia NENHUM timer novo (nem de inatividade, nem de sessão periódica).
+        // MUDANÇA PRINCIPAL: Desativa todos os timers automáticos.
         this.cleanupTimers(); 
         console.log('Monitoramento de Inatividade e Sessão Periódica Desativados.');
     }

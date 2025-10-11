@@ -4,11 +4,19 @@
  * Carrega a barra lateral e os itens de navegação.
  * @param {string} userRole - O papel do usuário logado ('admin' ou 'usuario').
  * @param {string} userNameDisplay - O nome completo do usuário para exibição.
+ * @param {object} counts - Objeto contendo os contadores críticos.
  */
-export async function loadSidebar(userRole, userNameDisplay = 'Usuário') { 
+export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts = {}) { 
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
     
+    // Contadores com fallback para 0
+    const { 
+        downtimeCaminhoes = 0, 
+        downtimeEquipamentos = 0, 
+        descargaCount = 0 
+    } = counts;
+
     // Decide se o botão Gerencial deve ser visível (Apenas Admin)
     const isAdmin = userRole === 'admin';
     const gerencialButton = isAdmin ? `
@@ -104,16 +112,19 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário') {
             <button class="nav-button" data-view="frota">
                 <i class="ph-fill ph-truck"></i>
                 <span>Gerenciamento de Frota</span>
+                ${downtimeCaminhoes > 0 ? `<span class="badge alert">${downtimeCaminhoes}</span>` : ''}
             </button>
             <button class="nav-button" data-view="equipamentos">
                 <i class="ph-fill ph-tractor"></i>
                 <span>Gerenciador de Equipamentos</span>
+                ${downtimeEquipamentos > 0 ? `<span class="badge alert">${downtimeEquipamentos}</span>` : ''}
             </button>
             <button class="nav-button" data-view="fila-estacionamento"> <i class="ph-fill ph-hourglass-simple"></i>
                 <span>Fila no Estacionamento</span>
             </button>
             <button class="nav-button" data-view="fila-descarga"> <i class="ph-fill ph-factory"></i>
                 <span>Fila de Descarga</span>
+                ${descargaCount > 0 ? `<span class="badge warning">${descargaCount}</span>` : ''}
             </button>
             <button class="nav-button" data-view="relatorios">
                 <i class="ph-fill ph-chart-bar"></i>
