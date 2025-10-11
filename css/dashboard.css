@@ -167,16 +167,17 @@
 }
 
 .stats-panel {
-    background: rgba(26, 32, 44, 0.9); /* ALTERADO: De 0.95 para 0.9 (Melhor organização/transparência) */
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(74, 85, 104, 0.3);
+    /* CORREÇÃO 1: Aumenta o desfoque para um efeito de profundidade maior */
+    background: rgba(26, 32, 44, 0.95); 
+    backdrop-filter: blur(25px); /* AUMENTADO O BLUR */
+    border: 1px solid rgba(74, 85, 104, 0.5); /* Borda um pouco mais visível */
     border-radius: 16px;
     padding: 20px;
     box-shadow: 
-        0 20px 40px rgba(0, 0, 0, 0.3),
+        0 20px 40px rgba(0, 0, 0, 0.4),
         0 0 0 1px rgba(255, 255, 255, 0.1);
     margin: 0 auto;
-    max-width: 1400px; /* ALTERADO: Limita a largura para telas grandes e o centraliza */
+    max-width: 1400px; 
 }
 
 .panel-header {
@@ -192,10 +193,10 @@
     margin: 0;
     font-size: 1.3rem;
     font-weight: 700;
-    background: none; /* ALTERADO: Removido gradiente */
-    color: var(--text-primary); /* ALTERADO: Cor branca */
+    background: none; 
+    color: var(--text-primary); 
     -webkit-background-clip: unset;
-    -webkit-text-fill-color: var(--text-primary); /* ALTERADO: Cor branca */
+    -webkit-text-fill-color: var(--text-primary); 
     background-clip: unset;
 }
 
@@ -224,7 +225,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    transition: all 0.3s ease;
+    transition: all 0.3s ease, box-shadow 0.3s ease; /* Adiciona box-shadow à transição */
     position: relative;
     overflow: hidden;
 }
@@ -241,9 +242,12 @@
 }
 
 .stat-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(56, 161, 105, 0.5);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    transform: translateY(-5px); /* AUMENTADO o movimento */
+    border-color: var(--accent-primary);
+    /* CORREÇÃO 2: Adiciona sombra de cor (Glow) */
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.5),
+        0 0 15px var(--accent-primary); /* Efeito de brilho */
 }
 
 .stat-header {
@@ -272,10 +276,10 @@
 .stat-title {
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--text-primary); /* ALTERADO: Cor branca */
-    background: none; /* ALTERADO: Removido gradiente */
+    color: var(--text-primary); 
+    background: none; 
     -webkit-background-clip: unset;
-    -webkit-text-fill-color: var(--text-primary); /* ALTERADO: Cor branca */
+    -webkit-text-fill-color: var(--text-primary); 
     background-clip: unset;
 }
 
@@ -456,7 +460,7 @@
     gap: 8px;
 }
 
-.legend-item { /* MUDANÇA: Estilo para item interativo */
+.legend-item { 
     display: flex;
     align-items: center;
     gap: 10px;
@@ -472,7 +476,7 @@
     background: rgba(74, 85, 104, 0.2);
 }
 
-.legend-item.disabled { /* MUDANÇA: Estilo para item desativado */
+.legend-item.disabled { 
     opacity: 0.4;
     text-decoration: line-through;
 }
@@ -581,8 +585,8 @@
 .stat-content.status-3-cols .stat-main,
 .stat-content.status-3-cols .stat-secondary {
     padding: 5px; 
-    border-radius: 8px;
     background: rgba(45, 55, 72, 0.5); 
+    border-radius: 8px;
 }
 
 
