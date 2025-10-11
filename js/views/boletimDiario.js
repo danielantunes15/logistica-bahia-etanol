@@ -20,13 +20,15 @@ export class BoletimDiarioView {
     }
 
     getHTML() {
+        // Otimização: Garantir que a view e o contêiner do iframe utilizem 100% da altura flexível.
+        // Removemos o 'min-height: 600px;' do iframe para permitir expansão total.
         return `
-            <div id="boletim-diario-view" class="view active-view controle-view" style="padding: 24px; display: flex; flex-direction: column;">
+            <div id="boletim-diario-view" class="view active-view controle-view" style="padding: 24px; display: flex; flex-direction: column; height: 100%;">
                 <div class="controle-header" style="margin-bottom: 24px;">
                     <h1>Boletim Diário de Operações</h1>
                 </div>
                 
-                <div class="boletim-content" style="flex-grow: 1; min-height: 800px; display: flex;">
+                <div class="boletim-content" style="flex-grow: 1; display: flex; min-height: 0; overflow: hidden;">
                     <iframe 
                         title="BOLETIM DIARIO" 
                         width="100%" 
