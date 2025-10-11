@@ -3,11 +3,12 @@ import { mapManager } from '../maps.js';
 // CORRIGIDO: Usa fetchMetadata em vez de fetchAllData
 // Adicionado: Importa dataCache
 import { dataCache } from '../dataCache.js';
-import { showToast, showLoading, hideLoading } from '../helpers.js';
+// MUDANÇA: Importa calculateDistance
+import { showToast, showLoading, hideLoading, calculateDistance } from '../helpers.js'; 
 // NOVO: Importa constantes
 import { CAMINHAO_ROUTE_STATUS } from '../constants.js';
 
-// Coordenadas da usina (definir se não estiver definido)
+// Coordenadas da usina (Definidas aqui para o cálculo Haversine)
 const USINA_COORDS = [-17.642301, -40.181525];
 const INITIAL_ZOOM = 14;
 
@@ -169,8 +170,8 @@ export class DashboardView {
                                             <span class="stat-label">Colhendo</span>
                                         </div>
                                         <div class="stat-secondary">
-                                            <span class="stat-value warning small-value" id="fazendas-cata">0</span>
-                                            <span class="stat-label">Em Cata</span>
+                                            <span class="stat-value info-metric small-value" id="raio-medio-km">--</span> 
+                                            <span class="stat-label">Raio Médio (Km)</span>
                                         </div>
                                         <div class="stat-secondary">
                                             <span class="stat-value small-value" id="fazendas-disponiveis">0</span>
@@ -201,11 +202,9 @@ export class DashboardView {
                         </div>
                     </div>
 
-                    <div class="map-legend" id="map-legend"> 
-                        <div class="legend-title">Legenda</div>
+                    <div class="map-legend" id="map-legend"> <div class="legend-title">Legenda</div>
                         <div class="legend-items">
-                            <div class="legend-item ${this.activeFilters.usina ? '' : 'disabled'}" data-filter-key="usina"> 
-                                <div class="legend-color usina"></div>
+                            <div class="legend-item ${this.activeFilters.usina ? '' : 'disabled'}" data-filter-key="usina"> <div class="legend-color usina"></div>
                                 <span>Usina</span>
                             </div>
                             <div class="legend-item ${this.activeFilters.ativa ? '' : 'disabled'}" data-filter-key="ativa">
@@ -268,7 +267,7 @@ export class DashboardView {
         }
     }
 
-    // MUDANÇA: Lógica de contagem para 3 métricas por KPI
+    // MUDANÇA: Lógica de contagem e cálculo do Raio Médio
     updateDashboardStats() {
         const { caminhoes, frentes_servico, equipamentos, fazendas } = this.data;
 
@@ -288,13 +287,13 @@ export class DashboardView {
             criticalStatuses.includes(c.status)
         ).length : 0; 
 
-        // 2. Estatísticas de Frentes (NOVO)
+        // 2. Estatísticas de Frentes 
         const totalFrentes = frentes_servico ? frentes_servico.length : 0;
         const frentesAtivas = frentes_servico ? frentes_servico.filter(f => f.status === 'ativa').length : 0;
         const frentesCata = frentes_servico ? frentes_servico.filter(f => f.status === 'fazendo_cata').length : 0;
         const frentesInativas = frentes_servico ? frentes_servico.filter(f => f.status === 'inativa' || !f.status).length : 0;
 
-        // 3. Estatísticas de Equipamentos (NOVO)
+        // 3. Estatísticas de Equipamentos 
         const totalEquipamentos = equipamentos ? equipamentos.length : 0;
         const equipamentosEmOperacao = equipamentos ? equipamentos.filter(e => 
             e.status === 'ativo' && e.frente_id // Ativo E associado a uma frente
@@ -306,7 +305,7 @@ export class DashboardView {
             criticalStatuses.includes(e.status) // Parado ou Quebrado
         ).length : 0;
         
-        // 4. Estatísticas de Fazendas (NOVO)
+        // 4. Estatísticas de Fazendas (Raio Médio)
         const totalFazendas = fazendas ? fazendas.length : 0;
         
         const fazendasAtivasIds = new Set(
@@ -322,6 +321,31 @@ export class DashboardView {
         const fazendasColhendo = fazendasAtivasIds.size;
         const fazendasEmCata = fazendasCataIds.size;
         const fazendasDisponiveis = totalFazendas - fazendasAssociadasIds.size;
+
+        // --- CÁLCULO DO RAIO MÉDIO (NOVO) ---
+        let totalDistance = 0;
+        let countHarvestingFazendas = 0;
+
+        fazendas.forEach(f => {
+            // Verifica se a fazenda está ativamente colhendo (status 'ativa')
+            if (fazendasAtivasIds.has(f.id) && f.latitude && f.longitude) {
+                const lat = parseFloat(f.latitude);
+                const lon = parseFloat(f.longitude);
+
+                // Garante que as coordenadas sejam válidas
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    const distance = calculateDistance(
+                        USINA_COORDS[0], USINA_COORDS[1], 
+                        lat, lon
+                    );
+                    totalDistance += distance;
+                    countHarvestingFazendas++;
+                }
+            }
+        });
+
+        const averageRadius = countHarvestingFazendas > 0 ? (totalDistance / countHarvestingFazendas).toFixed(1) : '--';
+        // ------------------------------------
 
         // --- ATUALIZAÇÃO DOS ELEMENTOS ---
         
@@ -345,7 +369,8 @@ export class DashboardView {
 
         // Fazendas
         this.updateStatElement('fazendas-colhendo', fazendasColhendo);
-        this.updateStatElement('fazendas-cata', fazendasEmCata);
+        // MUDANÇA: Atualiza o KPI de Raio Médio
+        this.updateStatElement('raio-medio-km', averageRadius);
         this.updateStatElement('fazendas-disponiveis', fazendasDisponiveis);
         this.updateStatElement('fazendas-total', totalFazendas);
 
@@ -363,14 +388,15 @@ export class DashboardView {
         this.updateStatElement('eficiencia-geral', `${eficiencia}%`);
         this.updateEfficiencyBar(eficiencia);
 
-        const operacoesAtivas = caminhoesEmOperacao + equipamentosEmOperacao + fazendasColhendo + fazendasEmCata;
+        const operacoesAtivas = totalActive;
         this.updateStatElement('operacoes-ativas', operacoesAtivas);
     }
 
     updateStatElement(elementId, value) {
         const element = document.getElementById(elementId);
         if (element) {
-            if (typeof value === 'number') {
+            // MUDANÇA: Evita animação para Raio Médio (strings)
+            if (typeof value === 'number' && !isNaN(value)) { 
                 this.animateCount(element, parseInt(element.textContent) || 0, value);
             } else {
                 element.textContent = value;

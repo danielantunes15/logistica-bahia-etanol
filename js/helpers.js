@@ -78,6 +78,29 @@ export function formatCurrency(value) {
     }).format(value);
 }
 
+// --- NOVO: Função para calcular distância usando a fórmula de Haversine ---
+/**
+ * Calcula a distância em quilômetros entre dois pontos geográficos (lat/lon).
+ * @param {number} lat1 Latitude do ponto 1.
+ * @param {number} lon1 Longitude do ponto 1.
+ * @param {number} lat2 Latitude do ponto 2.
+ * @param {number} lon2 Longitude do ponto 2.
+ * @returns {number} Distância em km.
+ */
+export function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distância em km
+    return distance;
+}
+// -------------------------------------------------------------------
+
+
 // --- MODIFICADO: Função para formatar milissegundos em H/M (Adicionado tratamento para NaN) ---
 export function formatMillisecondsToHoursMinutes(diffMillis) {
     if (diffMillis < 0 || isNaN(diffMillis)) return 'Tempo Inválido'; // CORREÇÃO AQUI
