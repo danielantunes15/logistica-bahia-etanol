@@ -9,6 +9,8 @@ import { FilaEstacionamentoView } from './filaEstacionamento.js';
 import { DescargaView } from './descarga.js'; 
 import { LoginView } from './login.js'; // NOVO: Tela de Login
 import { GerencialView } from './gerencial.js'; // NOVO: Tela Gerencial
+// NOVO: Importa BoletimDiarioView
+import { BoletimDiarioView } from './boletimDiario.js'; 
 
 export class ViewManager {
     constructor(appManager) { // Recebe o App Manager
@@ -27,8 +29,10 @@ export class ViewManager {
     }
 
     registerViews() {
-        this.views.set('login', new LoginView(this.appManager)); // Registra Login
+        this.views.set('login', new LoginView(this.appManager)); 
         this.views.set('dashboard', new DashboardView());
+        // NOVO: Registra Boletim Diário
+        this.views.set('boletim-diario', new BoletimDiarioView()); 
         this.views.set('controle', new ControleView());
         this.views.set('frota', new FrotaView());
         this.views.set('equipamentos', new EquipamentosView()); 

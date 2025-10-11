@@ -105,6 +105,12 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
                 <i class="ph-fill ph-map-trifold"></i>
                 <span>Mapa Principal</span>
             </button>
+            
+            <button class="nav-button" data-view="boletim-diario">
+                <i class="ph-fill ph-newspaper"></i>
+                <span>Boletim Diário</span>
+            </button>
+            
             <button class="nav-button" data-view="controle">
                 <i class="ph-fill ph-arrows-clockwise"></i>
                 <span>Painel de Controle</span>
