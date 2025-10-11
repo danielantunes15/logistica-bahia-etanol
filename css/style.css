@@ -178,8 +178,14 @@ body {
 
 /* --- MUDANÇA PRINCIPAL: NOVO ESTILO DE MARCADOR (Circular com base) --- */
 
+/* MUDANÇA: Garante que o contêiner do Leaflet seja transparente */
+.fazenda-marker, .usina-marker {
+    background: none !important;
+    border: none !important;
+}
+
 .marker-pin {
-    /* Base do pino: Círculo (ou pode ser o formato de gota, dependendo do design) */
+    /* Base do pino: Círculo */
     width: 40px; 
     height: 40px; 
     border-radius: 50%;
@@ -190,20 +196,19 @@ body {
     box-shadow: 0 2px 5px rgba(0,0,0,0.4);
     /* Remove a inclinação */
     transform: rotate(0deg); 
-    margin: 0; /* Centralizado pela âncora do Leaflet */
+    margin: 0; 
 }
 
-.marker-pin::after {
-    /* Novo ponto de ancoragem no estilo 'gota' */
+/* O ponto de ancoragem (a gota) */
+.marker-pin::after { 
     content: '';
     position: absolute;
     bottom: -15px; /* Ponto fora do círculo */
     width: 15px;
     height: 15px;
-    background: inherit; /* Herda a cor do .marker-pin */
+    background: inherit; 
     transform: rotate(45deg);
     border-bottom-right-radius: 50%;
-    /* Ajuste fino para encaixar no centro */
     left: 50%; 
     margin-left: -7.5px; 
     z-index: -1; 
@@ -228,13 +233,11 @@ body {
 .marker-pin i {
     position: relative;
     z-index: 2;
-    /* CORREÇÃO CRÍTICA: Cor do ícone interna é BRANCA para alto contraste */
+    /* CORREÇÃO FINAL: Cor do ícone interna é BRANCA para alto contraste */
     color: white; 
     font-size: 18px; /* Aumentado */
-    /* Remove a inclinação */
     transform: rotate(0deg); 
 }
-/* FIM NOVO ESTILO DE MARCADOR */
 
 
 .marker-pulse {
