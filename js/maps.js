@@ -44,6 +44,7 @@ export class MapManager {
             // AUMENTADO o iconSize para o marcador da usina
             const usinaIcon = L.divIcon({
                 className: 'usina-marker',
+                // MUDANÇA: Novo HTML de marcador (círculo moderno com ícone e pulsação)
                 html: `
                     <div class="marker-pin usina">
                         <i class="ph-fill ph-factory"></i>
@@ -51,7 +52,7 @@ export class MapManager {
                     <div class="marker-pulse usina"></div>
                 `,
                 iconSize: [45, 45], // AUMENTADO
-                iconAnchor: [22, 22] // Ajuste da âncora
+                iconAnchor: [22, 45] // MUDANÇA: Ajuste da âncora para o formato de pin
             });
             
             L.marker(USINA_COORDS, { icon: usinaIcon }).addTo(map)
@@ -218,7 +219,7 @@ export class MapManager {
                         statusLabel = 'Fazendo Cata';
                         break;
                     case 'inativa':
-                        // MUDANÇA DE COR: Vermelho (cor da variável CSS --accent-danger)
+                        // MUDANÇA DE COR: Vermelho
                         color = '#C53030'; // Vermelho para Frentes com Atenção
                         statusLabel = 'Com Atenção';
                         break;
@@ -231,6 +232,7 @@ export class MapManager {
                 // Criar ícone personalizado
                 const customIcon = L.divIcon({
                     className: `fazenda-marker status-${iconClass}`, 
+                    // MUDANÇA: Novo HTML de marcador (círculo moderno com ícone e pulsação)
                     html: `
                         <div class="marker-pin" style="background-color: ${color}">
                             <i class="ph-fill ph-tree-evergreen"></i>
@@ -238,7 +240,7 @@ export class MapManager {
                         <div class="marker-pulse" style="background-color: ${color}"></div>
                     `,
                     iconSize: [40, 40], // AUMENTADO
-                    iconAnchor: [20, 20]
+                    iconAnchor: [20, 40] // MUDANÇA: Ajuste da âncora para o formato de pin
                 });
                 
                 const marker = L.marker(coords, { icon: customIcon }).addTo(map);

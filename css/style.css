@@ -176,66 +176,69 @@ body {
     width: 100%;
 }
 
-/* Marcadores Personalizados (Mantidos aqui pois são globais/do mapa) */
+/* --- MUDANÇA PRINCIPAL: NOVO ESTILO DE MARCADOR (Circular com base) --- */
+
 .marker-pin {
-    width: 30px;
-    height: 30px;
-    border-radius: 50% 50% 50% 0;
-    background: var(--accent-primary);
+    /* Base do pino: Círculo (ou pode ser o formato de gota, dependendo do design) */
+    width: 40px; 
+    height: 40px; 
+    border-radius: 50%;
     position: absolute;
-    transform: rotate(-45deg);
-    left: 50%;
-    top: 50%;
-    margin: -15px 0 0 -15px;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+    /* Remove a inclinação */
+    transform: rotate(0deg); 
+    margin: 0; /* Centralizado pela âncora do Leaflet */
 }
 
-/* AUMENTANDO TAMANHO E AJUSTANDO MARGENS PARA USINA */
+.marker-pin::after {
+    /* Novo ponto de ancoragem no estilo 'gota' */
+    content: '';
+    position: absolute;
+    bottom: -15px; /* Ponto fora do círculo */
+    width: 15px;
+    height: 15px;
+    background: inherit; /* Herda a cor do .marker-pin */
+    transform: rotate(45deg);
+    border-bottom-right-radius: 50%;
+    /* Ajuste fino para encaixar no centro */
+    left: 50%; 
+    margin-left: -7.5px; 
+    z-index: -1; 
+}
+
+/* Tamanhos e Posições */
 .usina-marker .marker-pin {
     /* MUDANÇA DE COR: Para #805AD5 (Roxo) */
     background: #805AD5; 
     width: 45px; 
     height: 45px; 
-    margin: -22px 0 0 -22px; 
-}
-.usina-marker .marker-pin::after {
-    width: 35px;
-    height: 35px;
+    margin: 0;
 }
 
-/* AUMENTANDO TAMANHO E AJUSTANDO MARGENS PARA FAZENDAS */
 .fazenda-marker .marker-pin {
     width: 40px; 
     height: 40px; 
-    margin: -20px 0 0 -20px; 
-}
-.fazenda-marker .marker-pin::after {
-    width: 30px;
-    height: 30px;
+    margin: 0; 
 }
 
-
-.marker-pin::after {
-    content: '';
-    width: 24px;
-    height: 24px;
-    margin: 3px 0 0 3px;
-    background: white;
-    position: absolute;
-    border-radius: 50%;
-}
-
+/* O Ícone (Árvore/Fábrica) */
 .marker-pin i {
     position: relative;
-    z-index: 1;
-    color: var(--accent-primary);
-    font-size: 12px;
-    transform: rotate(45deg);
+    z-index: 2;
+    /* CORREÇÃO CRÍTICA: Cor do ícone interna é BRANCA para alto contraste */
+    color: white; 
+    font-size: 18px; /* Aumentado */
+    /* Remove a inclinação */
+    transform: rotate(0deg); 
 }
+/* FIM NOVO ESTILO DE MARCADOR */
+
 
 .marker-pulse {
+    /* MANTIDO: Pulse fica na base do marcador */
     border-radius: 50%;
     height: 14px;
     width: 14px;
@@ -260,18 +263,16 @@ body {
     animation-delay: 0.5s; /* Pulso mais rápido */
 }
 
+/* Cores específicas da usina (Roxo) */
 .usina-marker .marker-pin i {
-    /* MUDANÇA DE COR: Roxo Escuro */
-    color: #6A49B8;
+    color: white;
 }
 
 .usina-marker .marker-pulse {
-    /* MUDANÇA DE COR: Roxo */
     background: #805AD5; 
 }
 
 .usina-marker .marker-pulse::after {
-    /* MUDANÇA DE COR: Roxo */
     box-shadow: 0 0 1px 3px #805AD5; 
 }
 
