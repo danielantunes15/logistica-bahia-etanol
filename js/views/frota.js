@@ -32,15 +32,19 @@ export class FrotaView {
     }
 
     async loadHTML() {
+        const totalCaminhoes = this.data.caminhoes ? this.data.caminhoes.length : 0;
         const container = document.getElementById('views-container');
         container.innerHTML = `
             <div id="frota-view" class="view frota-view active-view">
                 <div class="frota-header">
                     <h1>Gerenciamento de Frota</h1>
-                    <button class="btn-primary" id="refresh-frota">
-                        <i class="ph-fill ph-arrows-clockwise"></i>
-                        Atualizar
-                    </button>
+                    <div style="display: flex; gap: 20px; align-items: center;">
+                        <span class="frota-total-display" id="frota-total-display">Total de Caminhões: ${totalCaminhoes}</span>
+                        <button class="btn-primary" id="refresh-frota">
+                            <i class="ph-fill ph-arrows-clockwise"></i>
+                            Atualizar
+                        </button>
+                    </div>
                 </div>
                 <div id="frota-owner-tables-container" class="frota-table-container">
                     <div class="empty-state">Carregando dados...</div>
@@ -55,6 +59,12 @@ export class FrotaView {
         try {
             this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
             this.renderTable();
+            // Atualiza o total no cabeçalho
+            const totalCaminhoes = this.data.caminhoes ? this.data.caminhoes.length : 0;
+            const totalDisplay = document.getElementById('frota-total-display');
+            if (totalDisplay) {
+                totalDisplay.textContent = `Total de Caminhões: ${totalCaminhoes}`;
+            }
         } catch (error) {
             handleOperation(error);
         } finally {
@@ -118,22 +128,27 @@ export class FrotaView {
                 const totalSteps = CAMINHAO_STATUS_CYCLE.length;
                 const currentStep = isCycleActive ? cycleIndex + 1 : 0;
                 const progressPercentage = isCycleActive ? ((currentStep / totalSteps) * 100).toFixed(0) : 0;
-                const progressLabel = isCycleActive ? `${currentStep} de ${totalSteps} (${progressPercentage}%)` : `${this.statusLabels[status] || 'Disponível'}`;
                 
-                // NOVO: HTML da Barra de Progresso
+                // MODIFICADO: HTML do Progresso
                 const progressHTML = `
-                    <div class="cycle-progress-bar">
-                        <div class="progress-fill status-${status}" style="width: ${progressPercentage}%;"></div>
+                    <div class="cycle-progress-wrapper">
+                        <div class="cycle-progress-bar">
+                            <div class="progress-fill status-${status}" style="width: ${progressPercentage}%;"></div>
+                        </div>
+                        <span class="progress-percentage">${progressPercentage}%</span>
                     </div>
-                    <span class="progress-label">${progressLabel}</span>
                 `;
+                
+                // NOVO RÓTULO DA ETAPA (SEMPRE VISÍVEL ABAIXO DO CÓDIGO)
+                const stageNameHTML = `<span class="cycle-stage-name">${this.statusLabels[status]}</span>`;
 
                 return `
                     <tr>
                         <td>
                             <strong>${caminhao.cod_equipamento}</strong>
                             <div class="cycle-status-info">
-                                ${isCycleActive ? progressHTML : `<span class="caminhao-status-badge status-${status}">${progressLabel}</span>`}
+                                ${stageNameHTML}
+                                ${isCycleActive ? progressHTML : `<span class="caminhao-status-badge status-${status} non-cycle-status">${this.statusLabels[status]}</span>`}
                             </div>
                         </td>
                         <td>${frente ? `${frente.nome} ${fazenda ? `(${fazenda.nome})` : ''}` : '---'}</td>
@@ -150,7 +165,7 @@ export class FrotaView {
                         <table class="data-table-modern frota-owner-table">
                             <thead>
                                 <tr>
-                                    <th style="width: 300px;">Caminhão / Ciclo Atual</th>
+                                    <th style="width: 300px;">Caminhão / Etapa do Ciclo</th>
                                     <th>Frente de Serviço Atual</th>
                                     <th style="width: 150px; text-align: center;">Ações</th>
                                 </tr>
