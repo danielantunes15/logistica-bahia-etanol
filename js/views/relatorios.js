@@ -3,7 +3,7 @@
 import { fetchAllData } from '../api.js';
 // CORREÇÃO: Importa tudo relacionado a tempo/duração/cálculo de ciclo de timeUtils.js
 import { showToast, showLoading, hideLoading } from '../helpers.js';
-import { formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes, groupDowntimeSessions, calculateCycleDuration } from '../timeUtils.js';
+import { formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes, groupDowntimeSessions, calculateCycleDuration, getBrtIsoString } from '../timeUtils.js';
 import { dataCache } from '../dataCache.js';
 // NOVO: Importa CAMINHAO_STATUS_CYCLE
 import { CAMINHAO_STATUS_LABELS, EQUIPAMENTO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE } from '../constants.js';
