@@ -1,11 +1,7 @@
 // js/views/dashboard.js
 import { mapManager } from '../maps.js';
-// CORRIGIDO: Usa fetchMetadata em vez de fetchAllData
-// Adicionado: Importa dataCache
 import { dataCache } from '../dataCache.js';
-// MUDANÇA: Importa calculateDistance
 import { showToast, showLoading, hideLoading, calculateDistance } from '../helpers.js'; 
-// NOVO: Importa constantes
 import { CAMINHAO_ROUTE_STATUS } from '../constants.js';
 
 // Coordenadas da usina (Definidas aqui para o cálculo Haversine)
@@ -22,13 +18,14 @@ export class DashboardView {
             usina: true,
             ativa: true,
             fazendo_cata: true,
-            inativa: true
+            inativa: true,
+            ocorrencia: true // NOVO: Filtro para ocorrências
         };
     }
 
     async show() {
         await this.loadHTML();
-        await this.initializeMap(); // AGORA ESPERA A CONCLUSÃO DO MAPA
+        await this.initializeMap(); 
         await this.loadData();
         this.startAutoRefresh();
         this.addEventListeners();
@@ -44,7 +41,6 @@ export class DashboardView {
         this.container = container;
     }
 
-    // MUDANÇA: Novo método Mock para Tempo de Ciclo (a ser substituído pela API real)
     mockFrenteCycleTime(frenteId) {
         // Mock data: 3h 45m, 4h 10m, or 5h 05m based on frenteId
         if (frenteId % 3 === 0) return '03h 45m';
@@ -202,6 +198,11 @@ export class DashboardView {
 
                     <div class="map-legend" id="map-legend"> <div class="legend-title">Legenda</div>
                         <div class="legend-items">
+                            <div class="legend-item ${this.activeFilters.ocorrencia ? '' : 'disabled'}" data-filter-key="ocorrencia"> 
+                                <div class="legend-color" style="clip-path: polygon(50% 0%, 0% 100%, 100% 100%); background-color: #ED8936; border: none;"></div>
+                                <span>Ocorrência</span>
+                            </div>
+
                             <div class="legend-item ${this.activeFilters.usina ? '' : 'disabled'}" data-filter-key="usina"> <div class="legend-color usina"></div>
                                 <span>Usina</span>
                             </div>
@@ -239,7 +240,6 @@ export class DashboardView {
     }
 
     async loadData(forceRefresh = false) {
-        // showLoading(); // REMOVIDO para atualização sutil
         try {
             // CORRIGIDO: Usa a função otimizada com CACHE para o Dashboard
             this.data = await dataCache.fetchMetadata(forceRefresh); 
@@ -249,9 +249,7 @@ export class DashboardView {
         } catch (error) {
             console.error('Erro ao carregar dados do dashboard:', error);
             showToast('Erro ao carregar dados', 'error');
-        } finally {
-            // hideLoading(); // REMOVIDO para atualização sutil
-        }
+        } 
     }
 
     startAutoRefresh() {
@@ -459,6 +457,7 @@ export class DashboardView {
             mapManager.maps.get('dashboard-map')?.setView(USINA_COORDS, 10); 
             // Garante que a camada vazia seja processada para remover quaisquer marcadores antigos.
             mapManager.updateFazendaMarkersWithStatus([], this.activeFilters);
+            this.updateOcorrenciaMarkers(); // Limpa ocorrências
             return;
         }
 
@@ -517,11 +516,16 @@ export class DashboardView {
         
         // --- FIM NOVO: Agregação de Dados Dinâmicos por Fazenda ---
 
-        // 1. ATUALIZA OS MARCADORES (REMOVER/ADICIONAR)
+        // 1. ATUALIZA OS MARCADORES DE FAZENDA
         mapManager.updateFazendaMarkersWithStatus(fazendasNoMapa, this.activeFilters); 
+        
+        // NOVO: ATUALIZA OS MARCADORES DE OCORRÊNCIAS
+        this.updateOcorrenciaMarkers();
+
 
         // 2. AJUSTA O MAPA
-        if (fazendasNoMapa.length > 0) {
+        // MUDANÇA: O ajuste do mapa deve considerar as ocorrências APENAS se o filtro estiver ativo.
+        if (fazendasNoMapa.length > 0 || this.activeFilters.ocorrencia) {
             this.adjustMapToShowFazendas(fazendasNoMapa); 
         } else {
             // Apenas centraliza se a lista estiver vazia. O passo 1 já limpou.
@@ -529,12 +533,94 @@ export class DashboardView {
             this.updateLastUpdateTime(); 
         }
     }
+    
+    // NOVO: Função para desenhar marcadores de ocorrência
+    async updateOcorrenciaMarkers() {
+        // Usa o fetchAllData para garantir o histórico de logs e a tabela de ocorrências
+        const fullData = await dataCache.fetchAllData(); 
+        const ocorrencias = fullData.ocorrencias || []; 
+        const map = mapManager.maps.get('dashboard-map');
+
+        if (!map) return;
+        
+        // Limpa marcadores de ocorrência antigos (se houver)
+        mapManager.clearMarkers('dashboard-ocorrencias');
+        
+        // FILTRO: Se o filtro de ocorrência estiver desativado, não desenha nada
+        if (!this.activeFilters.ocorrencia) { 
+            return;
+        }
+
+
+        ocorrencias.forEach(ocorrencia => {
+            // Apenas mostra ocorrências em aberto (status 'aberto')
+            if (ocorrencia.status === 'aberto' && ocorrencia.latitude && ocorrencia.longitude) {
+                const coords = [parseFloat(ocorrencia.latitude), parseFloat(ocorrencia.longitude)];
+
+                // Cria ícone de triângulo amarelo (reutilizando classes)
+                const ocorrenciaIcon = L.divIcon({
+                    className: 'ocorrencia-marker',
+                    // Cria um triângulo amarelo com o ícone de aviso
+                    html: `
+                        <div class="marker-pin" style="background-color: #ED8936; border-radius: 0; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); width: 40px; height: 40px; margin: 0;">
+                            <i class="ph-fill ph-warning" style="font-size: 20px; color: black; position: absolute; top: 10px; left: 10px; transform: rotate(0deg);"></i>
+                        </div>
+                        <div class="marker-pulse" style="background-color: #ED8936;"></div>
+                    `,
+                    iconSize: [40, 40], 
+                    iconAnchor: [20, 40] 
+                });
+                
+                const marker = L.marker(coords, { icon: ocorrenciaIcon });
+
+                const popupContent = `
+                    <div class="fazenda-popup" style="min-width: 200px;">
+                        <h4>OCORRÊNCIA: ${this.formatOption(ocorrencia.tipo)}</h4>
+                        <div class="popup-status fazendo_cata" style="background: rgba(237, 137, 54, 0.2); color: #ED8936;">
+                            <i class="ph-fill ph-circle"></i>
+                            ${ocorrencia.status === 'aberto' ? 'EM ABERTO' : 'RESOLVIDO'}
+                        </div>
+                        <div class="popup-details">
+                            <p><strong>Detalhes:</strong> <span class="value">${ocorrencia.descricao}</span></p>
+                            <p><strong>Frentes Impactadas:</strong> <span class="value">${(ocorrencia.frentes_impactadas || []).length}</span></p>
+                            <p><strong>Registro:</strong> <span class="value">${new Date(ocorrencia.created_at).toLocaleDateString('pt-BR')}</span></p>
+                        </div>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                marker.addTo(map);
+
+                if (!mapManager.markers.has('dashboard-ocorrencias')) {
+                    mapManager.markers.set('dashboard-ocorrencias', []);
+                }
+                mapManager.markers.get('dashboard-ocorrencias').push(marker);
+            }
+        });
+    }
+    
+    // Função auxiliar para formatação (reutilizada de cadastros.js)
+    formatOption(option) {
+        if (!option || typeof option !== 'string') return 'N/A';
+        return option.charAt(0).toUpperCase() + option.slice(1).replace('_', ' ');
+    }
+
 
     adjustMapToShowFazendas(fazendas) {
         const map = mapManager.maps.get('dashboard-map');
         if (!map) return;
 
         const bounds = this.calculateBounds(fazendas);
+        
+        // MUDANÇA: Adiciona ocorrências ativas APENAS se o filtro estiver ativo
+        if (this.activeFilters.ocorrencia) { 
+            const ocorrenciasMarkers = mapManager.markers.get('dashboard-ocorrencias') || [];
+            ocorrenciasMarkers.forEach(marker => {
+                 bounds.extend(marker.getLatLng());
+            });
+        }
+
+
         if (bounds.isValid()) {
             // MUDANÇA: Ajuste de Zoom para 14
             map.fitBounds(bounds, { 
@@ -589,4 +675,6 @@ export class DashboardView {
             });
         }
     }
+    
+    // ... (Métodos updateDashboardStats, updateStatElement, animateCount, updateEfficiencyBar, updateLastUpdateTime e calculateBounds) ...
 }

@@ -189,7 +189,7 @@ export async function fetchAllData(daysBack = 90) {
         }
         const dateLimitISO = daysBack !== null ? dateLimit.toISOString() : null;
 
-        const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico] = await Promise.all([
+        const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico, ocorrencias] = await Promise.all([
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
             fetchTable('caminhoes', '*, proprietarios(id, nome)'),
             fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome)'),
@@ -200,10 +200,12 @@ export async function fetchAllData(daysBack = 90) {
             
             // Filtro de tempo para histórico
             dateLimitISO ? fetchHistoricalTable('caminhao_historico', '*, caminhoes(cod_equipamento)', dateLimitISO) : fetchTable('caminhao_historico', '*, caminhoes(cod_equipamento)'),
-            dateLimitISO ? fetchHistoricalTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada', dateLimitISO) : fetchTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada')
+            dateLimitISO ? fetchHistoricalTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada', dateLimitISO) : fetchTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada'),
+            // NOVO: Adiciona a tabela de ocorrências
+            fetchTable('ocorrencias', '*') 
         ]);
         
-        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico }; 
+        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico, ocorrencias }; 
     } catch (error) {
         console.error('Erro ao buscar todos os dados (FULL):', error);
         throw error;
@@ -543,7 +545,7 @@ export async function fetchUserAuditLogs(userId = null, limit = 100) {
         .limit(limit);
     
     if (userId) {
-        query = query.eq('user_id', userId);
+        query = query.eq('user_user_id', userId);
     }
     
     const { data, error } = await query;
