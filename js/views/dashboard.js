@@ -199,7 +199,7 @@ export class DashboardView {
                     <div class="map-legend" id="map-legend"> <div class="legend-title">Legenda</div>
                         <div class="legend-items">
                             <div class="legend-item ${this.activeFilters.ocorrencia ? '' : 'disabled'}" data-filter-key="ocorrencia"> 
-                                <div class="legend-color" style="clip-path: polygon(50% 0%, 0% 100%, 100% 100%); background-color: #ED8936; border: none;"></div>
+                                <i class="ph-fill ph-siren" style="font-size: 20px; color: #ED8936; width: 16px; text-align: center;"></i>
                                 <span>Ocorrência</span>
                             </div>
 
@@ -562,7 +562,7 @@ export class DashboardView {
                     className: 'ocorrencia-marker',
                     // REMOÇÃO DO TRIÂNGULO e ÍCONE SIRENE AJUSTADO
                     html: `
-                        <div class="marker-pin" style="background-color: #ED8936; border-radius: 50%; width: 40px; height: 40px; margin: 0;">
+                        <div class="marker-pin" style="background-color: #ED8936; border-radius: 50%; width: 40px; height: 40px; margin: 0; display: flex; align-items: center; justify-content: center;">
                             <i class="ph-fill ph-siren" style="font-size: 24px; color: black; transform: rotate(0deg);"></i>
                         </div>
                         <div class="marker-pulse" style="background-color: #ED8936;"></div>
