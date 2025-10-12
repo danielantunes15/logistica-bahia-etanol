@@ -19,9 +19,10 @@
     margin-bottom: 8px;
 }
 
+/* MODIFICADO: Aumenta a proporção do mapa para 500px na coluna do formulário e 1fr (o resto) no mapa */
 .cadastro-content {
     display: grid;
-    grid-template-columns: 400px 1fr;
+    grid-template-columns: 500px 1fr; 
     gap: 24px;
     height: calc(100vh - 150px);
 }
@@ -173,8 +174,9 @@
     color: var(--accent-primary);
 }
 
+/* MODIFICADO: Aumenta a altura do mapa de cadastro */
 #map-cadastro-medio {
-    height: 400px;
+    height: 550px;
     border-radius: 8px;
     overflow: hidden;
     border: 1px solid var(--border-color);
@@ -308,6 +310,11 @@
     
     .cadastro-map-container {
         order: 1;
+    }
+    
+    /* MODIFICADO: Ajuste de altura para telas menores */
+    #map-cadastro-medio {
+        height: 400px;
     }
 }
 

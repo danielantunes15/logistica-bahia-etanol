@@ -1,6 +1,7 @@
 // js/maps.js
 const USINA_COORDS = [-17.642301, -40.181525];
 const INITIAL_ZOOM = 10; // AJUSTADO: Zoom inicial mais distante
+const INITIAL_CADASTRO_ZOOM = 12; // NOVO: Zoom padrão para cadastro (mais próximo)
 
 export class MapManager {
     constructor() {
@@ -63,7 +64,8 @@ export class MapManager {
     }
 
     initCadastroMap(onLocationSelect) {
-        const map = this.initMap('map-cadastro-medio');
+        // MODIFICADO: Centraliza na usina com zoom de cadastro
+        const map = this.initMap('map-cadastro-medio', USINA_COORDS, INITIAL_CADASTRO_ZOOM);
         
         if (map && onLocationSelect) {
             let marker = null;
@@ -98,7 +100,8 @@ export class MapManager {
 
     initEditMap(containerId, initialLat, initialLng, onLocationSelect) {
         const initialCoords = initialLat && initialLng ? [initialLat, initialLng] : USINA_COORDS;
-        const map = this.initMap(containerId, initialCoords);
+        // MODIFICADO: Usa o zoom de cadastro para edição
+        const map = this.initMap(containerId, initialCoords, INITIAL_CADASTRO_ZOOM);
         
         if (map) {
             // Adicionar marcador inicial se coordenadas existirem
