@@ -1,0 +1,292 @@
+/* mobile-overrides.css */
+/* Arquivo de Estilos Otimizados para Dispositivos Móveis e Tablets */
+
+/* ================================================================= */
+/* 1. AJUSTES GERAIS DE LAYOUT E SIDEBAR */
+/* ================================================================= */
+
+/* Ajustes para Tablets (max-width: 1024px) */
+@media (max-width: 1024px) {
+    /* Ajustes gerais de espaçamento */
+    .cadastro-container,
+    .controle-view,
+    .frota-view,
+    .relatorios-view {
+        padding: 20px;
+    }
+}
+
+/* Otimizações para Mobile (max-width: 768px) */
+@media (max-width: 768px) {
+    
+    /* Esconde a sidebar no mobile e permite que o main-content ocupe a tela toda */
+    .sidebar {
+        /* Permite que o sidebar seja aberto/fechado com um toque se for implementado no JS/HTML */
+        position: fixed;
+        left: -260px; /* Esconde fora da tela */
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+        transition: left 0.3s ease;
+    }
+
+    .main-content {
+        /* Ocupa a tela inteira */
+        margin-left: 0;
+        width: 100%;
+    }
+    
+    /* Stacks Headers (Controle, Frota, Dashboard) */
+    .controle-header, 
+    .frota-header,
+    .dashboard-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+    }
+
+    /* O botão principal deve ocupar a largura total no mobile */
+    .controle-header .btn-primary,
+    .frota-header .btn-primary {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Ajuste para o bloco de Total e Botão na Frota */
+    .frota-header > div { 
+         flex-direction: column;
+         width: 100%;
+    }
+
+    .frota-total-display {
+         width: 100%;
+         text-align: center;
+    }
+    
+    /* Reduz o padding geral da view */
+    .controle-view, .frota-view, .report-header, .cadastro-container {
+        padding: 16px;
+    }
+}
+
+
+/* ================================================================= */
+/* 2. DASHBOARD (mapa, kpis e gráficos) */
+/* ================================================================= */
+
+@media (max-width: 1200px) {
+    /* Garante 2 colunas para o stats-grid em telas maiores que mobile */
+    .modern-dashboard-overlay .stats-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    /* Transforma o grid principal (KPIs) e Charts em coluna única */
+    .stats-panel .stats-grid,
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Retira o painel de stats do overlay do mapa */
+    .modern-dashboard-overlay {
+        position: static; 
+        padding: 16px 16px 0;
+    }
+    
+    /* Limita a altura do mapa para que o conteúdo caiba na tela */
+    .map-fullscreen {
+        height: 350px; 
+    }
+    
+    /* Ações e filtros em coluna */
+    .report-filters, .panel-footer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    
+    /* Ajusta o layout interno dos cards KPI (3 colunas para coluna única) */
+    .stat-content.status-3-cols {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .stat-content.status-3-cols .stat-main,
+    .stat-content.status-3-cols .stat-secondary {
+        flex-direction: row; /* Rótulo e valor lado a lado */
+        justify-content: space-between;
+        padding: 10px;
+        min-height: 0;
+    }
+}
+
+/* ================================================================= */
+/* 3. CONTROLE DE FROTA / EQUIPAMENTOS / FILA */
+/* ================================================================= */
+
+@media (max-width: 1200px) {
+    /* Quebra o grid de frentes para uma coluna */
+    .controle-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* Fila de estacionamento (Disponíveis + Filas) em coluna única */
+    .fila-main-grid {
+        grid-template-columns: 1fr;
+        padding: 16px;
+    }
+
+    /* Filas em 2 colunas em tablets */
+    .fila-queues-grid {
+        grid-template-columns: 1fr 1fr; 
+    }
+    
+    .fila-disponiveis-panel,
+    .fila-queue-panel {
+        /* Desativa a altura fixa em mobile */
+        height: auto; 
+        min-height: 250px; 
+    }
+
+    /* Grade de descarga para 2 colunas */
+    .descarga-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+@media (max-width: 768px) {
+    
+    /* Filas e Disponíveis em coluna única */
+    .fila-queues-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Grade de descarga em coluna única */
+    .descarga-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Stacks detalhes da frente */
+    .frente-fazenda-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .btn-alterar-fazenda {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Otimização da tabela de caminhões na Frente */
+    .caminhoes-em-operacao-table td:nth-child(2), /* Status */
+    .caminhoes-em-operacao-table th:nth-child(2) {
+         /* Oculta o status completo para economizar espaço */
+         display: none; 
+    }
+}
+
+/* ================================================================= */
+/* 4. CADASTROS */
+/* ================================================================= */
+
+@media (max-width: 1024px) {
+    /* Transforma o grid de cadastros (form e mapa) em coluna única */
+    .cadastro-content {
+        grid-template-columns: 1fr;
+        /* Inverte a ordem para o mapa aparecer primeiro no topo da tela */
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .cadastro-map-container {
+        order: 1;
+    }
+    
+    .form-section-modern {
+        order: 2;
+    }
+    
+    .list-container-modern {
+        order: 3;
+        margin-top: 0; /* Remove a margem extra */
+    }
+    
+    #map-cadastro-medio {
+        height: 300px; /* Reduz a altura do mapa de cadastro */
+    }
+}
+
+/* ================================================================= */
+/* 5. TABELAS E HISTÓRICO (Regra Universal para Scroll) */
+/* ================================================================= */
+
+@media (max-width: 768px) {
+    /* Aplica scroll horizontal em todas as tabelas .data-table-modern */
+    .table-wrapper,
+    .report-table-container > div:last-child {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        padding: 0 16px 16px !important; /* Ajusta o padding para a borda */
+    }
+
+    .data-table-modern {
+        min-width: 600px; /* Garante o mínimo para o scroll funcionar */
+    }
+    
+    .data-table-modern th, 
+    .data-table-modern td {
+        padding: 10px 8px;
+        font-size: 0.85rem;
+    }
+}
+
+/* ================================================================= */
+/* 6. RELATÓRIOS (Menu e Filtros) */
+/* ================================================================= */
+@media (max-width: 768px) {
+    .report-internal-menu {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .report-internal-menu .internal-menu-btn {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .report-filters {
+        /* Os grupos de filtro quebram a linha */
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #filter-date-group,
+    #filter-resource-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    
+    /* Faz os inputs de data e selects ocuparem 100% da largura do filtro */
+    #filter-date-group label,
+    #filter-date-group input,
+    #filter-resource-group select,
+    #filter-resource-group input {
+         width: 100%;
+         min-width: 100%;
+    }
+    
+    #apply-report-filters {
+         width: 100%;
+         margin-left: 0 !important;
+         margin-top: 5px;
+    }
+    
+    .report-export {
+        /* Botões de exportação em coluna */
+        flex-direction: column;
+    }
+}
