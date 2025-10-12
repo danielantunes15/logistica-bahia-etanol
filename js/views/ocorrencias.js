@@ -1,8 +1,9 @@
 // js/views/ocorrencias.js
-import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js';
 import { mapManager } from '../maps.js';
 import { dataCache } from '../dataCache.js';
-import { insertItem, fetchTable } from '../api.js';
+import { insertItem, fetchTable, updateItem } from '../api.js';
+import { openModal, closeModal } from '../components/modal.js'; // Importação correta
 
 export class OcorrenciasView {
     constructor() {
@@ -10,12 +11,12 @@ export class OcorrenciasView {
         this.data = {};
         this.currentLocation = { lat: null, lng: null };
         this.ocorrencias = [];
-        this.frentes = []; // Armazenar a lista de frentes
+        this.frentes = []; 
     }
 
     async show() {
         await this.loadHTML();
-        await this.loadData(true); // Força refresh para ver novas ocorrências
+        await this.loadData(true);
         this.initializeMap();
         this.addEventListeners();
     }
@@ -28,14 +29,11 @@ export class OcorrenciasView {
         const container = document.getElementById('views-container');
         container.innerHTML = this.getHTML();
         this.container = container.querySelector('#ocorrencias-view');
-        // Carrega as frentes após o HTML estar no DOM para popular o select
         this.populateFrentesSelect(); 
     }
 
-    // NOVO: Função para carregar as frentes de serviço
     async populateFrentesSelect() {
         try {
-            // Assume que 'frentes_servico' tem colunas 'id' (uuid) e 'nome'
             this.frentes = await fetchTable('frentes_servico', 'id, nome');
             const select = document.getElementById('frentes_impactadas');
             if (select) {
@@ -45,12 +43,15 @@ export class OcorrenciasView {
             }
         } catch (error) {
             console.error('Erro ao carregar frentes de serviço:', error);
-            // Continua, mas exibe um aviso se as frentes não carregarem
             showToast('Erro ao carregar Frentes. Verifique a API.', 'warning');
         }
     }
 
     getHTML() {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        const nowString = now.toISOString().slice(0, 16);
+
         return `
             <div id="ocorrencias-view" class="view active-view">
                 <div class="cadastro-container">
@@ -86,18 +87,18 @@ export class OcorrenciasView {
                                     <label for="descricao">Descrição Detalhada</label>
                                     <input type="text" name="descricao" id="descricao" class="form-input" required placeholder="Ex: Caminhão 101 tombou no Km 5, Interdição por lamaçal.">
                                 </div>
+                                
                                 <div class="form-group">
-                                    <label for="status">Status</label>
-                                    <select name="status" id="status" class="form-select" required>
-                                        <option value="aberto">Em Aberto</option>
-                                        <option value="resolvido">Resolvido</option>
-                                    </select>
+                                    <label for="hora_inicio">Data e Hora de Início</label>
+                                    <input type="datetime-local" name="hora_inicio" id="hora_inicio" class="form-input" value="${nowString}" required>
                                 </div>
+                                
                                 <div class="form-group" style="display: flex; gap: 10px;">
                                     <input type="text" name="latitude" id="latitude" class="form-input" required placeholder="Latitude" readonly>
                                     <input type="text" name="longitude" id="longitude" class="form-input" required placeholder="Longitude" readonly>
                                 </div>
-                                <button type="submit" class="form-submit"><i class="ph-fill ph-map-pin"></i> Cadastrar Ocorrência</button>
+                                
+                                <button type="submit" class="form-submit"><i class="ph-fill ph-map-pin"></i> Cadastrar Ocorrência (Ativa)</button>
                             </form>
                         </div>
 
@@ -124,11 +125,9 @@ export class OcorrenciasView {
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            // 1. Busca as frentes para mapeamento na tabela (se não tiver no cache)
             if (this.frentes.length === 0 || forceRefresh) {
                  this.frentes = await fetchTable('frentes_servico', 'id, nome');
             }
-            // 2. Busca as ocorrências
             this.ocorrencias = await fetchTable('ocorrencias', '*');
             
             this.renderTable(this.ocorrencias);
@@ -136,7 +135,8 @@ export class OcorrenciasView {
             console.error('Erro ao carregar dados:', error);
             // Simula dados (Fallback)
             this.ocorrencias = [
-                 { id: '1', tipo: 'interdicao', descricao: 'Trecho X com muito lamaçal.', status: 'aberto', latitude: -17.65, longitude: -40.19, created_at: new Date().toISOString(), frentes_impactadas: [] },
+                 { id: '1', tipo: 'interdicao', descricao: 'Trecho X com muito lamaçal.', status: 'aberto', latitude: -17.65, longitude: -40.19, hora_inicio: new Date(Date.now() - 3600000).toISOString(), hora_fim: null, frentes_impactadas: [] },
+                 { id: '2', tipo: 'acidente', descricao: 'Caminhão 102 com pneu estourado.', status: 'resolvido', latitude: -17.63, longitude: -40.21, hora_inicio: new Date(Date.now() - 7200000).toISOString(), hora_fim: new Date(Date.now() - 3600000).toISOString(), frentes_impactadas: [] }
             ];
             this.renderTable(this.ocorrencias);
         } finally {
@@ -152,27 +152,22 @@ export class OcorrenciasView {
                 document.getElementById('longitude').value = lng.toFixed(6);
             };
 
-            // Adiciona a lógica para usar o ícone de cone temporário no mapa de cadastro
             const customIcon = L.divIcon({
                 className: 'ocorrencia-marker-cadastro',
-                // REMOÇÃO DO TRIÂNGULO e ÍCONE SIRENE AJUSTADO
                 html: '<div class="marker-pin" style="background-color: #ED8936; border-radius: 50%; width: 40px; height: 40px; margin: 0; display: flex; align-items: center; justify-content: center;"><i class="ph-fill ph-siren" style="font-size: 22px; color: black;"></i></div>',
                 iconSize: [40, 40],
                 iconAnchor: [20, 40]
             });
 
 
-            // mapManager.initCadastroMap foi modificado para suportar o ícone
             const map = mapManager.initMap('map-cadastro-medio');
             if (map && onLocationSelect) {
                 let marker = null;
                 map.on('click', function(e) {
                     const { lat, lng } = e.latlng;
                     
-                    // Atualiza campos do formulário
                     onLocationSelect(lat, lng);
                     
-                    // Atualizar ou criar marcador com o ícone customizado
                     if (marker) {
                         marker.setLatLng(e.latlng);
                     } else {
@@ -191,29 +186,47 @@ export class OcorrenciasView {
             return `<div class="empty-state"><i class="ph-fill ph-table"></i><p>Nenhuma ocorrência registrada.</p></div>`;
         }
         
-        // NOVO: Cria um mapa de frentes para busca rápida
         const frenteMap = new Map(this.frentes.map(f => [f.id, f.nome]));
 
-        const rows = ocorrencias.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-            .map(item => {
-            const statusClass = item.status === 'aberto' ? 'danger' : 'disponivel';
-            const statusLabel = item.status === 'aberto' ? 'Em Aberto' : 'Resolvido';
+        const sortedOcorrencias = ocorrencias.sort((a, b) => {
+            if (a.status === 'aberto' && b.status !== 'aberto') return -1;
+            if (a.status !== 'aberto' && b.status === 'aberto') return 1;
+            return new Date(b.hora_inicio || b.created_at) - new Date(a.hora_inicio || a.created_at);
+        });
+
+
+        const rows = sortedOcorrencias.map(item => {
+            const isFinished = item.status === 'resolvido';
+            const startTime = item.hora_inicio || item.created_at; 
+            const duration = calculateDowntimeDuration(startTime, item.hora_fim);
             
-            // NOVO: Mapeia IDs para nomes de frentes
+            const statusClass = isFinished ? 'disponivel' : 'danger';
+            const statusLabel = isFinished ? 'Resolvido' : 'Em Aberto';
+            const horaFimDisplay = isFinished ? formatDateTime(item.hora_fim) : '---';
+            const durationDisplay = isFinished ? duration : `<strong style="color: var(--accent-danger);">${duration}</strong>`;
+
+            
             const frentesNomes = (item.frentes_impactadas || [])
                                     .map(fId => frenteMap.get(fId))
-                                    .filter(name => name) // Remove nulos/undefined
+                                    .filter(name => name)
                                     .join(', ');
             const frentesDisplay = frentesNomes || 'Nenhuma';
             
             return `
                 <tr>
-                    <td>${new Date(item.created_at).toLocaleDateString('pt-BR')}</td>
                     <td>${this.formatOption(item.tipo)}</td>
-                    <td>${item.descricao}</td>
                     <td>${frentesDisplay}</td>
+                    
+                    <td>${formatDateTime(startTime)}</td>
+                    <td>${horaFimDisplay}</td>
+                    <td>${durationDisplay}</td>
+                    
                     <td><span class="caminhao-status-badge status-${statusClass}">${statusLabel}</span></td>
-                    <td>${item.latitude}, ${item.longitude}</td>
+                    <td>
+                        ${!isFinished ? 
+                            `<button class="action-btn edit-btn-modern btn-close-ocorrencia" data-id="${item.id}" data-start-time="${startTime}"><i class="ph-fill ph-check-circle"></i> Encerrar</button>` 
+                            : '---'}
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -223,12 +236,13 @@ export class OcorrenciasView {
                 <table class="data-table-modern">
                     <thead>
                         <tr>
-                            <th>Data</th>
                             <th>Tipo</th>
-                            <th>Descrição</th>
                             <th>Frentes Impactadas</th>
+                            <th>Início</th>
+                            <th>Fim</th>
+                            <th>Duração</th>
                             <th>Status</th>
-                            <th>Localização</th>
+                            <th style="width: 1%;">Ações</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
@@ -244,6 +258,65 @@ export class OcorrenciasView {
         }
     }
     
+    // CORRIGIDO: Removido a declaração incorreta 'const { openModal, closeModal } = window.modal;'
+    showCloseOcorrenciaModal(ocorrenciaId, startTime) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        const nowString = now.toISOString().slice(0, 16);
+        
+        const modalContent = `
+            <p>Encerrando Ocorrência iniciada em: <strong>${formatDateTime(startTime)}</strong></p>
+            
+            <form id="close-ocorrencia-form" class="action-modal-form">
+                <input type="hidden" name="ocorrencia_id" value="${ocorrenciaId}">
+                
+                <div class="form-group">
+                    <label>Data e Hora de Resolução</label>
+                    <input type="datetime-local" name="hora_fim" class="form-input" value="${nowString}" required>
+                    <p class="form-help">A duração será calculada a partir da hora de início (${formatDateTime(startTime)}).</p>
+                </div>
+                
+                <button type="submit" class="btn-primary" style="background-color: var(--accent-primary);">
+                    <i class="ph-fill ph-check-circle"></i> Confirmar Encerramento
+                </button>
+            </form>
+        `;
+        openModal('Encerrar Ocorrência', modalContent); // Utiliza a função importada
+
+        document.getElementById('close-ocorrencia-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const horaFim = e.target.hora_fim.value;
+            this.handleCloseOcorrencia(ocorrenciaId, new Date(horaFim).toISOString());
+        });
+    }
+
+    // CORRIGIDO: Removido a declaração incorreta 'const { closeModal } = window.modal;'
+    async handleCloseOcorrencia(ocorrenciaId, horaFim) {
+        showLoading();
+        try {
+            const updateData = {
+                status: 'resolvido',
+                hora_fim: horaFim
+            };
+            
+            await updateItem('ocorrencias', ocorrenciaId, updateData);
+            
+            dataCache.invalidateAllData();
+
+            showToast('Ocorrência encerrada e duração calculada!', 'success');
+            closeModal(); // Utiliza a função importada
+            
+            await this.loadData(true); 
+
+        } catch (err) {
+            handleOperation(err);
+            showToast('Erro ao encerrar ocorrência.', 'error');
+        } finally {
+            hideLoading();
+        }
+    }
+
+
     formatOption(option) {
         if (!option || typeof option !== 'string') return 'N/A';
         return option.charAt(0).toUpperCase() + option.slice(1).replace('_', ' ');
@@ -255,6 +328,16 @@ export class OcorrenciasView {
         if (form) {
             form.addEventListener('submit', this.handleFormSubmit.bind(this));
         }
+        
+        // Listener para o botão de Encerrar na tabela (Delegado para o container)
+        this.container.addEventListener('click', (e) => {
+            const closeBtn = e.target.closest('.btn-close-ocorrencia');
+            if (closeBtn) {
+                const id = closeBtn.dataset.id;
+                const startTime = closeBtn.dataset.startTime;
+                this.showCloseOcorrenciaModal(id, startTime);
+            }
+        });
     }
 
     async handleFormSubmit(e) {
@@ -262,13 +345,11 @@ export class OcorrenciasView {
         const form = e.target;
         const formData = new FormData(form);
         
-        // NOVO: Usa um objeto simples para garantir a estrutura correta (sem valores de array como string)
         const data = {
             tipo: formData.get('tipo'),
             descricao: formData.get('descricao'),
-            status: formData.get('status'),
-            latitude: formData.get('latitude'),
-            longitude: formData.get('longitude')
+            hora_inicio: formData.get('hora_inicio'), 
+            status: 'aberto'
         };
 
 
@@ -277,14 +358,12 @@ export class OcorrenciasView {
             return;
         }
         
-        // CORRIGIDO: Lida com o multi-select de frentes separadamente para obter um array de UUIDs
         const frentesSelect = document.getElementById('frentes_impactadas');
         const selectedFrentes = Array.from(frentesSelect.selectedOptions).map(option => option.value);
         data.frentes_impactadas = selectedFrentes; 
         
-        // Converte coordenadas para números
-        data.latitude = parseFloat(data.latitude);
-        data.longitude = parseFloat(data.longitude);
+        data.latitude = parseFloat(formData.get('latitude'));
+        data.longitude = parseFloat(formData.get('longitude'));
         
         showLoading();
         try {
@@ -296,7 +375,7 @@ export class OcorrenciasView {
             
             dataCache.invalidateAllData();
 
-            showToast('Ocorrência registrada com sucesso!', 'success');
+            showToast('Ocorrência registrada e Ativa!', 'success');
             form.reset();
             
             await this.loadData(true); 
