@@ -545,7 +545,8 @@ export async function fetchUserAuditLogs(userId = null, limit = 100) {
         .limit(limit);
     
     if (userId) {
-        query = query.eq('user_user_id', userId);
+        // CORREÇÃO: Usar user_id, que é o campo inserido por logUserAction
+        query = query.eq('user_id', userId);
     }
     
     const { data, error } = await query;

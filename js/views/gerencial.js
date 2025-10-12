@@ -1,5 +1,5 @@
 // js/views/gerencial.js
-import { registerAppUser, fetchAppLogs, fetchAppUsers, deleteAppUser, updateAppUser } from '../api.js';
+import { registerAppUser, fetchAppLogs, fetchAppUsers, deleteAppUser, updateAppUser, fetchUserAuditLogs } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
 import { openModal, closeModal } from '../components/modal.js';
 
@@ -119,7 +119,7 @@ export class GerencialView {
                 await this.loadUserData(); 
                 contentContainer.innerHTML = this.renderUsersTab();
             } else if (this.activeTab === 'logs') {
-                await this.loadLogData();
+                await this.loadLogData(true); // Força a busca real dos logs
                 contentContainer.innerHTML = this.renderLogsTab();
             }
         } catch (error) {
@@ -412,13 +412,8 @@ export class GerencialView {
 
     async loadLogData(applyFilter = false) {
          if (!applyFilter) {
-              const mockLogs = [
-                { timestamp: new Date(), tipo_log: 'LOGIN', mensagem: 'Usuário daniel.antunes logou com sucesso.', tipo_usuario: 'admin' },
-                { timestamp: new Date(Date.now() - 3600000), tipo_log: 'UPDATE', mensagem: 'Status do caminhão 101 alterado para Carregando.', tipo_usuario: 'usuario' },
-                { timestamp: new Date(Date.now() - 7200000), tipo_log: 'INSERT', mensagem: 'Novo caminhão CAM-90 cadastrado.', tipo_usuario: 'admin' },
-            ];
-            this.logs = mockLogs; 
-            return;
+             this.logs = [];
+             return;
          }
          
          const filters = {
@@ -429,9 +424,44 @@ export class GerencialView {
          
          showLoading();
          try {
-             // Mockup: substituir por fetchAppLogs(filters) real
-             // this.logs = await fetchAppLogs(filters); 
+             // 1. Busca todos os usuários para mapear ID -> Nome e Tipo
+             const users = await fetchAppUsers();
+             const userMap = new Map(users.map(u => [u.id, { name: u.nome_completo, role: u.tipo_usuario }]));
+             
+             // 2. Busca os logs de auditoria (limite de 200)
+             let auditLogs = await fetchUserAuditLogs(null, 200); 
+             
+             // 3. Aplica os filtros
+             if (filters.dataInicio) {
+                 const startDate = new Date(filters.dataInicio).getTime();
+                 auditLogs = auditLogs.filter(log => new Date(log.timestamp).getTime() >= startDate);
+             }
+             if (filters.dataFim) {
+                 const endDate = new Date(filters.dataFim);
+                 endDate.setDate(endDate.getDate() + 1);
+                 const endDateTimestamp = endDate.getTime();
+                 auditLogs = auditLogs.filter(log => new Date(log.timestamp).getTime() < endDateTimestamp);
+             }
+             
+             // Filtra por Tipo de Usuário (lado do cliente, após buscar todos os usuários)
+             if (filters.tipo_usuario) {
+                 const userIdsWithRole = users.filter(u => u.tipo_usuario === filters.tipo_usuario).map(u => u.id);
+                 auditLogs = auditLogs.filter(log => userIdsWithRole.includes(log.user_id));
+             }
+
+             // 4. Formata os logs com nome de usuário
+             this.logs = auditLogs.map(log => {
+                 const userInfo = userMap.get(log.user_id);
+                 return {
+                     timestamp: log.timestamp,
+                     tipo_log: log.action.replace('_', ' '), 
+                     mensagem: log.details, 
+                     tipo_usuario: userInfo ? `${userInfo.name} (${userInfo.role.charAt(0).toUpperCase() + userInfo.role.slice(1)})` : `ID:${log.user_id}`
+                 };
+             });
+             
              this.renderLogsTab(); 
+             
          } catch (error) {
               handleOperation(error);
               this.logs = [];
@@ -441,19 +471,15 @@ export class GerencialView {
     }
 
     renderLogsTab() {
-        // Dados de log para simulação
-        const logsToDisplay = this.logs.length > 0 ? this.logs : [
-            { timestamp: new Date(), tipo_log: 'LOGIN', mensagem: 'Usuário daniel.antunes logou com sucesso.', tipo_usuario: 'admin' },
-            { timestamp: new Date(Date.now() - 3600000), tipo_log: 'UPDATE', mensagem: 'Status do caminhão 101 alterado para Carregando.', tipo_usuario: 'usuario' },
-            { timestamp: new Date(Date.now() - 7200000), tipo_log: 'INSERT', mensagem: 'Novo caminhão CAM-90 cadastrado.', tipo_usuario: 'admin' },
-        ];
+        // Usa os logs reais agora
+        const logsToDisplay = this.logs; 
         
         const logRows = logsToDisplay.map(log => `
             <tr>
                 <td>${formatDateTime(log.timestamp)}</td>
                 <td>${log.tipo_log}</td>
                 <td>${log.mensagem}</td>
-                <td>${log.tipo_usuario || 'N/A'}</td>
+                <td>${log.tipo_usuario || 'Sistema'}</td>
             </tr>
         `).join('');
 
@@ -479,13 +505,13 @@ export class GerencialView {
                         <thead>
                             <tr>
                                 <th>Horário</th>
-                                <th>Tipo</th>
-                                <th>Mensagem</th>
+                                <th>Ação</th>
+                                <th>Detalhes</th>
                                 <th>Usuário</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${logRows}
+                            ${logRows.length > 0 ? logRows : '<tr><td colspan="4">Nenhum log de auditoria encontrado.</td></tr>'}
                         </tbody>
                     </table>
                 </div>

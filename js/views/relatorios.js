@@ -97,6 +97,9 @@ export class RelatoriosView {
                         <select id="filter-proprietario" class="form-select">
                             <option value="">Proprietário (Todos)</option>
                         </select>
+                        
+                        <input type="text" id="filter-motivo-parada" class="form-input" placeholder="Motivo (busca parcial)" style="min-width: 200px; display: none;">
+
                         <select id="filter-downtime-status" class="form-select" style="min-width: 150px; display: none;">
                             <option value="">Status Parada (Todos)</option>
                             <option value="parado">Parado (Obs.)</option>
@@ -202,16 +205,22 @@ export class RelatoriosView {
         
         const filters = document.getElementById('filter-resource-group');
         const downtimeStatusFilter = document.getElementById('filter-downtime-status');
+        const motivoParadaFilter = document.getElementById('filter-motivo-parada'); // NOVO: Captura o elemento
         
         if (filters) {
             // Esconde filtros em alguns relatórios específicos (como ocorrências)
             filters.style.display = (reportName === 'ocorrencias') ? 'none' : 'flex';
         }
         
-        // NOVO: Mostrar/Esconder o filtro de status de inatividade
+        // NOVO: Mostrar/Esconder os filtros de inatividade e motivo
+        const isDowntimeReport = reportName.startsWith('downtime');
         if (downtimeStatusFilter) {
-            downtimeStatusFilter.style.display = reportName.startsWith('downtime') ? 'flex' : 'none';
+            downtimeStatusFilter.style.display = isDowntimeReport ? 'flex' : 'none';
         }
+        if (motivoParadaFilter) {
+             motivoParadaFilter.style.display = isDowntimeReport ? 'flex' : 'none'; // NOVO
+        }
+        
 
         switch (reportName) {
             case 'charts':
@@ -520,8 +529,16 @@ export class RelatoriosView {
                 filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             
-            // NOVO: Usa o filtro de status na função de agrupamento
-            const sessions = groupDowntimeSessions(filteredHistory, 'caminhao_id', downtimeStatusFilter);
+            let sessions = groupDowntimeSessions(filteredHistory, 'caminhao_id', downtimeStatusFilter);
+            
+            // NOVO: Filtra as sessões pelo Motivo da Parada
+            if (filters.motivoParada && filters.motivoParada.length > 0) {
+                const motiveSearch = filters.motivoParada.toLowerCase();
+                sessions = sessions.filter(session => {
+                    const motive = session.startLog.motivo_parada ? session.startLog.motivo_parada.toLowerCase() : '';
+                    return motive.includes(motiveSearch);
+                });
+            }
             
             // Adiciona informações de recurso e frente (que não estão no log do caminhão)
             sessions.forEach(session => {
@@ -562,8 +579,16 @@ export class RelatoriosView {
                 filters.equipamento, filters.frente, filters.proprietario, 'equipamento_id'
             );
             
-            // NOVO: Usa o filtro de status na função de agrupamento
-            const sessions = groupDowntimeSessions(filteredHistory, 'equipamento_id', downtimeStatusFilter);
+            let sessions = groupDowntimeSessions(filteredHistory, 'equipamento_id', downtimeStatusFilter);
+            
+            // NOVO: Filtra as sessões pelo Motivo da Parada
+            if (filters.motivoParada && filters.motivoParada.length > 0) {
+                const motiveSearch = filters.motivoParada.toLowerCase();
+                sessions = sessions.filter(session => {
+                    const motive = session.startLog.motivo_parada ? session.startLog.motivo_parada.toLowerCase() : '';
+                    return motive.includes(motiveSearch);
+                });
+            }
             
             let tableHTML = this.generateDowntimeTableHTML(
                 sessions, 
@@ -580,7 +605,7 @@ export class RelatoriosView {
         }
     }
     
-    // Método para obter valores dos filtros (ADICIONA downtimeStatus)
+    // Método para obter valores dos filtros (ADICIONA downtimeStatus e motivoParada)
     getFilterValues() {
         return {
             equipamento: document.getElementById('filter-equipamento')?.value,
@@ -588,11 +613,148 @@ export class RelatoriosView {
             proprietario: document.getElementById('filter-proprietario')?.value,
             dataInicio: document.getElementById('filter-data-inicio')?.value,
             dataFim: document.getElementById('filter-data-fim')?.value,
-            // NOVO: Filtro de status de inatividade
-            downtimeStatus: document.getElementById('filter-downtime-status')?.value
+            downtimeStatus: document.getElementById('filter-downtime-status')?.value,
+            motivoParada: document.getElementById('filter-motivo-parada')?.value.trim() // NOVO
         };
     }
     // FIM DA CORREÇÃO
+
+    // NOVO: Gerador de HTML de Tabela de Parada com Resumo por Motivo
+    generateDowntimeTableHTML(sessions, title, resourceLabel, statusLabels) {
+        if (sessions.length === 0) {
+            return `<div class="empty-state" style="padding: 50px;">
+                        <i class="ph-fill ph-warning" style="font-size: 3rem;"></i>
+                        <p>Nenhum registro de inatividade encontrado para os filtros e recursos selecionados.</p>
+                    </div>`;
+        }
+
+        // 1. Agrupamento por Motivo para Causa Raiz
+        const downtimeByMotive = sessions.reduce((acc, curr) => {
+            const motive = curr.startLog.motivo_parada || 'Não Informado (Sessão Antiga)';
+            if (!acc[motive]) {
+                acc[motive] = { count: 0, totalMillis: 0 };
+            }
+            acc[motive].count++;
+            
+            const start = curr.startTime.getTime();
+            const end = curr.end_time ? curr.end_time.getTime() : new Date().getTime();
+            const diffMillis = end - start;
+            if (diffMillis > 0) {
+                acc[motive].totalMillis += diffMillis;
+            }
+            return acc;
+        }, {});
+        
+        const motiveRows = Object.entries(downtimeByMotive).map(([motive, data]) => {
+            // Usa a função importada
+            const durationFormatted = formatMillisecondsToHoursMinutes(data.totalMillis); 
+            return `
+                <tr>
+                    <td><strong>${motive}</strong></td>
+                    <td>${data.count}</td>
+                    <td><strong style="font-size: 1.0rem; color: var(--accent-danger);">${durationFormatted}</strong></td>
+                </tr>
+            `;
+        }).join('');
+
+        // 2. Calcular o total de inatividade e as linhas detalhadas
+        let totalDowntimeMillis = 0;
+
+        const rows = sessions.map(session => {
+            // Usa a função importada
+            const duration = calculateDowntimeDuration(session.startTime, session.end_time);
+            
+            // Soma a duração em milissegundos para o total
+            const start = new Date(session.startTime).getTime();
+            const end = session.end_time ? new Date(session.end_time).getTime() : new Date().getTime();
+            const diffMillis = end - start;
+            if (diffMillis > 0) {
+                totalDowntimeMillis += diffMillis;
+            }
+
+            const startStatusBadge = `<span class="caminhao-status-badge status-${session.startStatus}">${statusLabels[session.startStatus] || session.startStatus}</span>`;
+            
+            let endStatusLabel;
+            if (session.end_time) {
+                const finalStatus = session.endStatus === 'ativo' ? 'ativo' : 'disponivel';
+                const finalLabel = statusLabels[finalStatus] || 'Ativo/Disponível';
+                endStatusLabel = `<span class="caminhao-status-badge status-${finalStatus}" style="background-color: var(--accent-primary);">${finalLabel}</span>`;
+            } else {
+                endStatusLabel = `<span class="caminhao-status-badge status-${session.endStatus}" style="background-color: var(--accent-danger);">EM ABERTO (${statusLabels[session.endStatus]})</span>`;
+            }
+            
+            const endTimeDisplay = session.end_time ? formatDateTime(session.end_time) : '---';
+
+            return `
+                <tr>
+                    <td>${session.cod_equipamento}</td>
+                    <td>${session.finalidade || session.tipo}</td>
+                    <td>${session.frente}</td>
+                    <td>${startStatusBadge}</td>
+                    <td>${session.startLog.motivo_parada || 'Não informado'}</td>
+                    <td>${formatDateTime(session.startTime)}</td>
+                    <td>${endTimeDisplay}</td>
+                    <td><strong style="color: ${session.end_time ? 'var(--text-primary)' : 'var(--accent-danger)'};">${duration}</strong></td>
+                </tr>
+            `;
+        }).join('');
+        
+        // 3. Formatar o total
+        const totalDurationFormatted = formatMillisecondsToHoursMinutes(totalDowntimeMillis);
+
+        // 4. Gerar o HTML
+        const tableFooter = `
+            <tfoot>
+                <tr>
+                    <td colspan="7" style="text-align: right; font-weight: 700; font-size: 1.1rem; color: var(--text-primary);">Total de Horas de Inatividade:</td>
+                    <td><strong style="font-size: 1.1rem; color: var(--accent-danger);">${totalDurationFormatted}</strong></td>
+                </tr>
+            </tfoot>
+        `;
+
+
+        return `
+            <div class="report-table-container">
+                <h3 style="padding: 0 24px; margin-bottom: 16px;">Análise de Causa Raiz por Motivo</h3>
+                <div style="padding: 0 24px 24px; overflow-x: auto;">
+                    <table class="data-table-modern" style="width: 600px;">
+                        <thead>
+                            <tr>
+                                <th>Motivo da Parada</th>
+                                <th>Qtd. Ocorrências</th>
+                                <th>Duração Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${motiveRows.length > 0 ? motiveRows : '<tr><td colspan="3">Nenhum motivo encontrado para os filtros.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 style="padding: 0 24px; margin-bottom: 16px;">${title} (${sessions.length} Registros)</h3>
+                <div style="padding: 0 24px; overflow-x: auto;">
+                    <table class="data-table-modern">
+                        <thead>
+                            <tr>
+                                <th>Cód. ${resourceLabel}</th>
+                                <th>Tipo</th>
+                                <th>Frente de Origem</th>
+                                <th>Status Inicial</th>
+                                <th>Motivo</th>
+                                <th>Início da Parada</th>
+                                <th>Fim da Parada</th>
+                                <th>Duração</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                        ${tableFooter}
+                    </table>
+                </div>
+            </div>
+        `;
+    }
 
     // NOVO: Gerador de HTML de Tabela de Ciclo
     generateCycleTableHTML(cycles, averages, title) {
@@ -675,100 +837,7 @@ export class RelatoriosView {
             </div>
         `;
     }
-    
-    // NOVO: Gerador de HTML de Tabela de Parada
-    generateDowntimeTableHTML(sessions, title, resourceLabel, statusLabels) {
-        if (sessions.length === 0) {
-            return `<div class="empty-state" style="padding: 50px;">
-                        <i class="ph-fill ph-warning" style="font-size: 3rem;"></i>
-                        <p>Nenhum registro de inatividade encontrado para os filtros e recursos selecionados.</p>
-                    </div>`;
-        }
 
-        // 1. Calcular o total de inatividade
-        let totalDowntimeMillis = 0;
-
-        const rows = sessions.map(session => {
-            const duration = calculateDowntimeDuration(session.startTime, session.end_time);
-            
-            // Soma a duração em milissegundos para o total
-            const start = new Date(session.startTime).getTime();
-            const end = session.end_time ? new Date(session.end_time).getTime() : new Date().getTime();
-            const diffMillis = end - start;
-            if (diffMillis > 0) { // Apenas soma se a duração for positiva
-                totalDowntimeMillis += diffMillis;
-            }
-
-            const startStatusBadge = `<span class="caminhao-status-badge status-${session.startStatus}">${statusLabels[session.startStatus] || session.startStatus}</span>`;
-            
-            let endStatusLabel;
-            if (session.end_time) {
-                // Se a sessão terminou (end_time existe), o status final é Ativo ou Disponível
-                const finalStatus = session.endStatus === 'ativo' ? 'ativo' : 'disponivel';
-                const finalLabel = statusLabels[finalStatus] || 'Ativo/Disponível';
-                endStatusLabel = `<span class="caminhao-status-badge status-${finalStatus}" style="background-color: var(--accent-primary);">${finalLabel}</span>`;
-            } else {
-                // Se ainda está aberta, o status final é o status atual (Parado/Quebrado)
-                endStatusLabel = `<span class="caminhao-status-badge status-${session.endStatus}" style="background-color: var(--accent-danger);">EM ABERTO (${statusLabels[session.endStatus]})</span>`;
-            }
-            
-            const endTimeDisplay = session.end_time ? formatDateTime(session.end_time) : '---';
-
-            return `
-                <tr>
-                    <td>${session.cod_equipamento}</td>
-                    <td>${session.finalidade || session.tipo}</td>
-                    <td>${session.frente}</td>
-                    <td>${startStatusBadge}</td>
-                    <td>${session.startLog.motivo_parada || 'Não informado'}</td>
-                    <td>${formatDateTime(session.startTime)}</td>
-                    <td>${endTimeDisplay}</td>
-                    <td><strong style="color: ${session.end_time ? 'var(--text-primary)' : 'var(--accent-danger)'};">${duration}</strong></td>
-                </tr>
-            `;
-        }).join('');
-        
-        // 2. Formatar o total
-        const totalDurationFormatted = formatMillisecondsToHoursMinutes(totalDowntimeMillis);
-
-        // 3. Gerar o footer da tabela
-        const tableFooter = `
-            <tfoot>
-                <tr>
-                    <td colspan="7" style="text-align: right; font-weight: 700; font-size: 1.1rem; color: var(--text-primary);">Total de Horas de Inatividade:</td>
-                    <td><strong style="font-size: 1.1rem; color: var(--accent-danger);">${totalDurationFormatted}</strong></td>
-                </tr>
-            </tfoot>
-        `;
-
-
-        return `
-            <div class="report-table-container">
-                <h3 style="padding: 0 24px; margin-bottom: 16px;">${title} (${sessions.length} Registros)</h3>
-                <div style="padding: 0 24px; overflow-x: auto;">
-                    <table class="data-table-modern">
-                        <thead>
-                            <tr>
-                                <th>Cód. ${resourceLabel}</th>
-                                <th>Tipo</th>
-                                <th>Frente de Origem</th>
-                                <th>Status Inicial</th>
-                                <th>Motivo</th>
-                                <th>Início da Parada</th>
-                                <th>Fim da Parada</th>
-                                <th>Duração</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${rows}
-                        </tbody>
-                        ${tableFooter}
-                    </table>
-                </div>
-            </div>
-        `;
-    }
-    
     // NOVO: Função para calcular média de ciclo
     calculateCycleAverages(cycles) {
         const averages = {};
@@ -795,6 +864,63 @@ export class RelatoriosView {
         }
         
         return finalAverages;
+    }
+
+
+    filterHistory(history, itemMap, start, end, itemFilter, frenteFilter, proprietarioFilter, idColumn) {
+        let filtered = history;
+        const numericFrenteId = frenteFilter ? parseInt(frenteFilter) : null;
+        const numericProprietarioId = proprietarioFilter ? parseInt(proprietarioFilter) : null;
+
+        if (start) {
+            const startDate = new Date(start).getTime();
+            filtered = filtered.filter(log => new Date(log.timestamp_mudanca).getTime() >= startDate);
+        }
+        if (end) {
+            const endDate = new Date(end);
+            endDate.setDate(endDate.getDate() + 1);
+            const endDateTimestamp = endDate.getTime();
+            filtered = filtered.filter(log => new Date(log.timestamp_mudanca).getTime() < endDateTimestamp);
+        }
+        
+        if (itemFilter) {
+            const [type, id] = itemFilter.split('-');
+            const numericId = parseInt(id);
+            
+            if (type === 'c' && idColumn === 'caminhao_id') {
+                filtered = filtered.filter(log => log[idColumn] === numericId);
+            } else if (type === 'e' && idColumn === 'equipamento_id') {
+                filtered = filtered.filter(log => log[idColumn] === numericId);
+            } else {
+                if ((type === 'c' && idColumn === 'equipamento_id') || (type === 'e' && idColumn === 'caminhao_id')) {
+                    return [];
+                }
+            }
+        }
+        
+        if (numericFrenteId || numericProprietarioId) {
+            filtered = filtered.filter(log => {
+                const itemId = log[idColumn];
+                const item = itemMap.get(itemId);
+                
+                if (!item) return false;
+                
+                let matchesFrente = true;
+                let matchesProprietario = true;
+                
+                if (numericFrenteId) {
+                    matchesFrente = item.frente_id === numericFrenteId;
+                }
+                
+                if (numericProprietarioId) {
+                    matchesProprietario = item.proprietario_id === numericProprietarioId;
+                }
+                
+                return matchesFrente && matchesProprietario;
+            });
+        }
+
+        return filtered;
     }
 
     async renderReports() {
@@ -922,62 +1048,6 @@ export class RelatoriosView {
         } finally {
             hideLoading();
         }
-    }
-
-    filterHistory(history, itemMap, start, end, itemFilter, frenteFilter, proprietarioFilter, idColumn) {
-        let filtered = history;
-        const numericFrenteId = frenteFilter ? parseInt(frenteFilter) : null;
-        const numericProprietarioId = proprietarioFilter ? parseInt(proprietarioFilter) : null;
-
-        if (start) {
-            const startDate = new Date(start).getTime();
-            filtered = filtered.filter(log => new Date(log.timestamp_mudanca).getTime() >= startDate);
-        }
-        if (end) {
-            const endDate = new Date(end);
-            endDate.setDate(endDate.getDate() + 1);
-            const endDateTimestamp = endDate.getTime();
-            filtered = filtered.filter(log => new Date(log.timestamp_mudanca).getTime() < endDateTimestamp);
-        }
-        
-        if (itemFilter) {
-            const [type, id] = itemFilter.split('-');
-            const numericId = parseInt(id);
-            
-            if (type === 'c' && idColumn === 'caminhao_id') {
-                filtered = filtered.filter(log => log[idColumn] === numericId);
-            } else if (type === 'e' && idColumn === 'equipamento_id') {
-                filtered = filtered.filter(log => log[idColumn] === numericId);
-            } else {
-                if ((type === 'c' && idColumn === 'equipamento_id') || (type === 'e' && idColumn === 'caminhao_id')) {
-                    return [];
-                }
-            }
-        }
-        
-        if (numericFrenteId || numericProprietarioId) {
-            filtered = filtered.filter(log => {
-                const itemId = log[idColumn];
-                const item = itemMap.get(itemId);
-                
-                if (!item) return false;
-                
-                let matchesFrente = true;
-                let matchesProprietario = true;
-                
-                if (numericFrenteId) {
-                    matchesFrente = item.frente_id === numericFrenteId;
-                }
-                
-                if (numericProprietarioId) {
-                    matchesProprietario = item.proprietario_id === numericProprietarioId;
-                }
-                
-                return matchesFrente && matchesProprietario;
-            });
-        }
-
-        return filtered;
     }
 
     calculateWorkHours(history, items, idColumn) {
