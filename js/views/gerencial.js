@@ -409,6 +409,27 @@ export class GerencialView {
             hideLoading();
         }
     }
+    
+    // New/Updated action types for the filter (based on logs in api.js)
+    getLogActionOptions() {
+        return [
+            { value: 'LOGIN', label: 'Login (Sucesso/Falha)' },
+            { value: 'USER_CREATED', label: 'Criação de Usuário' },
+            { value: 'USER_UPDATE', label: 'Edição de Dados/Status' },
+            { value: 'USER_DELETED', label: 'Exclusão de Usuário' },
+            { value: 'PASSWORD_CHANGE', label: 'Troca de Senha' },
+            { value: 'LOGOUT', label: 'Logout' },
+            { value: 'SESSION_EXPIRED', label: 'Sessão Expirada' },
+            { value: 'OTHER', label: 'Outras Ações (API)' },
+        ];
+    }
+    
+    // Auxiliar para formatação (reutilizado de relatorios.js/cadastros.js)
+    formatOption(option) {
+        if (!option || typeof option !== 'string') return 'N/A';
+        return option.charAt(0).toUpperCase() + option.slice(1).replace(/_/g, ' ');
+    }
+
 
     async loadLogData(applyFilter = false) {
          if (!applyFilter) {
@@ -418,20 +439,21 @@ export class GerencialView {
          
          const filters = {
              tipo_usuario: document.getElementById('log-filter-role')?.value,
+             tipo_acao: document.getElementById('log-filter-action')?.value, // NOVO: Captura o filtro de ação
              dataInicio: document.getElementById('log-filter-start')?.value,
              dataFim: document.getElementById('log-filter-end')?.value,
          };
          
          showLoading();
          try {
-             // 1. Busca todos os usuários para mapear ID -> Nome e Tipo
-             const users = await fetchAppUsers();
+             const users = await fetchAppUsers() || [];
              const userMap = new Map(users.map(u => [u.id, { name: u.nome_completo, role: u.tipo_usuario }]));
              
-             // 2. Busca os logs de auditoria (limite de 200)
-             let auditLogs = await fetchUserAuditLogs(null, 200); 
+             let auditLogs = await fetchUserAuditLogs(null, 200) || []; 
+
+             console.log(`[DEBUG LOGS] Logs brutos carregados: ${auditLogs.length}`);
              
-             // 3. Aplica os filtros
+             // Aplica os filtros
              if (filters.dataInicio) {
                  const startDate = new Date(filters.dataInicio).getTime();
                  auditLogs = auditLogs.filter(log => new Date(log.timestamp).getTime() >= startDate);
@@ -443,27 +465,53 @@ export class GerencialView {
                  auditLogs = auditLogs.filter(log => new Date(log.timestamp).getTime() < endDateTimestamp);
              }
              
-             // Filtra por Tipo de Usuário (lado do cliente, após buscar todos os usuários)
-             if (filters.tipo_usuario) {
-                 const userIdsWithRole = users.filter(u => u.tipo_usuario === filters.tipo_usuario).map(u => u.id);
-                 auditLogs = auditLogs.filter(log => userIdsWithRole.includes(log.user_id));
+             // NOVO: Filtro por Tipo de Ação
+             if (filters.tipo_acao) {
+                 const actionFilter = filters.tipo_acao;
+                 if (actionFilter === 'LOGIN') {
+                     auditLogs = auditLogs.filter(log => log.action.includes('LOGIN'));
+                 } else if (actionFilter === 'OTHER') {
+                     // Filtra por ações que NÃO SÃO as principais listadas
+                     const mainActions = this.getLogActionOptions().map(opt => opt.value).filter(v => v !== 'LOGIN' && v !== 'OTHER');
+                     // Expande para os sub-logs de LOGIN
+                     const expandedMainActions = mainActions.concat(['LOGIN_SUCCESS', 'LOGIN_FAILED']);
+                     
+                     auditLogs = auditLogs.filter(log => !expandedMainActions.includes(log.action) && !log.action.includes('LOGIN'));
+                     
+                 } else {
+                     auditLogs = auditLogs.filter(log => log.action === actionFilter);
+                 }
              }
 
-             // 4. Formata os logs com nome de usuário
+             // Filtra por Tipo de Usuário (lado do cliente)
+             if (filters.tipo_usuario) {
+                 const userIdsWithRole = users.filter(u => u.tipo_usuario === filters.tipo_usuario).map(u => u.id);
+                 // Se o filtro de usuário estiver ativo, mostra apenas logs onde o usuário existe e tem o papel correto.
+                 auditLogs = auditLogs.filter(log => log.user_id && userIdsWithRole.includes(log.user_id));
+             }
+
+             // Formata os logs com nome de usuário
              this.logs = auditLogs.map(log => {
                  const userInfo = userMap.get(log.user_id);
                  return {
                      timestamp: log.timestamp,
-                     tipo_log: log.action.replace('_', ' '), 
+                     // Formata a ação para ser legível (ex: USER_UPDATE -> User Update)
+                     tipo_log: this.formatOption(log.action), 
                      mensagem: log.details, 
-                     tipo_usuario: userInfo ? `${userInfo.name} (${userInfo.role.charAt(0).toUpperCase() + userInfo.role.slice(1)})` : `ID:${log.user_id}`
+                     // Exibe o nome se existir, senão o ID (ou 'Sistema' se user_id for null, como em LOGIN_FAILED)
+                     tipo_usuario: userInfo ? `${userInfo.name} (${this.formatOption(userInfo.role)})` : (log.user_id === null ? 'Sistema/Tentativa' : `ID:${log.user_id}`)
                  };
              });
+             
+             if (this.logs.length === 0) {
+                 showToast('Nenhum log encontrado para os filtros selecionados.', 'info');
+             }
              
              this.renderLogsTab(); 
              
          } catch (error) {
-              handleOperation(error);
+              console.error("[ERRO FATAL CARREGAMENTO DE LOGS]", error);
+              showToast('Erro ao carregar logs. Verifique a API/Tabela.', 'error');
               this.logs = [];
          } finally {
              hideLoading();
@@ -471,30 +519,41 @@ export class GerencialView {
     }
 
     renderLogsTab() {
-        // Usa os logs reais agora
         const logsToDisplay = this.logs; 
+        const actionOptionsHTML = this.getLogActionOptions().map(opt => 
+            `<option value="${opt.value}">${opt.label}</option>`
+        ).join('');
         
+        // MODIFICAÇÃO AQUI: Altera a ordem das colunas e a exibição
         const logRows = logsToDisplay.map(log => `
             <tr>
                 <td>${formatDateTime(log.timestamp)}</td>
+                <td><strong>${log.tipo_usuario || 'Sistema'}</strong></td>
                 <td>${log.tipo_log}</td>
                 <td>${log.mensagem}</td>
-                <td>${log.tipo_usuario || 'Sistema'}</td>
             </tr>
         `).join('');
 
         return `
             <div class="logs-tab">
                 <div class="report-filters log-filters" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background-color: var(--bg-dark); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                    
                     <select id="log-filter-role" class="form-select">
                         <option value="">Tipo Usuário (Todos)</option>
                         <option value="admin">Administrador</option>
                         <option value="usuario">Usuário Padrão</option>
                     </select>
+                    
+                    <select id="log-filter-action" class="form-select">
+                        <option value="">Tipo de Ação (Todos)</option>
+                        ${actionOptionsHTML}
+                    </select>
+
                     <label for="log-filter-start">De:</label>
                     <input type="date" id="log-filter-start" class="form-input" style="width: 150px;">
                     <label for="log-filter-end">Até:</label>
                     <input type="date" id="log-filter-end" class="form-input" style="width: 150px;">
+                    
                     <button class="btn-primary" id="apply-log-filters">
                         <i class="ph-fill ph-funnel"></i> Filtrar Logs
                     </button>
@@ -505,9 +564,9 @@ export class GerencialView {
                         <thead>
                             <tr>
                                 <th>Horário</th>
-                                <th>Ação</th>
-                                <th>Detalhes</th>
-                                <th>Usuário</th>
+                                <th>Usuário (Quem Fez)</th>
+                                <th>Ação/Contexto</th>
+                                <th>Detalhes da Alteração</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -4,8 +4,8 @@ import { showToast, handleOperation, showLoading, hideLoading } from '../helpers
 import { openModal, closeModal } from '../components/modal.js'; // NOVO: Importa modal
 // NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
-// NOVO: Importa constantes
-import { CAMINHAO_STATUS_LABELS } from '../constants.js';
+// MODIFICADO: Importa constantes
+import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE } from '../constants.js';
 
 export class FrotaView {
     constructor() {
@@ -112,10 +112,30 @@ export class FrotaView {
                 const frente = caminhao.frente_id ? frentesMap.get(caminhao.frente_id) : null;
                 const fazenda = frente?.fazendas;
 
+                // NOVO: Lógica do Ciclo
+                const cycleIndex = CAMINHAO_STATUS_CYCLE.indexOf(status);
+                const isCycleActive = cycleIndex !== -1;
+                const totalSteps = CAMINHAO_STATUS_CYCLE.length;
+                const currentStep = isCycleActive ? cycleIndex + 1 : 0;
+                const progressPercentage = isCycleActive ? ((currentStep / totalSteps) * 100).toFixed(0) : 0;
+                const progressLabel = isCycleActive ? `${currentStep} de ${totalSteps} (${progressPercentage}%)` : `${this.statusLabels[status] || 'Disponível'}`;
+                
+                // NOVO: HTML da Barra de Progresso
+                const progressHTML = `
+                    <div class="cycle-progress-bar">
+                        <div class="progress-fill status-${status}" style="width: ${progressPercentage}%;"></div>
+                    </div>
+                    <span class="progress-label">${progressLabel}</span>
+                `;
+
                 return `
                     <tr>
-                        <td><strong>${caminhao.cod_equipamento}</strong></td>
-                        <td><span class="caminhao-status-badge status-${status}">${this.statusLabels[status] || 'Disponível'}</span></td>
+                        <td>
+                            <strong>${caminhao.cod_equipamento}</strong>
+                            <div class="cycle-status-info">
+                                ${isCycleActive ? progressHTML : `<span class="caminhao-status-badge status-${status}">${progressLabel}</span>`}
+                            </div>
+                        </td>
                         <td>${frente ? `${frente.nome} ${fazenda ? `(${fazenda.nome})` : ''}` : '---'}</td>
                         <td style="text-align: center;">${this.renderActionMenu(caminhao)}</td>
                     </tr>
@@ -130,8 +150,7 @@ export class FrotaView {
                         <table class="data-table-modern frota-owner-table">
                             <thead>
                                 <tr>
-                                    <th>Caminhão</th>
-                                    <th>Status</th>
+                                    <th style="width: 300px;">Caminhão / Ciclo Atual</th>
                                     <th>Frente de Serviço Atual</th>
                                     <th style="width: 150px; text-align: center;">Ações</th>
                                 </tr>
