@@ -27,6 +27,28 @@ export class RelatoriosView {
         // NOVO: Adiciona a constante de ciclo
         this.cycleStatus = CAMINHAO_STATUS_CYCLE;
     }
+    
+    // NOVO: Função auxiliar para formatar horas decimais para H:MM
+    convertHoursToHM(decimalHours) {
+        if (decimalHours === 0) return '0h';
+        const totalMinutes = Math.round(decimalHours * 60);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        
+        let result = '';
+        if (hours > 0) {
+            result += `${hours}h`;
+        }
+        if (minutes > 0) {
+            // Garante dois dígitos para minutos
+            result += `${minutes.toString().padStart(2, '0')}m`;
+        }
+        
+        // Se a duração for muito pequena (ex: 1m), apenas retorna isso.
+        if (result === '') return '<1m';
+        
+        return result.replace(/m$/, ''); // Remove o 'm' do final para ficar H:MM
+    }
 
     async show() {
         // Pré-carregar libs de PDF para melhorar UX (Início)
@@ -454,8 +476,11 @@ export class RelatoriosView {
                 scales: { 
                     y: { 
                         beginAtZero: true, 
-                        title: { display: true, text: 'Horas', color: '#A0AEC0' },
-                        ticks: { color: '#A0AEC0' }, 
+                        title: { display: true, text: 'Tempo (H:MM)', color: '#A0AEC0' }, // NOVO: Título com H:MM
+                        ticks: { 
+                            color: '#A0AEC0',
+                            callback: (value) => this.convertHoursToHM(value) // NOVO: Callback para formatar
+                        }, 
                         grid: { color: '#4A5568' } 
                     }, 
                     x: { 
@@ -1369,7 +1394,11 @@ export class RelatoriosView {
                 scales: { 
                     y: { 
                         beginAtZero: true, 
-                        ticks: { color: '#A0AEC0' }, 
+                        title: { display: true, text: 'Tempo (H:MM)', color: '#A0AEC0' }, // NOVO: Título com H:MM
+                        ticks: { 
+                            color: '#A0AEC0', 
+                            callback: (value) => this.convertHoursToHM(value) // NOVO: Callback para formatar
+                        }, 
                         grid: { color: '#4A5568' } 
                     }, 
                     x: { 
@@ -1408,7 +1437,11 @@ export class RelatoriosView {
                 scales: { 
                     y: { 
                         beginAtZero: true, 
-                        ticks: { color: '#A0AEC0' }, 
+                        title: { display: true, text: 'Tempo (H:MM)', color: '#A0AEC0' }, // NOVO: Título com H:MM
+                        ticks: { 
+                            color: '#A0AEC0',
+                            callback: (value) => this.convertHoursToHM(value) // NOVO: Callback para formatar
+                        }, 
                         grid: { color: '#4A5568' } 
                     }, 
                     x: { 
