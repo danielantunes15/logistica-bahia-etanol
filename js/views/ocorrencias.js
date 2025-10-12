@@ -152,7 +152,37 @@ export class OcorrenciasView {
                 document.getElementById('longitude').value = lng.toFixed(6);
             };
 
-            mapManager.initCadastroMap('map-cadastro-medio', onLocationSelect);
+            // Adiciona a lógica para usar o ícone de cone temporário no mapa de cadastro
+            const customIcon = L.divIcon({
+                className: 'ocorrencia-marker-cadastro',
+                // REMOÇÃO DO TRIÂNGULO e ÍCONE SIRENE AJUSTADO
+                html: '<div class="marker-pin" style="background-color: #ED8936; border-radius: 50%; width: 40px; height: 40px; margin: 0; display: flex; align-items: center; justify-content: center;"><i class="ph-fill ph-siren" style="font-size: 22px; color: black;"></i></div>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 40]
+            });
+
+
+            // mapManager.initCadastroMap foi modificado para suportar o ícone
+            const map = mapManager.initMap('map-cadastro-medio');
+            if (map && onLocationSelect) {
+                let marker = null;
+                map.on('click', function(e) {
+                    const { lat, lng } = e.latlng;
+                    
+                    // Atualiza campos do formulário
+                    onLocationSelect(lat, lng);
+                    
+                    // Atualizar ou criar marcador com o ícone customizado
+                    if (marker) {
+                        marker.setLatLng(e.latlng);
+                    } else {
+                        marker = L.marker(e.latlng, { icon: customIcon }).addTo(map);
+                    }
+                    
+                    marker.bindPopup(`<b>Localização Selecionada:</b><br>${lat.toFixed(4)}, ${lng.toFixed(4)}`)
+                          .openPopup();
+                });
+            }
         }, 200);
     }
     

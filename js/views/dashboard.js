@@ -560,10 +560,10 @@ export class DashboardView {
                 // Cria ícone de triângulo amarelo (reutilizando classes)
                 const ocorrenciaIcon = L.divIcon({
                     className: 'ocorrencia-marker',
-                    // Cria um triângulo amarelo com o ícone de aviso
+                    // REMOÇÃO DO TRIÂNGULO e ÍCONE SIRENE AJUSTADO
                     html: `
-                        <div class="marker-pin" style="background-color: #ED8936; border-radius: 0; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); width: 40px; height: 40px; margin: 0;">
-                            <i class="ph-fill ph-warning" style="font-size: 20px; color: black; position: absolute; top: 10px; left: 10px; transform: rotate(0deg);"></i>
+                        <div class="marker-pin" style="background-color: #ED8936; border-radius: 50%; width: 40px; height: 40px; margin: 0;">
+                            <i class="ph-fill ph-siren" style="font-size: 24px; color: black; transform: rotate(0deg);"></i>
                         </div>
                         <div class="marker-pulse" style="background-color: #ED8936;"></div>
                     `,
@@ -675,6 +675,4 @@ export class DashboardView {
             });
         }
     }
-    
-    // ... (Métodos updateDashboardStats, updateStatElement, animateCount, updateEfficiencyBar, updateLastUpdateTime e calculateBounds) ...
 }

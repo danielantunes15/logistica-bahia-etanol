@@ -107,7 +107,7 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
             </button>
             
             <button class="nav-button" data-view="ocorrencias"> 
-                <i class="ph-fill ph-traffic-cone"></i>
+                <i class="ph-fill ph-siren"></i>
                 <span>Ocorrências</span>
             </button>
             
