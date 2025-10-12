@@ -68,7 +68,22 @@ export function formatDate(date) {
 }
 
 export function formatDateTime(date) {
-    return new Date(date).toLocaleString('pt-BR');
+    // CORREÇÃO: Força a extração dos componentes UTC da string ISO salva no banco.
+    // Isso garante que a hora salva seja exibida exatamente como foi digitada, ignorando o offset do navegador.
+    if (!date) return '---';
+    const d = new Date(date);
+    
+    // Verifica se a data é válida
+    if (isNaN(d)) return 'N/A';
+    
+    const utcyear = d.getUTCFullYear();
+    const utcmonth = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const utcday = String(d.getUTCDate()).padStart(2, '0');
+    const utchours = String(d.getUTCHours()).padStart(2, '0');
+    const utcminutes = String(d.getUTCMinutes()).padStart(2, '0');
+
+    // Monta a string no formato pt-BR
+    return `${utcday}/${utcmonth}/${utcyear} ${utchours}:${utcminutes}`;
 }
 
 export function formatCurrency(value) {
@@ -118,9 +133,21 @@ export function formatMillisecondsToHoursMinutes(diffMillis) {
 
 // --- MODIFICADO: Função para calcular e formatar o tempo de inatividade ---
 export function calculateDowntimeDuration(startTime, endTime) {
-    const start = new Date(startTime).getTime();
-    // Se endTime for nulo, usa o tempo atual (ainda parado)
-    const end = endTime ? new Date(endTime).getTime() : new Date().getTime();
+    // 1. O startTime já é lido como UTC forçado, então pegamos seu valor em milissegundos.
+    const start = new Date(startTime).getTime(); 
+    
+    let end;
+    if (endTime) {
+        // Se endTime existe (sessão fechada), também lemos o valor como UTC forçado
+        end = new Date(endTime).getTime();
+    } else {
+        // CORREÇÃO: Se a sessão está ABERTA, o 'Agora' precisa ser corrigido 
+        // para o fuso horário (UTC) para que a duração não comece em 3h.
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        end = now.getTime() - offset;
+    }
+    
     const diffMillis = end - start;
 
     // Reutiliza a nova função de formatação

@@ -37,9 +37,12 @@ export class OcorrenciasView {
             this.frentes = await fetchTable('frentes_servico', 'id, nome');
             const select = document.getElementById('frentes_impactadas');
             if (select) {
-                select.innerHTML = this.frentes.map(frente => 
-                    `<option value="${frente.id}">${frente.nome}</option>`
-                ).join('');
+                this.frentes.forEach(frente => {
+                    const option = document.createElement('option');
+                    option.value = frente.id;
+                    option.textContent = frente.nome;
+                    select.appendChild(option);
+                });
             }
         } catch (error) {
             console.error('Erro ao carregar frentes de serviço:', error);
@@ -286,17 +289,25 @@ export class OcorrenciasView {
         document.getElementById('close-ocorrencia-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const horaFim = e.target.hora_fim.value;
-            this.handleCloseOcorrencia(ocorrenciaId, new Date(horaFim).toISOString());
+            this.handleCloseOcorrencia(ocorrenciaId, horaFim); // Passa a string do input
         });
     }
 
     // CORRIGIDO: Removido a declaração incorreta 'const { closeModal } = window.modal;'
     async handleCloseOcorrencia(ocorrenciaId, horaFim) {
         showLoading();
+        
+        // CORREÇÃO: Aplica a mesma lógica de fuso horário do salvamento (handleFormSubmit)
+        // para garantir que a hora digitada seja forçada a ser salva como UTC corrigido.
         try {
+            let localDate = new Date(horaFim);
+            const offset = localDate.getTimezoneOffset() * 60000; 
+            const utcTime = localDate.getTime() - offset; 
+            const finalHoraFim = new Date(utcTime).toISOString(); 
+
             const updateData = {
                 status: 'resolvido',
-                hora_fim: horaFim
+                hora_fim: finalHoraFim // Usa o valor corrigido
             };
             
             await updateItem('ocorrencias', ocorrenciaId, updateData);
@@ -348,22 +359,49 @@ export class OcorrenciasView {
         const data = {
             tipo: formData.get('tipo'),
             descricao: formData.get('descricao'),
+            // Pega a string de hora do input datetime-local
             hora_inicio: formData.get('hora_inicio'), 
             status: 'aberto'
         };
 
-
-        if (!data.latitude || !data.longitude || data.latitude === 'null' || data.longitude === 'null') {
+        // Tenta parsear os valores do FormData
+        const latValue = parseFloat(formData.get('latitude'));
+        const lngValue = parseFloat(formData.get('longitude'));
+        
+        // Verifica se são números VÁLIDOS (não é NaN)
+        if (isNaN(latValue) || isNaN(lngValue)) {
             showToast('Marque a localização no mapa antes de cadastrar.', 'error');
             return;
         }
         
+        // CORREÇÃO DE FUSO HORÁRIO AQUI (SALVAMENTO)
+        try {
+            // 1. Cria um objeto Date a partir do input local (ex: '2025-10-12T09:14')
+            let localDate = new Date(data.hora_inicio);
+            
+            // 2. Calcula o tempo em milissegundos, corrigindo pelo offset local.
+            //    A data que o usuário vê (e espera salvar) se torna o valor UTC
+            const offset = localDate.getTimezoneOffset() * 60000; // Offset em ms (positivo para GMT-3)
+            const utcTime = localDate.getTime() - offset; 
+            
+            // 3. Atualiza o objeto data com o valor ISO corrigido para UTC.
+            data.hora_inicio = new Date(utcTime).toISOString();
+            
+        } catch (error) {
+            console.error("Erro ao processar data/hora:", error);
+            showToast('Erro ao processar a data/hora. Verifique o formato.', 'error');
+            return;
+        }
+        
+        
+        // Atribui as coordenadas numéricas para o objeto 'data'
+        data.latitude = latValue;
+        data.longitude = lngValue;
+        
         const frentesSelect = document.getElementById('frentes_impactadas');
+        // Garante que os IDs das frentes sejam strings (UUIDs)
         const selectedFrentes = Array.from(frentesSelect.selectedOptions).map(option => option.value);
         data.frentes_impactadas = selectedFrentes; 
-        
-        data.latitude = parseFloat(formData.get('latitude'));
-        data.longitude = parseFloat(formData.get('longitude'));
         
         showLoading();
         try {
