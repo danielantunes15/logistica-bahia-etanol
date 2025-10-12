@@ -14,8 +14,8 @@ const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutos
 // Cache de tentativas de login
 const loginAttempts = new Map();
 
-// Variável local para simular a sessão do usuário (Agora cacheia o localStorage)
-let localUserSession = JSON.parse(localStorage.getItem(USER_SESSION_KEY)) || null;
+// Variável local para simular a sessão do usuário (Agora cacheia o sessionStorage)
+let localUserSession = JSON.parse(sessionStorage.getItem(USER_SESSION_KEY)) || null;
 
 // --- FUNÇÕES DE SEGURANÇA ---
 
@@ -282,9 +282,9 @@ export async function loginAppUser(username, password) {
             sessionId: generateSessionId()
         };
 
-        // Salva sessão
+        // Salva sessão no SESSIONSTORAGE (MUDANÇA APLICADA AQUI)
         localUserSession = sessionData;
-        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(sessionData));
+        sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(sessionData));
         
         // Registra log de login bem-sucedido
         await logUserAction(data.id, 'LOGIN_SUCCESS', `Usuário ${data.username_app} fez login`);
@@ -304,7 +304,7 @@ export async function loginAppUser(username, password) {
 }
 
 /**
- * Faz o logout do usuário, limpando a sessão local e o localStorage.
+ * Faz o logout do usuário, limpando a sessão local e o sessionStorage.
  */
 export async function logoutAppUser() {
     if (localUserSession) {
@@ -313,18 +313,18 @@ export async function logoutAppUser() {
     }
     
     localUserSession = null;
-    localStorage.removeItem(USER_SESSION_KEY);
+    sessionStorage.removeItem(USER_SESSION_KEY); // MUDANÇA APLICADA AQUI
     
     return { error: null };
 }
 
 /**
- * Busca a sessão do usuário logado (agora verifica o localStorage e validade).
+ * Busca a sessão do usuário logado (agora verifica o sessionStorage e validade).
  */
 export async function getLocalSession() {
     // Se não tem sessão local, verifica storage
     if (!localUserSession) {
-        const storedSession = localStorage.getItem(USER_SESSION_KEY);
+        const storedSession = sessionStorage.getItem(USER_SESSION_KEY); // MUDANÇA APLICADA AQUI
         localUserSession = storedSession ? JSON.parse(storedSession) : null;
     }
     
@@ -392,7 +392,7 @@ export async function updateUserPassword(userId, currentPassword, newPassword) {
     // Atualiza a sessão local
     if (localUserSession && localUserSession.id === userId) {
         localUserSession.isFirstLogin = false;
-        localStorage.setItem(USER_SESSION_KEY, JSON.stringify(localUserSession));
+        sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(localUserSession)); // MUDANÇA APLICADA AQUI
     }
     
     // Registra log de alteração de senha
