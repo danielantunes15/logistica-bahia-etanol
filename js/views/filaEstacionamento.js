@@ -1,7 +1,8 @@
 // js/views/filaEstacionamento.js
 
 import { fetchAllData, fetchFila, updateFilaCarregamento } from '../api.js';
-import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js'; // Funções gerais
+import { formatDateTime } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA
 import { dataCache } from '../dataCache.js';
 
 // Status que indicam que o caminhão está no estacionamento

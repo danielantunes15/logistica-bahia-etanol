@@ -1,7 +1,8 @@
 // js/views/controle.js
 
 import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
-import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js'; // IMPORTA FUNÇÕES DE HORA
+import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA
 import { openModal, closeModal } from '../components/modal.js';
 import { dataCache } from '../dataCache.js';
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS } from '../constants.js';
@@ -269,7 +270,7 @@ export class ControleView {
         const { caminhao_historico = [] } = this.data;
         return caminhao_historico.slice(0, 15).map(log => `
             <tr>
-                <td>${new Date(log.timestamp_mudanca).toLocaleString('pt-BR')}</td>
+                <td>${formatDateTime(log.timestamp_mudanca)}</td>
                 <td>${log.caminhoes?.cod_equipamento || 'N/A'}</td>
                 <td><span class="caminhao-status-badge status-${log.status_anterior}">${this.statusLabels[log.status_anterior] || log.status_anterior}</span></td>
                 <td><span class="caminhao-status-badge status-${log.status_novo}">${this.statusLabels[log.status_novo] || log.status_novo}</span></td>
@@ -358,9 +359,8 @@ export class ControleView {
             return codA - codB;
         });
         
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        const nowString = now.toISOString().slice(0,16);
+        // CORREÇÃO: Usa a função getBrtNowString para o valor inicial do formulário
+        const nowString = getBrtNowString();
 
         // Filtra para mostrar apenas frentes ATIVAS (ativa ou fazendo_cata) e com fazenda associada
         // E ORDENA POR NOME ALFABETICAMENTE
@@ -415,7 +415,7 @@ export class ControleView {
             showLoading();
             try {
                 // 1. Designa o caminhão e atualiza status no DB
-                await assignCaminhaoToFrente(caminhaoId, frenteId, status, new Date(hora).toISOString());
+                await assignCaminhaoToFrente(caminhaoId, frenteId, status, getBrtIsoString(hora));
                 
                 // 2. Remove da fila de estacionamento persistida
                 await removeCaminhaoFromFila(caminhaoId); 
@@ -439,9 +439,8 @@ export class ControleView {
         const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
         if (!caminhao) return;
 
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        const nowString = now.toISOString().slice(0,16);
+        // CORREÇÃO: Usa a função getBrtNowString
+        const nowString = getBrtNowString();
 
         const modalContent = `
             <p>Finalizando inatividade para: <strong>${caminhao.cod_equipamento}</strong></p>
@@ -462,10 +461,9 @@ export class ControleView {
         document.getElementById('finalize-downtime-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const horaFim = e.target.hora_fim.value;
-            const finalTimestamp = new Date(horaFim).toISOString();
             
-            // Passa a hora de fim e o novo status 'disponivel'
-            this.handleStatusUpdate(caminhaoId, 'disponivel', null, 'Ciclo finalizado, caminhão disponível!', null, finalTimestamp);
+            // Passa a hora de fim (BRT) e o novo status 'disponivel'
+            this.handleStatusUpdate(caminhaoId, 'disponivel', null, 'Ciclo finalizado, caminhão disponível!', null, getBrtIsoString(horaFim));
         });
     }
 
@@ -603,8 +601,11 @@ export class ControleView {
     async handleStatusUpdate(caminhaoId, novoStatus, frenteId, successMessage, motivoParada = null, timestamp = null) {
         showLoading(); // INICIA AQUI
         try {
+            // CORREÇÃO: Força o uso do instante BRT atual se nenhum timestamp foi fornecido (ação rápida)
+            const logTimestamp = timestamp || getBrtIsoString();
+            
             // 1. Atualiza o DB (o API.js já cuida de desassociar a frente se for 'disponivel', 'quebrado' ou 'parado')
-            await updateCaminhaoStatus(caminhaoId, novoStatus, frenteId, motivoParada, timestamp);
+            await updateCaminhaoStatus(caminhaoId, novoStatus, frenteId, motivoParada, logTimestamp);
             
             // 2. NOVO: Se o caminhão saiu do pátio/fila (status não é de estacionamento), remove da tabela fila_carregamento
             if (!ESTACIONAMENTO_STATUS.includes(novoStatus)) {

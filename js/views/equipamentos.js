@@ -1,7 +1,7 @@
 // js/views/equipamentos.js
 import { fetchAllData, updateEquipamentoStatus } from '../api.js';
-// NOVO: Importa groupDowntimeSessions
-import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration, groupDowntimeSessions } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+import { formatDateTime, calculateDowntimeDuration, groupDowntimeSessions, getBrtNowString, getBrtIsoString } from '../timeUtils.js'; // IMPORTAÇÕES CORRIGIDAS
 import { openModal, closeModal } from '../components/modal.js';
 // NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
@@ -269,7 +269,7 @@ export class EquipamentosView {
         `;
     }
 
-    // --- CORREÇÃO COMPLETA: Utiliza o helper groupDowntimeSessions ---
+    // --- CORREÇÃO COMPLETA: Utiliza o timeUtils.js ---
     renderHistorico(equipamentoId = null, frenteId = null, date = null) {
         const { equipamento_historico = [] } = this.data;
         const downtimeStatuses = ['parado', 'quebrado'];
@@ -392,16 +392,18 @@ export class EquipamentosView {
             const newFrenteId = e.target.new_frente_id.value;
             const newFrenteName = this.frentesMap.get(parseInt(newFrenteId));
             if (newFrenteId) {
-                // Status permanece 'ativo', apenas a frente é trocada.
-                await this.handleStatusUpdate(equipamento.id, 'ativo', newFrenteId, new Date().toISOString(), `Equipamento movido para Frente ${newFrenteName}!`, 'Movido para nova frente');
+                // Status permanece 'ativo', apenas a frente é trocada. Usa a hora atual corrigida
+                const logTimestamp = getBrtIsoString();
+                await this.handleStatusUpdate(equipamento.id, 'ativo', newFrenteId, logTimestamp, `Equipamento movido para Frente ${newFrenteName}!`, 'Movido para nova frente');
             }
         });
 
         // Handler para Tornar Disponível (Unassign)
         document.getElementById('unassign-equipment-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            // Mantém status 'ativo', mas frente_id = null
-            await this.handleStatusUpdate(equipamento.id, 'ativo', null, new Date().toISOString(), `Equipamento ${equipamento.cod_equipamento} disponibilizado!`, 'Disponibilizado/desassociado da frente');
+            // Mantém status 'ativo', mas frente_id = null. Usa a hora atual corrigida
+            const logTimestamp = getBrtIsoString();
+            await this.handleStatusUpdate(equipamento.id, 'ativo', null, logTimestamp, `Equipamento ${equipamento.cod_equipamento} disponibilizado!`, 'Disponibilizado/desassociado da frente');
         });
         
         // Handler para Parada/Quebra (Redireciona para o modal existente)
@@ -441,8 +443,9 @@ export class EquipamentosView {
             
             showLoading();
             try {
-                // Ao designar, o status é 'ativo' e a frente é associada
-                await updateEquipamentoStatus(equipamentoId, 'ativo', frenteId, new Date().toISOString(), 'Designado para frente');
+                // Ao designar, o status é 'ativo' e a frente é associada. Usa a hora atual corrigida
+                const logTimestamp = getBrtIsoString();
+                await updateEquipamentoStatus(equipamentoId, 'ativo', frenteId, logTimestamp, 'Designado para frente');
                 
                 // Invalida o Cache (NOVO)
                 dataCache.invalidateAllData();
@@ -463,9 +466,8 @@ export class EquipamentosView {
         const equipamento = this.data.equipamentos.find(e => e.id == equipamentoId);
         if (!equipamento) return;
 
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        const nowString = now.toISOString().slice(0,16);
+        // CORREÇÃO: Usa a função getBrtNowString
+        const nowString = getBrtNowString();
         
         // Filtra frentes que possuem fazenda para designação
         const frentesComFazenda = this.data.frentes_servico.filter(f => f.fazenda_id);
@@ -521,7 +523,8 @@ export class EquipamentosView {
             }
             
             // O handleStatusUpdate cuida de passar a nova frente_id para o updateEquipamentoStatus
-            this.handleStatusUpdate(equipamento.id, 'ativo', novaFrenteId, new Date(horaFim).toISOString(), 'Parada Finalizada! Equipamento Ativo.', 'Fim de parada: Ativado para nova frente');
+            // Usa a hora de fim do formulário.
+            await this.handleStatusUpdate(equipamento.id, 'ativo', novaFrenteId, getBrtIsoString(horaFim), 'Parada Finalizada! Equipamento Ativo.', 'Fim de parada: Ativado para nova frente');
         });
         
         // Listener para Mudar Status Inativo
@@ -530,8 +533,11 @@ export class EquipamentosView {
             const novoStatus = e.target.status_mudanca.value;
             const motivo = e.target.motivo_mudanca.value;
             
+            // Usa a hora atual corrigida para logar a mudança de status.
+            const logTimestamp = getBrtIsoString();
+            
             // Note: Manter a frente_id existente (que é null para parados/quebrados), pois a máquina continua inativa
-            this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, new Date().toISOString(), `Status alterado para ${this.statusLabels[novoStatus]}!`, motivo);
+            await this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, logTimestamp, `Status alterado para ${this.statusLabels[novoStatus]}!`, motivo);
         });
     }
 
@@ -540,9 +546,8 @@ export class EquipamentosView {
         const equipamento = this.data.equipamentos.find(e => e.id == equipamentoId);
         if (!equipamento) return;
 
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        const nowString = now.toISOString().slice(0,16);
+        // CORREÇÃO: Usa a função getBrtNowString
+        const nowString = getBrtNowString();
 
         let modalContent;
 
@@ -578,7 +583,8 @@ export class EquipamentosView {
                 const horaInicio = e.target.hora_inicio.value;
                 const motivo = e.target.motivo.value;
                 
-                this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, new Date(horaInicio).toISOString(), 'Parada registrada com sucesso!', motivo);
+                // Usa a hora de início do formulário
+                await this.handleStatusUpdate(equipamento.id, novoStatus, frenteId, getBrtIsoString(horaInicio), 'Parada registrada com sucesso!', motivo);
             });
 
         } else {

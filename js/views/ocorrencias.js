@@ -1,5 +1,6 @@
 // js/views/ocorrencias.js
-import { showToast, handleOperation, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString } from '../timeUtils.js'; // IMPORTAÇÕES CORRIGIDAS
 import { mapManager } from '../maps.js';
 import { dataCache } from '../dataCache.js';
 import { insertItem, fetchTable, updateItem } from '../api.js';
@@ -51,9 +52,8 @@ export class OcorrenciasView {
     }
 
     getHTML() {
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        const nowString = now.toISOString().slice(0, 16);
+        // CORREÇÃO: Usa a função getBrtNowString para preencher o campo datetime-local
+        const nowString = getBrtNowString();
 
         return `
             <div id="ocorrencias-view" class="view active-view">
@@ -263,9 +263,8 @@ export class OcorrenciasView {
     
     // CORRIGIDO: Removido a declaração incorreta 'const { openModal, closeModal } = window.modal;'
     showCloseOcorrenciaModal(ocorrenciaId, startTime) {
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        const nowString = now.toISOString().slice(0, 16);
+        // CORREÇÃO: Usa a função getBrtNowString para preencher o campo datetime-local
+        const nowString = getBrtNowString();
         
         const modalContent = `
             <p>Encerrando Ocorrência iniciada em: <strong>${formatDateTime(startTime)}</strong></p>
@@ -297,14 +296,10 @@ export class OcorrenciasView {
     async handleCloseOcorrencia(ocorrenciaId, horaFim) {
         showLoading();
         
-        // CORREÇÃO: Aplica a mesma lógica de fuso horário do salvamento (handleFormSubmit)
-        // para garantir que a hora digitada seja forçada a ser salva como UTC corrigido.
+        // CORREÇÃO: Usa o getBrtIsoString para garantir que o salvamento seja o instante BRT correto
         try {
-            let localDate = new Date(horaFim);
-            const offset = localDate.getTimezoneOffset() * 60000; 
-            const utcTime = localDate.getTime() - offset; 
-            const finalHoraFim = new Date(utcTime).toISOString(); 
-
+            const finalHoraFim = getBrtIsoString(horaFim); // Usando a nova função para salvar BRT->UTC
+            
             const updateData = {
                 status: 'resolvido',
                 hora_fim: finalHoraFim // Usa o valor corrigido
@@ -374,18 +369,9 @@ export class OcorrenciasView {
             return;
         }
         
-        // CORREÇÃO DE FUSO HORÁRIO AQUI (SALVAMENTO)
+        // CORREÇÃO: Usa o getBrtIsoString para salvar o instante BRT correto
         try {
-            // 1. Cria um objeto Date a partir do input local (ex: '2025-10-12T09:14')
-            let localDate = new Date(data.hora_inicio);
-            
-            // 2. Calcula o tempo em milissegundos, corrigindo pelo offset local.
-            //    A data que o usuário vê (e espera salvar) se torna o valor UTC
-            const offset = localDate.getTimezoneOffset() * 60000; // Offset em ms (positivo para GMT-3)
-            const utcTime = localDate.getTime() - offset; 
-            
-            // 3. Atualiza o objeto data com o valor ISO corrigido para UTC.
-            data.hora_inicio = new Date(utcTime).toISOString();
+            data.hora_inicio = getBrtIsoString(data.hora_inicio);
             
         } catch (error) {
             console.error("Erro ao processar data/hora:", error);

@@ -1,6 +1,8 @@
 // js/views/descarga.js
+
 import { fetchAllData } from '../api.js';
-import { showToast, formatDateTime } from '../helpers.js';
+import { showToast } from '../helpers.js';
+import { formatDateTime } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA
 
 export class DescargaView {
     constructor() {
@@ -101,6 +103,7 @@ export class DescargaView {
         caminhoesEmDescarga.forEach(caminhao => {
             const latestLog = sortedHistory.find(log => log.caminhao_id === caminhao.id && log.status_novo === this.statusToMonitor);
             
+            // Mantém como objeto Date, formatDateTime pode receber tanto string quanto Date object
             entradaDescargaMap.set(caminhao.id, {
                 timestamp: new Date(latestLog ? latestLog.timestamp_mudanca : caminhao.created_at),
                 logId: latestLog ? latestLog.id : null

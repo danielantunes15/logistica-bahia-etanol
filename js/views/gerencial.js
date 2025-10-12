@@ -1,6 +1,7 @@
 // js/views/gerencial.js
 import { registerAppUser, fetchAppLogs, fetchAppUsers, deleteAppUser, updateAppUser, fetchUserAuditLogs } from '../api.js';
-import { showToast, handleOperation, showLoading, hideLoading, formatDateTime } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+import { formatDateTime } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA
 import { openModal, closeModal } from '../components/modal.js';
 
 export class GerencialView {

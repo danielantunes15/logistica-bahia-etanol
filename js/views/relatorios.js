@@ -1,8 +1,9 @@
 // js/views/relatorios.js
 
 import { fetchAllData } from '../api.js';
-// NOVO: Importa groupDowntimeSessions e calculateCycleDuration
-import { showToast, showLoading, hideLoading, formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes, groupDowntimeSessions, calculateCycleDuration } from '../helpers.js';
+// CORREÇÃO: Importa tudo relacionado a tempo/duração/cálculo de ciclo de timeUtils.js
+import { showToast, showLoading, hideLoading } from '../helpers.js';
+import { formatDateTime, calculateDowntimeDuration, formatMillisecondsToHoursMinutes, groupDowntimeSessions, calculateCycleDuration } from '../timeUtils.js';
 import { dataCache } from '../dataCache.js';
 // NOVO: Importa CAMINHAO_STATUS_CYCLE
 import { CAMINHAO_STATUS_LABELS, EQUIPAMENTO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE } from '../constants.js';
@@ -637,7 +638,7 @@ export class RelatoriosView {
             acc[motive].count++;
             
             const start = curr.startTime.getTime();
-            const end = curr.end_time ? curr.end_time.getTime() : new Date().getTime();
+            const end = curr.end_time ? curr.end_time.getTime() : new Date(getBrtIsoString()).getTime();
             const diffMillis = end - start;
             if (diffMillis > 0) {
                 acc[motive].totalMillis += diffMillis;
@@ -666,7 +667,7 @@ export class RelatoriosView {
             
             // Soma a duração em milissegundos para o total
             const start = new Date(session.startTime).getTime();
-            const end = session.end_time ? new Date(session.end_time).getTime() : new Date().getTime();
+            const end = session.end_time ? new Date(session.end_time).getTime() : new Date(getBrtIsoString()).getTime();
             const diffMillis = end - start;
             if (diffMillis > 0) {
                 totalDowntimeMillis += diffMillis;
@@ -731,7 +732,7 @@ export class RelatoriosView {
                     </table>
                 </div>
 
-                <h3 style="padding: 0 24px; margin-bottom: 16px;">${title} (${sessions.length} Registros)</h3>
+                <h3 style="padding: 0 24px; margin-bottom: 16px;">Detalhe das Ocorrências (${sessions.length} Registros)</h3>
                 <div style="padding: 0 24px; overflow-x: auto;">
                     <table class="data-table-modern">
                         <thead>
@@ -1089,7 +1090,7 @@ export class RelatoriosView {
             
             const lastSession = sortedSessions[sortedSessions.length - 1];
             if (lastSession && productiveStatus.includes(lastSession.status)) {
-                totalMillis += new Date() - lastSession.time; 
+                totalMillis += new Date(getBrtIsoString()).getTime() - lastSession.time.getTime(); 
             }
             
             results.push({
@@ -1157,7 +1158,7 @@ export class RelatoriosView {
             
             const lastSession = sortedSessions[sessions.length - 1];
             if (lastSession && nonProductiveStatus.includes(lastSession.status)) {
-                totalMillis += new Date() - lastSession.time; 
+                totalMillis += new Date(getBrtIsoString()).getTime() - lastSession.time.getTime(); 
             }
 
             results.push({
@@ -1179,7 +1180,7 @@ export class RelatoriosView {
              let totalMillis = 0;
              sessions.forEach(session => {
                  const start = session.startTime.getTime();
-                 const end = session.end_time ? session.end_time.getTime() : new Date().getTime();
+                 const end = session.end_time ? session.end_time.getTime() : new Date(getBrtIsoString()).getTime();
                  // Só soma se estiver no período de filtro (isso já foi feito no filterHistory),
                  // mas garante que a duração seja maior que zero
                  if (end - start > 0) {
