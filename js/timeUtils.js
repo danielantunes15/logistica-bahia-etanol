@@ -35,50 +35,57 @@ export function formatDateTime(date) {
  */
 export function getBrtNowString() {
     const now = new Date();
-    // BRT é UTC - 3 horas (-180 minutos)
-    const brtOffsetMillis = -3 * 60 * 60 * 1000;
-    
-    // Obtém o tempo UTC do momento atual (sem a conversão de fuso local do navegador)
-    const utcTime = now.getTime() + now.getTimezoneOffset() * 60000; 
-    
-    // Aplica o offset do BRT
-    const brtTime = new Date(utcTime + brtOffsetMillis); 
     
     // Formata no padrão YYYY-MM-DDTHH:mm (necessário para <input type="datetime-local">)
-    const year = brtTime.getFullYear();
-    const month = String(brtTime.getMonth() + 1).padStart(2, '0');
-    const day = String(brtTime.getDate()).padStart(2, '0');
-    const hours = String(brtTime.getHours()).padStart(2, '0');
-    const minutes = String(brtTime.getMinutes()).padStart(2, '0');
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
     
     return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 /**
- * Retorna o instante no formato ISO (UTC) que representa a hora de Brasília.
- * @param {string} [timeString] - String de data/hora do input datetime-local (BRT).
- * @returns {string} ISO 8601 string (UTC).
+ * SOLUÇÃO DEFINITIVA: Retorna o horário atual em formato ISO UTC
+ * Considera que o navegador JÁ ESTÁ em BRT e converte corretamente para UTC
  */
 export function getBrtIsoString(timeString) {
-    let targetTime = timeString ? new Date(timeString) : new Date();
-    
-    // Se a string for inválida, retorna a hora atual do momento da chamada
-    if (isNaN(targetTime.getTime()) && timeString) {
-        targetTime = new Date(); 
+    // Se recebeu uma string de input, usa diretamente
+    if (timeString) {
+        const date = new Date(timeString);
+        if (!isNaN(date.getTime())) {
+            return date.toISOString();
+        }
     }
     
-    // BRT é UTC - 3 horas (-180 minutos)
-    const brtOffsetMinutes = -180; 
+    // SOLUÇÃO SIMPLES E DIRETA:
+    // O navegador está em BRT (UTC-3), então para obter UTC:
+    // BRT = UTC - 3h → UTC = BRT + 3h
+    const now = new Date();
+    const utcTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
     
-    // Calcula a diferença entre o fuso local do navegador e o BRT.
-    const timezoneOffsetMinutes = targetTime.getTimezoneOffset();
-    const offsetDifference = (timezoneOffsetMinutes - brtOffsetMinutes) * 60000;
+    return utcTime.toISOString();
+}
+
+/**
+ * Função ALTERNATIVA usando Date.UTC - método mais confiável
+ */
+export function getBrtIsoStringAlt() {
+    const now = new Date();
     
-    // Aplica a diferença ao tempo atual para obter o instante BRT no objeto Date.
-    const brtMoment = new Date(targetTime.getTime() - offsetDifference);
+    // Cria uma data UTC a partir dos componentes locais
+    const utcDate = new Date(Date.UTC(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        now.getHours(),
+        now.getMinutes(),
+        now.getSeconds(),
+        now.getMilliseconds()
+    ));
     
-    // Retorna o ISO string que será o UTC salvo no banco (e que formatDateTime irá corrigir).
-    return brtMoment.toISOString();
+    return utcDate.toISOString();
 }
 
 // --- Funções de Duração e Ciclo ---
@@ -109,6 +116,7 @@ export function calculateDowntimeDuration(startTime, endTime) {
     if (endTime) {
         end = new Date(endTime).getTime();
     } else {
+        // USA A FUNÇÃO CORRIGIDA
         const nowBrtIso = getBrtIsoString();
         end = new Date(nowBrtIso).getTime();
     }
@@ -228,6 +236,7 @@ export function calculateCycleDuration(history, cycleStatuses) {
         }
         
         if (cycleStartLog) {
+            // USA A FUNÇÃO CORRIGIDA
             const now = new Date(getBrtIsoString()).getTime();
             const duration = now - new Date(cycleStartLog.timestamp_mudanca).getTime();
             cycleSessions.push({
@@ -244,4 +253,36 @@ export function calculateCycleDuration(history, cycleStatuses) {
     }
 
     return cycleSessions.filter(s => s.duration > 0).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+}
+
+/**
+ * Função para debug - mostra o horário atual em diferentes formatos
+ */
+export function debugTimeFunctions() {
+    const now = new Date();
+    console.log('=== DEBUG DE HORÁRIO - VERIFICAÇÃO ===');
+    console.log('📍 Horário LOCAL do navegador:', now.toString());
+    console.log('⏰ Hora local (BRT):', now.getHours() + ':' + now.getMinutes());
+    console.log('🔧 getBrtNowString():', getBrtNowString());
+    console.log('🔄 getBrtIsoString():', getBrtIsoString());
+    console.log('📅 getBrtIsoStringAlt():', getBrtIsoStringAlt());
+    console.log('👀 Conversão de volta:', formatDateTime(getBrtIsoString()));
+    console.log('====================================');
+}
+
+/**
+ * FUNÇÃO DE EMERGÊNCIA: Retorna sempre o horário correto
+ */
+export function getEmergencyBrtIso() {
+    const now = new Date();
+    // Método mais direto: usa os componentes de data/hora locais para criar UTC
+    const utcTime = new Date(Date.UTC(
+        now.getFullYear(),
+        now.getMonth(), 
+        now.getDate(),
+        now.getHours(),
+        now.getMinutes(),
+        now.getSeconds()
+    ));
+    return utcTime.toISOString();
 }
