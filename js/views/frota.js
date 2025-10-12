@@ -7,6 +7,17 @@ import { dataCache } from '../dataCache.js';
 // MODIFICADO: Importa constantes
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE } from '../constants.js';
 
+// NOVO: Motivos pré-definidos para Parada/Quebra
+const PREDEFINED_MOTIVES = [
+    'Manutenção Preventiva',
+    'Manutenção Corretiva (Motor/Câmbio)',
+    'Pneu Furado/Estourado',
+    'Aguardando Peça/Componente',
+    'Caminhão Bloqueado (Administrativo)',
+    'Problema Elétrico/Eletrônico',
+    'Outros' 
+];
+
 export class FrotaView {
     constructor() {
         this.container = null;
@@ -234,10 +245,14 @@ export class FrotaView {
         });
     }
 
-    // NOVO: Modal para Parada/Quebra com Motivo
+    // NOVO: Modal para Parada/Quebra com Motivo (MODIFICADO para incluir lista)
     showDowntimeModal(caminhaoId) {
         const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
         if (!caminhao) return;
+        
+        const motivesOptions = PREDEFINED_MOTIVES.map(motive => 
+            `<option value="${motive}">${motive}</option>`
+        ).join('');
 
         const modalContent = `
             <p>Registrar Inatividade para: <strong>${caminhao.cod_equipamento}</strong></p>
@@ -249,24 +264,66 @@ export class FrotaView {
                         <option value="quebrado">${this.statusLabels['quebrado']}</option>
                     </select>
                 </div>
+                
                 <div class="form-group">
-                    <label>Motivo da Parada / Quebra</label>
-                    <input type="text" name="motivo" class="form-input" required placeholder="Ex: Manutenção, Esperando Peça, Observação">
+                    <label>Motivo Pré-Definido (Obrigatório)</label>
+                    <select name="motivo_predefinido" id="motivo-predefinido" class="form-select" required>
+                        <option value="">Selecione um motivo...</option>
+                        ${motivesOptions}
+                    </select>
                 </div>
+                
+                <div class="form-group" id="motivo-outros-group" style="display: none;">
+                    <label>Especifique o Motivo (Outros)</label>
+                    <input type="text" name="motivo_outros" id="motivo-outros" class="form-input" placeholder="Descreva o motivo...">
+                </div>
+                
                 <button type="submit" class="btn-primary">Registrar</button>
             </form>
-        `;
+            `;
         openModal('Registrar Parada ou Quebra', modalContent);
+
+        // CORREÇÃO: Anexar o listener AGORA, após a injeção do HTML no DOM
+        const motiveSelect = document.getElementById('motivo-predefinido');
+        const othersGroup = document.getElementById('motivo-outros-group');
+        const othersInput = document.getElementById('motivo-outros');
+
+        // Lógica para mostrar/ocultar e exigir o campo 'Outros'
+        if (motiveSelect && othersGroup && othersInput) {
+            motiveSelect.addEventListener('change', function() {
+                if (this.value === 'Outros') {
+                    // Usa 'flex' porque form-group é display: flex (conforme css)
+                    othersGroup.style.display = 'flex'; 
+                    othersInput.setAttribute('required', 'required');
+                } else {
+                    othersGroup.style.display = 'none';
+                    othersInput.removeAttribute('required');
+                }
+            });
+        }
 
         document.getElementById('downtime-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const novoStatus = e.target.status.value;
-            const motivo = e.target.motivo.value;
+            const motivoPredefinido = e.target.motivo_predefinido.value;
+            const motivoOutros = e.target.motivo_outros.value;
             
+            // Lógica para determinar o motivo final
+            let motivoFinal = motivoPredefinido;
+            if (motivoPredefinido === 'Outros') {
+                motivoFinal = motivoOutros.trim() || 'Outros - Não Específicado'; 
+            }
+
+            // Garante que o campo "Outros" foi preenchido se selecionado
+            if (motivoPredefinido === 'Outros' && !motivoOutros.trim()) {
+                 showToast('Por favor, especifique o motivo em "Outros".', 'error');
+                 return;
+            }
+
             // Fecha o menu de ações antes de iniciar a operação (se ainda estiver aberto)
             e.target.closest('.action-menu.show')?.classList.remove('show');
 
-            this.handleStatusUpdate(caminhao.id, novoStatus, motivo);
+            this.handleStatusUpdate(caminhao.id, novoStatus, motivoFinal);
         });
     }
 
