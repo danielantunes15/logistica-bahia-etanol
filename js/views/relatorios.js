@@ -18,6 +18,7 @@ export class RelatoriosView {
         this.workHoursChart = null;
         this.downtimeHoursChart = null; 
         this.utilizationChart = null; 
+        this.resolutionChart = null; // NOVO: Gráfico de resolução de ocorrências
         this.exportData = {}; 
         this.currentReport = 'charts'; 
         this.caminhaoStatusLabels = CAMINHAO_STATUS_LABELS; 
@@ -39,6 +40,7 @@ export class RelatoriosView {
         if (this.workHoursChart) this.workHoursChart.destroy();
         if (this.downtimeHoursChart) this.downtimeHoursChart.destroy();
         if (this.utilizationChart) this.utilizationChart.destroy();
+        if (this.resolutionChart) this.resolutionChart.destroy(); // NOVO: Destruir gráfico de resolução
     }
     
     // NOVO: Função para pré-carregar libs de PDF
@@ -130,8 +132,9 @@ export class RelatoriosView {
             { name: 'Gráficos de Utilização', id: 'charts' },
             { name: 'Relatório de Paradas (Caminhões)', id: 'downtime-caminhao' },
             { name: 'Relatório de Paradas (Equipamentos)', id: 'downtime-equipamento' },
-            // NOVO: Botão para Tempo de Ciclo
-            { name: 'Tempo Médio de Ciclo (Caminhões)', id: 'time-cycle' }
+            { name: 'Tempo Médio de Ciclo (Caminhões)', id: 'time-cycle' },
+            // NOVO: Botão para Relatório de Ocorrências
+            { name: 'Relatório de Ocorrências', id: 'ocorrencias' }
         ];
         
         return `
@@ -201,7 +204,8 @@ export class RelatoriosView {
         const downtimeStatusFilter = document.getElementById('filter-downtime-status');
         
         if (filters) {
-            filters.style.display = 'flex';
+            // Esconde filtros em alguns relatórios específicos (como ocorrências)
+            filters.style.display = (reportName === 'ocorrencias') ? 'none' : 'flex';
         }
         
         // NOVO: Mostrar/Esconder o filtro de status de inatividade
@@ -219,15 +223,253 @@ export class RelatoriosView {
             case 'downtime-equipamento':
                 await this.renderDowntimeEquipamentoTable();
                 break;
-            // NOVO: Case para Tempo de Ciclo
             case 'time-cycle':
                 await this.renderTimeCycleReport();
+                break;
+            // NOVO: Case para Relatório de Ocorrências
+            case 'ocorrencias':
+                await this.renderOcorrenciasReport();
                 break;
             default:
                 document.getElementById('report-content-container').innerHTML = `<div class="empty-state">Selecione um relatório.</div>`;
         }
     }
     
+    // NOVO: Renderiza Relatório de Ocorrências
+    async renderOcorrenciasReport() {
+        showLoading();
+        const container = document.getElementById('report-content-container');
+        
+        try {
+            const { ocorrencias = [], frentes_servico = [] } = this.data;
+            const filters = this.getFilterValues();
+            
+            // 1. Filtrar ocorrências por período (apenas o que tem hora_inicio)
+            let filteredOcorrencias = ocorrencias.filter(o => o.hora_inicio);
+            if (filters.dataInicio) {
+                const startDate = new Date(filters.dataInicio).getTime();
+                filteredOcorrencias = filteredOcorrencias.filter(o => new Date(o.hora_inicio).getTime() >= startDate);
+            }
+            if (filters.dataFim) {
+                const endDate = new Date(filters.dataFim);
+                endDate.setDate(endDate.getDate() + 1); // Inclui o dia final
+                const endDateTimestamp = endDate.getTime();
+                filteredOcorrencias = filteredOcorrencias.filter(o => new Date(o.hora_inicio).getTime() < endDateTimestamp);
+            }
+            
+            // 2. Calcula as médias de resolução por tipo
+            const resolutionAverages = this.calculateResolutionAverages(filteredOcorrencias);
+            
+            // 3. Renderiza o HTML com gráfico e tabela
+            let reportHTML = this.generateOcorrenciasHTML(filteredOcorrencias, resolutionAverages);
+            container.innerHTML = reportHTML;
+            
+            // 4. Desenha o gráfico (se houver dados de resolução)
+            if (Object.keys(resolutionAverages).length > 0) {
+                 this.drawResolutionChart(resolutionAverages);
+            }
+
+            // 5. Armazenar dados para exportação (opcional, pode ser simplificado)
+            this.exportData = {
+                ocorrencias: filteredOcorrencias,
+                resolutionAverages: resolutionAverages,
+                filterContext: filters 
+            };
+
+        } catch (error) {
+            container.innerHTML = `<div class="empty-state">Erro ao gerar relatório de ocorrências: ${error.message}</div>`;
+            console.error("Erro em renderOcorrenciasReport:", error);
+        } finally {
+            hideLoading();
+        }
+    }
+    
+    // NOVO: Calcula Tempo Médio de Resolução
+    calculateResolutionAverages(ocorrencias) {
+        const stats = {};
+
+        ocorrencias.filter(o => o.status === 'resolvido' && o.hora_fim).forEach(o => {
+            const type = o.tipo;
+            const duration = new Date(o.hora_fim).getTime() - new Date(o.hora_inicio).getTime();
+
+            if (duration > 0) {
+                if (!stats[type]) {
+                    stats[type] = { totalDuration: 0, count: 0 };
+                }
+                stats[type].totalDuration += duration;
+                stats[type].count++;
+            }
+        });
+
+        const averages = {};
+        for (const type in stats) {
+            const { totalDuration, count } = stats[type];
+            averages[this.formatOption(type)] = {
+                count: count,
+                averageDurationMillis: count > 0 ? totalDuration / count : 0
+            };
+        }
+        return averages;
+    }
+
+    // NOVO: Gerador de HTML de Tabela e Gráfico de Ocorrências
+    generateOcorrenciasHTML(ocorrencias, averages) {
+        // Mapeamento de frentes para display
+        const frenteMap = new Map(this.data.frentes_servico.map(f => [f.id, f.nome]));
+        
+        if (ocorrencias.length === 0) {
+            return `<div class="empty-state" style="padding: 50px;">
+                        <i class="ph-fill ph-warning" style="font-size: 3rem;"></i>
+                        <p>Nenhuma ocorrência encontrada para o período selecionado.</p>
+                    </div>`;
+        }
+        
+        const rows = ocorrencias.map(item => {
+            const isFinished = item.status === 'resolvido';
+            const startTime = item.hora_inicio || item.created_at; 
+            const duration = calculateDowntimeDuration(startTime, item.hora_fim);
+            
+            const statusClass = isFinished ? 'disponivel' : 'danger';
+            const statusLabel = isFinished ? 'Resolvido' : 'Em Aberto';
+            const horaFimDisplay = isFinished ? formatDateTime(item.hora_fim) : '---';
+            const durationDisplay = isFinished ? duration : `<strong style="color: var(--accent-danger);">${duration}</strong>`;
+            
+            const frentesNomes = (item.frentes_impactadas || [])
+                                    .map(fId => frenteMap.get(fId))
+                                    .filter(name => name)
+                                    .join(', ');
+            const frentesDisplay = frentesNomes || 'Nenhuma';
+            
+            return `
+                <tr>
+                    <td>${this.formatOption(item.tipo)}</td>
+                    <td>${item.descricao}</td>
+                    <td>${frentesDisplay}</td>
+                    <td>${formatDateTime(startTime)}</td>
+                    <td>${horaFimDisplay}</td>
+                    <td>${durationDisplay}</td>
+                    <td><span class="caminhao-status-badge status-${statusClass}">${statusLabel}</span></td>
+                </tr>
+            `;
+        }).join('');
+        
+        const averageRows = Object.entries(averages).map(([type, data]) => {
+            const avgFormatted = formatMillisecondsToHoursMinutes(data.averageDurationMillis);
+            return `
+                <tr>
+                    <td><strong>${type}</strong></td>
+                    <td>${data.count}</td>
+                    <td><strong style="font-size: 1.0rem; color: var(--accent-primary);">${avgFormatted}</strong></td>
+                </tr>
+            `;
+        }).join('');
+
+
+        return `
+            <div class="charts-grid" style="grid-template-columns: 1fr;">
+                 <div class="chart-container">
+                    <h3>Tempo Médio de Resolução (Ocorrências Resolvidas)</h3>
+                    <div class="chart-wrapper" style="height: 350px;">
+                        <canvas id="resolutionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="report-table-container">
+                <h3 style="padding: 0 24px; margin-bottom: 16px;">Métricas de Resolução por Tipo</h3>
+                <div style="padding: 0 24px 24px; overflow-x: auto;">
+                    <table class="data-table-modern" style="width: 600px;">
+                        <thead>
+                            <tr>
+                                <th>Tipo de Ocorrência</th>
+                                <th>Qtd. Resolvida</th>
+                                <th>Tempo Médio de Resolução</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${averageRows.length > 0 ? averageRows : '<tr><td colspan="3">Nenhuma ocorrência resolvida no período.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3 style="padding: 0 24px; margin-bottom: 16px;">Detalhe das Ocorrências (${ocorrencias.length} Registros)</h3>
+                <div style="padding: 0 24px; overflow-x: auto;">
+                    <table class="data-table-modern">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Frentes Impactadas</th>
+                                <th>Início</th>
+                                <th>Fim</th>
+                                <th>Duração</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    // NOVO: Função para desenhar o gráfico de Tempo de Resolução
+    drawResolutionChart(resolutionAverages) {
+        const ctx = document.getElementById('resolutionChart');
+        if (this.resolutionChart) this.resolutionChart.destroy();
+        
+        const labels = Object.keys(resolutionAverages);
+        const dataMillis = labels.map(label => resolutionAverages[label].averageDurationMillis);
+
+        // Converte milissegundos para horas (para o display do Chart.js)
+        const dataHours = dataMillis.map(ms => parseFloat((ms / (1000 * 60 * 60)).toFixed(2)));
+
+        this.resolutionChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Tempo Médio de Resolução (Horas)',
+                    data: dataHours,
+                    backgroundColor: 'rgba(237, 137, 54, 0.8)', // Laranja
+                    borderColor: 'rgba(237, 137, 54, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { 
+                    y: { 
+                        beginAtZero: true, 
+                        title: { display: true, text: 'Horas', color: '#A0AEC0' },
+                        ticks: { color: '#A0AEC0' }, 
+                        grid: { color: '#4A5568' } 
+                    }, 
+                    x: { 
+                        ticks: { color: '#A0AEC0' }, 
+                        grid: { color: '#4A5568' } 
+                    } 
+                },
+                plugins: { 
+                    legend: { 
+                        labels: { color: '#F7FAFC' } 
+                    } 
+                }
+            }
+        });
+    }
+
+    // NOVO: Função auxiliar de formatação
+    formatOption(option) {
+        if (!option || typeof option !== 'string') return 'N/A';
+        return option.charAt(0).toUpperCase() + option.slice(1).replace('_', ' ');
+    }
+    // FIM NOVO
+
+
     // NOVO: Renderiza Relatório de Tempo de Ciclo
     async renderTimeCycleReport() {
         showLoading();
@@ -527,7 +769,7 @@ export class RelatoriosView {
         `;
     }
     
-    // NOVO: Calcula médias do tempo de ciclo
+    // NOVO: Função para calcular média de ciclo
     calculateCycleAverages(cycles) {
         const averages = {};
         const frentesMap = new Map(this.data.frentes_servico.map(f => [f.id, f.nome]));
