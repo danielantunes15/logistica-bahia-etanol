@@ -312,15 +312,16 @@ export class DashboardView {
             frentes_servico.filter(f => f.fazenda_id && f.status === 'ativa')
                             .map(f => f.fazenda_id)
         );
-        const fazendasCataIds = new Set(
-            frentes_servico.filter(f => f.fazenda_id && f.status === 'fazendo_cata')
-                            .map(f => f.fazenda_id)
-        );
-        const fazendasAssociadasIds = new Set([...fazendasAtivasIds, ...fazendasCataIds]);
         
         const fazendasColhendo = fazendasAtivasIds.size;
-        const fazendasEmCata = fazendasCataIds.size;
-        const fazendasDisponiveis = totalFazendas - fazendasAssociadasIds.size;
+
+        // --- ALTERAÇÃO PRINCIPAL ---
+        // Uma fazenda é considerada "disponível" se estiver associada a uma frente INATIVA.
+        const fazendasDisponiveis = frentes_servico ? frentes_servico.filter(f => 
+            f.fazenda_id && f.status === 'inativa'
+        ).length : 0;
+        // --- FIM DA ALTERAÇÃO ---
+
 
         // --- CÁLCULO DO RAIO MÉDIO (NOVO) ---
         let totalDistance = 0;
