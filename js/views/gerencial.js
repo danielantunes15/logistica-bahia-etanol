@@ -1,5 +1,5 @@
 // js/views/gerencial.js
-import { registerAppUser, fetchAppUsers, deleteAppUser, updateAppUser, fetchEscalaFuncionarios, fetchEscalaTurnos, saveEscalaTurnos, insertItem, deleteItem } from '../api.js';
+import { registerAppUser, fetchAppUsers, deleteAppUser, updateAppUser, fetchEscalaFuncionarios, fetchEscalaTurnos, saveEscalaTurnos, insertItem, deleteItem, updateItem } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { formatDateTime, getCurrentShift } from '../timeUtils.js';
 import { openModal, closeModal } from '../components/modal.js';
@@ -133,13 +133,6 @@ export class GerencialView {
 
     // --- MÉTODOS DA ABA DE ESCALA ---
 
-    /**
-     * Gera uma escala 6x2 rotativa para um funcionário.
-     * @param {number} funcionarioId - ID do funcionário.
-     * @param {string} startDateStr - Data de início no formato 'YYYY-MM-DD'.
-     * @param {string} initialTurno - Turno inicial ('A', 'B', ou 'C').
-     * @returns {Array} - Array de objetos de turno para salvar.
-     */
     generate6x2Schedule(funcionarioId, startDateStr, initialTurno) {
         const schedule = [];
         const turnSequence = ['C', 'B', 'A'];
@@ -149,11 +142,10 @@ export class GerencialView {
 
         for (let i = 0; i < 30; i++) { // Gera 30 dias de escala
             const currentDate = new Date(startDateStr);
-            currentDate.setUTCDate(currentDate.getUTCDate() + i); // Use UTC to avoid timezone shifts
+            currentDate.setUTCDate(currentDate.getUTCDate() + i);
             const currentDateStr = currentDate.toISOString().split('T')[0];
 
             if (workDayCounter < 6) {
-                // Dia de trabalho
                 schedule.push({
                     funcionario_id: funcionarioId,
                     data: currentDateStr,
@@ -161,13 +153,10 @@ export class GerencialView {
                 });
                 workDayCounter++;
             } else {
-                // Dia de folga
                 offDayCounter++;
                 if (offDayCounter === 2) {
-                    // Fim do ciclo de folga, reseta contadores e gira o turno
                     workDayCounter = 0;
                     offDayCounter = 0;
-                    
                     const currentTurnIndex = turnSequence.indexOf(currentTurn);
                     currentTurn = turnSequence[(currentTurnIndex + 1) % turnSequence.length];
                 }
@@ -176,20 +165,16 @@ export class GerencialView {
         return schedule;
     }
 
-
     async loadEscalaData() {
         try {
             this.funcionarios = await fetchEscalaFuncionarios() || [];
-    
             const today = new Date();
             const endDate = new Date();
             endDate.setDate(today.getDate() + 7);
-    
             const turnosData = await fetchEscalaTurnos(
                 today.toISOString().split('T')[0],
                 endDate.toISOString().split('T')[0]
             ) || [];
-    
             this.escalaData = {};
             turnosData.forEach(turno => {
                 if (!this.escalaData[turno.funcionario_id]) {
@@ -197,7 +182,6 @@ export class GerencialView {
                 }
                 this.escalaData[turno.funcionario_id][turno.data] = turno.turno;
             });
-    
         } catch (error) {
             handleOperation(error);
             this.funcionarios = [];
@@ -223,11 +207,9 @@ export class GerencialView {
                         <i class="ph-fill ph-floppy-disk"></i> Salvar Alterações na Escala
                     </button>
                 </div>
-
                 <div class="turno-atual-dashboard">
                     ${this.renderEscalaDashboard(currentShift, funcionariosNoTurno)}
                 </div>
-
                 <div class="escala-calendario-container">
                     ${this.renderEscalaCalendar()}
                 </div>
@@ -270,26 +252,23 @@ export class GerencialView {
             date.setDate(today.getDate() + i);
             return date;
         });
-    
+
         const headerHTML = dates.map(date => {
             const day = date.toLocaleDateString('pt-BR', { weekday: 'short' });
             const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
             return `<th>${day.toUpperCase()}<span class="header-date">${dateStr}</span></th>`;
         }).join('');
-    
-        // Inicia a construção do HTML dos calendários
+
         let allCalendarsHTML = '';
-    
+
         this.funcoes.forEach(funcao => {
             const funcionariosDaFuncao = this.funcionarios.filter(f => f.funcao === funcao);
-            
             if (funcionariosDaFuncao.length > 0) {
                 const bodyHTML = funcionariosDaFuncao.map(func => {
                     const cellsHTML = dates.map(date => {
                         const dateStr = date.toISOString().split('T')[0];
                         const turno = this.escalaData[func.id]?.[dateStr] || 'Folga';
                         const selectId = `turno-${func.id}-${dateStr}`;
-                        
                         return `
                             <td>
                                 <select class="turno-select turno-${turno}" id="${selectId}" data-funcionario-id="${func.id}" data-date="${dateStr}">
@@ -301,7 +280,6 @@ export class GerencialView {
                             </td>
                         `;
                     }).join('');
-            
                     return `
                         <tr>
                             <td class="funcionario-info">
@@ -312,7 +290,6 @@ export class GerencialView {
                         </tr>
                     `;
                 }).join('');
-    
                 allCalendarsHTML += `
                     <h3 style="margin-top: 32px;">${funcao}</h3>
                     <div class="escala-table-wrapper">
@@ -331,7 +308,7 @@ export class GerencialView {
                 `;
             }
         });
-    
+
         return `
             <h2 style="font-size: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Calendário de Escala (Próximos 7 dias)</h2>
             ${allCalendarsHTML || '<p class="empty-state">Nenhum funcionário cadastrado para exibir a escala.</p>'}
@@ -343,13 +320,11 @@ export class GerencialView {
             showToast('Nenhuma alteração na escala para salvar.', 'info');
             return;
         }
-    
         showLoading();
         try {
             const upsertData = [];
             this.container.querySelectorAll('.turno-select').forEach(select => {
                 const turno = select.value;
-                // Apenas salva se não for "Folga", para não poluir o banco
                 if (turno !== 'Folga') {
                     upsertData.push({
                         funcionario_id: parseInt(select.dataset.funcionarioId, 10),
@@ -358,17 +333,12 @@ export class GerencialView {
                     });
                 }
             });
-    
             await saveEscalaTurnos(upsertData);
-    
             showToast('Escala salva com sucesso!', 'success');
             this.scheduleChanged = false;
             const saveButton = document.getElementById('btn-save-escala');
             if (saveButton) saveButton.style.display = 'none';
-    
-            // Recarrega os dados para atualizar o dashboard do turno
             await this.loadTabContent();
-    
         } catch (error) {
             handleOperation(error);
         } finally {
@@ -379,17 +349,18 @@ export class GerencialView {
     showManageFuncionariosModal() {
         const funcoesOptions = this.funcoes.map(f => `<option value="${f}">${f}</option>`).join('');
         const todayString = new Date().toISOString().split('T')[0];
-    
         const rows = this.funcionarios.map(f => `
             <tr>
                 <td>${f.nome}</td>
                 <td>${f.funcao}</td>
                 <td>
-                    <button class="action-btn delete-btn-modern btn-delete-funcionario" data-id="${f.id}"><i class="ph-fill ph-trash"></i></button>
+                    <div class="action-buttons-modern">
+                        <button class="action-btn edit-btn-modern btn-edit-funcionario" data-id="${f.id}"><i class="ph-fill ph-pencil-simple"></i></button>
+                        <button class="action-btn delete-btn-modern btn-delete-funcionario" data-id="${f.id}"><i class="ph-fill ph-trash"></i></button>
+                    </div>
                 </td>
             </tr>
         `).join('');
-    
         const modalContent = `
             <div class="gerenciar-funcionarios-modal">
                 <form id="form-add-funcionario" class="form-modern" style="margin-bottom: 24px;">
@@ -420,7 +391,6 @@ export class GerencialView {
                     </div>
                     <button type="submit" class="btn-primary">Adicionar</button>
                 </form>
-    
                 <h4>Funcionários Cadastrados</h4>
                 <div class="table-wrapper" style="max-height: 300px; overflow-y: auto;">
                     <table class="data-table-modern">
@@ -438,30 +408,22 @@ export class GerencialView {
                 </div>
             </div>
         `;
-    
         openModal('Gerenciar Funcionários da Escala', modalContent);
-    
+
         document.getElementById('form-add-funcionario').addEventListener('submit', async (e) => {
             e.preventDefault();
             const nome = document.getElementById('nome-funcionario').value;
             const funcao = document.getElementById('funcao-funcionario').value;
             const dataInicio = document.getElementById('data-inicio-escala').value;
             const turnoInicial = document.getElementById('turno-inicial').value;
-            
             showLoading();
             try {
-                // 1. Insere o funcionário
                 const { data: novoFuncionario, error: insertError } = await insertItem('escala_funcionarios', { nome, funcao });
                 if(insertError) throw insertError;
-
-                // 2. Gera a escala 6x2 automática
                 const escalaGerada = this.generate6x2Schedule(novoFuncionario.id, dataInicio, turnoInicial);
-
-                // 3. Salva a escala gerada no banco de dados
                 await saveEscalaTurnos(escalaGerada);
-                
                 closeModal();
-                await this.loadTabContent(); // Recarrega tudo
+                await this.loadTabContent();
                 showToast('Funcionário adicionado e escala gerada!', 'success');
             } catch (error) {
                 handleOperation(error);
@@ -469,10 +431,13 @@ export class GerencialView {
                 hideLoading();
             }
         });
-    
+
         document.getElementById('lista-funcionarios-body').addEventListener('click', async (e) => {
-            if (e.target.closest('.btn-delete-funcionario')) {
-                const id = e.target.closest('.btn-delete-funcionario').dataset.id;
+            const deleteButton = e.target.closest('.btn-delete-funcionario');
+            const editButton = e.target.closest('.btn-edit-funcionario');
+
+            if (deleteButton) {
+                const id = deleteButton.dataset.id;
                 if (confirm('Deseja realmente excluir este funcionário? As escalas associadas também serão removidas.')) {
                     showLoading();
                     try {
@@ -486,10 +451,57 @@ export class GerencialView {
                         hideLoading();
                     }
                 }
+            } else if (editButton) {
+                const id = editButton.dataset.id;
+                const funcionario = this.funcionarios.find(f => f.id == id);
+                if (funcionario) {
+                    this.showEditFuncionarioModal(funcionario);
+                }
             }
         });
     }
+    
+    showEditFuncionarioModal(funcionario) {
+        const funcoesOptions = this.funcoes.map(f => `<option value="${f}" ${f === funcionario.funcao ? 'selected' : ''}>${f}</option>`).join('');
+        const modalContent = `
+            <form id="form-edit-funcionario" class="form-modern">
+                <h4>Editando Funcionário</h4>
+                <input type="hidden" id="edit-funcionario-id" value="${funcionario.id}">
+                <div class="form-group">
+                    <label for="edit-nome-funcionario">Nome</label>
+                    <input type="text" id="edit-nome-funcionario" class="form-input" value="${funcionario.nome}" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-funcao-funcionario">Função</label>
+                    <select id="edit-funcao-funcionario" class="form-select" required>
+                        ${funcoesOptions}
+                    </select>
+                </div>
+                <p class="form-help">Nota: A alteração da escala (turnos/dias) deve ser feita diretamente no calendário.</p>
+                <button type="submit" class="btn-primary">Salvar Alterações</button>
+            </form>
+        `;
+        openModal('Editar Funcionário', modalContent);
 
+        document.getElementById('form-edit-funcionario').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-funcionario-id').value;
+            const nome = document.getElementById('edit-nome-funcionario').value;
+            const funcao = document.getElementById('edit-funcao-funcionario').value;
+
+            showLoading();
+            try {
+                await updateItem('escala_funcionarios', id, { nome, funcao });
+                closeModal();
+                await this.loadTabContent();
+                showToast('Funcionário atualizado com sucesso!', 'success');
+            } catch(error) {
+                handleOperation(error);
+            } finally {
+                hideLoading();
+            }
+        });
+    }
 
     // --- MÉTODOS DA ABA DE USUÁRIOS ---
     async loadUserData() {
@@ -507,9 +519,7 @@ export class GerencialView {
             const statusClass = user.ativo ? 'ativa' : 'inativa';
             const toggleIcon = user.ativo ? 'ph-fill ph-user-x' : 'ph-fill ph-user-check';
             const toggleTitle = user.ativo ? 'Inativar Usuário (Bloquear Acesso)' : 'Ativar Usuário (Permitir Acesso)';
-            
             const toggleBgColor = user.ativo ? 'var(--accent-danger)' : 'var(--accent-primary)'; 
-            
             return `
                 <tr class="${user.ativo ? '' : 'inactive-row'}">
                     <td>${user.nome_completo}</td>
@@ -536,7 +546,6 @@ export class GerencialView {
                 </tr>
             `;
         }).join('');
-        
         const usersTableHTML = `
             <div class="list-container-modern" style="padding: 0; border: none; background: transparent;">
                 <h2 style="padding-bottom: 12px; border-bottom: 1px solid var(--border-color); font-size: 1.3rem;">Lista de Usuários</h2>
@@ -558,7 +567,6 @@ export class GerencialView {
                 </div>
             </div>
         `;
-        
         return `
             <div class="users-tab">
                 <button class="btn-primary" id="btn-add-user" style="margin-bottom: 24px;">
@@ -569,7 +577,6 @@ export class GerencialView {
         `;
     }
 
-    // --- Modal de Edição de Usuário (Apenas Nome, Usuário e Tipo) ---
     showEditUserModal(user) {
         const modalContent = `
             <form id="edit-user-form" class="action-modal-form">
@@ -594,14 +601,12 @@ export class GerencialView {
             </form>
         `;
         openModal(`Editar Perfil: ${user.nome_completo}`, modalContent);
-
         const form = document.getElementById('edit-user-form');
         if(form) {
             form.addEventListener('submit', (e) => this.handleUserEdit(e));
         }
     }
 
-    // --- Handler de Edição de Usuário ---
     async handleUserEdit(e) {
         e.preventDefault();
         const form = e.target;
@@ -609,9 +614,7 @@ export class GerencialView {
         const nome_completo = form.nome_completo.value;
         const username_app = form.username_app.value;
         const tipo_usuario = form.tipo_usuario.value;
-        
         const updateData = { nome_completo, username_app, tipo_usuario };
-
         showLoading();
         try {
             await updateAppUser(userId, updateData);
@@ -625,7 +628,6 @@ export class GerencialView {
         }
     }
     
-    // --- NOVO: Modal para Ativar/Inativar ---
     showToggleActiveModal(user) {
         const newStatus = !user.ativo;
         const actionText = newStatus ? 'ATIVAR' : 'INATIVAR';
@@ -634,7 +636,6 @@ export class GerencialView {
         const warning = newStatus ? 
             `O usuário <strong>${user.nome_completo}</strong> voltará a ter acesso ao sistema.` : 
             `O acesso do usuário <strong>${user.nome_completo}</strong> será imediatamente BLOQUEADO.`;
-
         const modalContent = `
             <p style="text-align: center; font-size: 1.1rem; margin-bottom: 20px;">Deseja realmente <strong>${actionText}</strong> este usuário?</p>
             <p style="color: ${color}; font-size: 1rem; text-align: center;">${statusText}</p>
@@ -645,32 +646,24 @@ export class GerencialView {
             </div>
         `;
         openModal(`Confirmar Ação: ${actionText}`, modalContent);
-
         document.getElementById('confirm-toggle-btn').onclick = () => this.handleToggleActive(user.id, newStatus, user.nome_completo);
         document.getElementById('cancel-toggle-btn').onclick = closeModal;
     }
     
-    // --- NOVO: Handler para Ativar/Inativar ---
     async handleToggleActive(userId, newStatus, userName) {
         closeModal();
         showLoading();
-        
         try {
             await updateAppUser(userId, { ativo: newStatus });
-            
             const action = newStatus ? 'Ativado' : 'Inativado';
             showToast(`Usuário ${userName} ${action} com sucesso!`, 'success');
-            
             await this.loadTabContent();
-
         } catch (error) {
             showToast(`Erro ao alterar status: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             hideLoading();
         }
     }
-    // --- FIM NOVO: Ativar/Inativar ---
-
 
     showRegisterUserModal() {
         const modalContent = `
@@ -699,7 +692,6 @@ export class GerencialView {
             </form>
         `;
         openModal('Cadastrar Novo Usuário', modalContent);
-        
         const form = document.getElementById('register-user-form');
         if(form) {
             form.addEventListener('submit', this.handleUserRegistration.bind(this));
@@ -713,7 +705,6 @@ export class GerencialView {
         const username_app = form.username_app.value;
         const password = form.password.value;
         const tipo_usuario = form.tipo_usuario.value;
-        
         showLoading();
         try {
             await registerAppUser(username_app, password, nome_completo, tipo_usuario);
@@ -739,7 +730,6 @@ export class GerencialView {
             </div>
         `;
         openModal('Confirmar Exclusão de Usuário', modalContent);
-
         document.getElementById('confirm-delete-btn').onclick = () => this.handleRealDeleteUser(userId, userName);
         document.getElementById('cancel-delete-btn').onclick = closeModal;
     }
@@ -749,11 +739,8 @@ export class GerencialView {
         showLoading();
         try {
             await deleteAppUser(userId);
-            
             showToast(`Usuário ${userName} excluído com sucesso!`, 'success');
-            
             await this.loadTabContent();
-
         } catch (error) {
             showToast(`Erro ao excluir usuário: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
