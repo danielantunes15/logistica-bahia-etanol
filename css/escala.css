@@ -1,0 +1,181 @@
+/* css/escala.css */
+
+.escala-view {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.escala-actions {
+    display: flex;
+    gap: 12px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Dashboard do Turno Atual */
+.turno-atual-dashboard {
+    margin-bottom: 16px;
+}
+
+.turno-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.turno-info h3 {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+}
+
+.turno-info .turno-badge {
+    font-size: 1.2rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 8px;
+    color: white;
+}
+
+.turno-badge.turno-a { background-color: #38A169; }
+.turno-badge.turno-b { background-color: #2B6CB0; }
+.turno-badge.turno-c { background-color: #805AD5; }
+
+.turno-info p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-top: 4px;
+}
+
+.turno-funcionarios-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.funcao-card {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.funcao-card h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent-edit);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.funcao-card .funcionarios-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.funcao-card .funcionario-item {
+    background-color: var(--bg-light);
+    padding: 10px;
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.funcao-card .funcionario-item i {
+    color: var(--accent-primary);
+}
+
+.funcao-card .empty-state-funcao {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+    padding: 20px 0;
+}
+
+
+/* Calendário de Escala */
+.escala-calendario-container h3 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+}
+
+.escala-table-wrapper {
+    overflow-x: auto;
+}
+
+.escala-table {
+    width: 100%;
+    min-width: 1000px;
+    border-collapse: collapse;
+}
+
+.escala-table th, .escala-table td {
+    border: 1px solid var(--border-color);
+    padding: 8px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.escala-table thead th {
+    background-color: #374151;
+    padding: 12px 8px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.escala-table thead .header-date {
+    font-weight: 400;
+    display: block;
+    font-size: 0.75rem;
+}
+
+.escala-table th.funcionario-header {
+    text-align: left;
+    width: 250px;
+}
+
+.escala-table tbody tr:hover {
+    background-color: rgba(74, 85, 104, 0.2);
+}
+
+.escala-table .funcionario-info {
+    text-align: left;
+    padding: 12px;
+}
+
+.escala-table .funcionario-nome {
+    font-weight: 600;
+    color: var(--text-primary);
+    display: block;
+}
+
+.escala-table .funcionario-funcao {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.escala-table .turno-select {
+    width: 100%;
+    min-width: 60px;
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 6px;
+    cursor: pointer;
+    font-family: var(--font-family);
+}
+
+/* Cores para o select baseado no turno */
+.turno-select.turno-A { background-color: #38A169; color: white; }
+.turno-select.turno-B { background-color: #2B6CB0; color: white; }
+.turno-select.turno-C { background-color: #805AD5; color: white; }

@@ -72,6 +72,40 @@ export function getBrtIsoStringAlt() {
     return now.toISOString();
 }
 
+// --- NOVAS FUNÇÕES DE TURNO ---
+
+/**
+ * Determina o turno atual com base na hora local.
+ */
+export function getCurrentShift() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    // Converte a hora atual para um número decimal para fácil comparação (ex: 15:05 -> 15.083)
+    const currentTime = hours + (minutes / 60);
+
+    const turnoA_start = 7;
+    const turnoA_end = 15 + (5 / 60);
+
+    const turnoB_start = turnoA_end;
+    const turnoB_end = 23 + (40 / 60);
+
+    // Turno C: das 23:40 até 07:00 do dia seguinte
+    if (currentTime >= turnoB_end || currentTime < turnoA_start) {
+        return { turno: 'C', nome: 'Turno C', inicio: '23:40', fim: '07:00' };
+    } 
+    // Turno A: das 07:00 até 15:05
+    else if (currentTime >= turnoA_start && currentTime < turnoA_end) {
+        return { turno: 'A', nome: 'Turno A', inicio: '07:00', fim: '15:05' };
+    }
+    // Turno B: das 15:05 até 23:40
+    else {
+        return { turno: 'B', nome: 'Turno B', inicio: '15:05', fim: '23:40' };
+    }
+}
+
+
 // --- Funções de Duração e Ciclo ---
 
 /**

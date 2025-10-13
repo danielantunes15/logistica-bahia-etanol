@@ -1,15 +1,27 @@
 // js/views/gerencial.js
-import { registerAppUser, fetchAppLogs, fetchAppUsers, deleteAppUser, updateAppUser, fetchUserAuditLogs } from '../api.js';
+import { registerAppUser, fetchAppUsers, deleteAppUser, updateAppUser, fetchUserAuditLogs, fetchEscalaFuncionarios, fetchEscalaTurnos, saveEscalaTurnos, insertItem, deleteItem, updateItem } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
-import { formatDateTime } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA
+import { formatDateTime, getCurrentShift } from '../timeUtils.js';
 import { openModal, closeModal } from '../components/modal.js';
 
 export class GerencialView {
     constructor() {
         this.container = null;
         this.activeTab = 'usuarios';
-        this.users = []; 
-        this.logs = [];  
+        this.users = [];
+        this.logs = [];
+        // Estado para a nova aba de Escala
+        this.funcionarios = [];
+        this.turnos = [];
+        this.escalaData = {}; // Objeto para mapear { funcionarioId: { 'YYYY-MM-DD': 'A' } }
+        this.startDate = new Date();
+        this.scheduleChanged = false; // Flag para rastrear mudanças
+        this.funcoes = [
+            'Líder de Produção Agrícola',
+            'Balanceiro',
+            'Motorista de Pipa',
+            'Auxiliar de Serviços Gerais'
+        ];
     }
 
     async show() {
@@ -19,18 +31,21 @@ export class GerencialView {
     }
 
     async hide() {}
-    
+
     render() {
         const container = document.getElementById('views-container');
         container.innerHTML = `
             <div id="gerencial-view" class="view active-view gerencial-view">
                 <div class="gerencial-header">
-                    <h1>Painel Gerencial de Usuários e Logs</h1>
+                    <h1>Painel Gerencial</h1>
                 </div>
 
                 <div class="report-internal-menu gerencial-internal-menu">
                     <button class="btn-secondary internal-menu-btn ${this.activeTab === 'usuarios' ? 'active' : ''}" data-tab="usuarios">
                         <i class="ph-fill ph-users-three"></i> Gerenciar Usuários
+                    </button>
+                    <button class="btn-secondary internal-menu-btn ${this.activeTab === 'escala' ? 'active' : ''}" data-tab="escala">
+                        <i class="ph-fill ph-calendar-check"></i> Escala de Turnos
                     </button>
                     <button class="btn-secondary internal-menu-btn ${this.activeTab === 'logs' ? 'active' : ''}" data-tab="logs">
                         <i class="ph-fill ph-clipboard-text"></i> Logs da Aplicação
@@ -38,7 +53,7 @@ export class GerencialView {
                 </div>
 
                 <div id="gerencial-content" class="gerencial-content" style="padding: 24px; background-color: var(--bg-light); border-radius: 12px; margin-top: 24px; border: 1px solid var(--border-color);">
-                    </div>
+                </div>
             </div>
         `;
         this.container = container.querySelector('#gerencial-view');
@@ -57,56 +72,34 @@ export class GerencialView {
             });
         });
         
-        // Listener específico para ações na tabela de usuários
+        // Listener delegado para todo o conteúdo gerencial
         document.getElementById('gerencial-content').addEventListener('click', (e) => {
-             const btn = e.target.closest('#btn-add-user');
-             if (btn) {
-                 this.showRegisterUserModal();
-                 return;
-             }
-             
-             const btnFilter = e.target.closest('#apply-log-filters');
-             if (btnFilter) {
-                 this.loadLogData(true);
-                 return;
-             }
+            const target = e.target;
 
-             // Listener para editar usuário
-             const btnEdit = e.target.closest('.edit-user-btn');
-             if (btnEdit) {
-                 console.log("Ação: Clicou no botão Editar."); // DEBUG LOG
-                 const userId = parseInt(btnEdit.dataset.userId);
-                 const user = this.users.find(u => u.id === userId);
-                 if (user) {
-                     this.showEditUserModal(user);
-                 }
-                 e.preventDefault();
-                 return;
-             }
-             
-             // Listener para ativar/inativar usuário
-             const btnToggleActive = e.target.closest('.toggle-active-btn');
-             if (btnToggleActive) {
-                 console.log("Ação: Clicou no botão Ativar/Inativar."); // DEBUG LOG
-                 const userId = parseInt(btnToggleActive.dataset.userId);
-                 const user = this.users.find(u => u.id === userId);
-                 if (user) {
-                     this.showToggleActiveModal(user);
-                 }
-                 e.preventDefault();
-                 return;
-             }
-             
-             // Listener para deletar usuário
-             const btnDelete = e.target.closest('.delete-user-btn');
-             if (btnDelete) {
-                 const userId = btnDelete.dataset.userId; 
-                 const userNameElement = btnDelete.closest('tr').querySelector('td:nth-child(1)');
-                 const userName = userNameElement ? userNameElement.textContent.trim() : 'Usuário Desconhecido';
-                 this.showDeleteUserModal(userId, userName); 
-                 e.preventDefault();
-                 return;
-             }
+            // Ações da aba Usuários
+            if (target.closest('#btn-add-user')) this.showRegisterUserModal();
+            if (target.closest('.edit-user-btn')) {
+                const userId = parseInt(target.closest('.edit-user-btn').dataset.userId);
+                const user = this.users.find(u => u.id === userId);
+                if (user) this.showEditUserModal(user);
+            }
+            if (target.closest('.toggle-active-btn')) {
+                const userId = parseInt(target.closest('.toggle-active-btn').dataset.userId);
+                const user = this.users.find(u => u.id === userId);
+                if (user) this.showToggleActiveModal(user);
+            }
+            if (target.closest('.delete-user-btn')) {
+                const userId = target.closest('.delete-user-btn').dataset.userId;
+                const userName = target.closest('tr')?.querySelector('td:nth-child(1)')?.textContent.trim() || 'Usuário';
+                this.showDeleteUserModal(userId, userName);
+            }
+            
+            // Ações da aba Logs
+            if (target.closest('#apply-log-filters')) this.loadLogData(true);
+
+            // Ações da aba Escala
+            if (target.closest('#btn-manage-funcionarios')) this.showManageFuncionariosModal();
+            if (target.closest('#btn-save-escala')) this.handleSaveEscala();
         });
     }
     
@@ -122,6 +115,24 @@ export class GerencialView {
             } else if (this.activeTab === 'logs') {
                 await this.loadLogData(true); // Força a busca real dos logs
                 contentContainer.innerHTML = this.renderLogsTab();
+            } else if (this.activeTab === 'escala') {
+                await this.loadEscalaData();
+                contentContainer.innerHTML = this.renderEscalaTab();
+                // Adiciona listener de change após renderizar o calendário
+                const calendarContainer = this.container.querySelector('.escala-calendario-container');
+                if (calendarContainer) {
+                    calendarContainer.addEventListener('change', (e) => {
+                        if (e.target.classList.contains('turno-select')) {
+                            this.scheduleChanged = true;
+                            const saveButton = document.getElementById('btn-save-escala');
+                            if (saveButton) {
+                                saveButton.style.display = 'inline-flex';
+                                saveButton.classList.remove('btn-secondary');
+                                saveButton.classList.add('btn-primary');
+                            }
+                        }
+                    });
+                }
             }
         } catch (error) {
             handleOperation(error);
@@ -130,8 +141,354 @@ export class GerencialView {
             hideLoading();
         }
     }
+
+    // --- MÉTODOS DA ABA DE ESCALA ---
+
+    /**
+     * Gera uma escala 6x2 rotativa para um funcionário.
+     * @param {number} funcionarioId - ID do funcionário.
+     * @param {string} startDateStr - Data de início no formato 'YYYY-MM-DD'.
+     * @param {string} initialTurno - Turno inicial ('A', 'B', ou 'C').
+     * @returns {Array} - Array de objetos de turno para salvar.
+     */
+    generate6x2Schedule(funcionarioId, startDateStr, initialTurno) {
+        const schedule = [];
+        const turnSequence = ['C', 'B', 'A'];
+        let currentTurn = initialTurno;
+        let workDayCounter = 0;
+        let offDayCounter = 0;
+
+        for (let i = 0; i < 30; i++) { // Gera 30 dias de escala
+            const currentDate = new Date(startDateStr);
+            currentDate.setDate(currentDate.getDate() + i);
+            const currentDateStr = currentDate.toISOString().split('T')[0];
+
+            if (workDayCounter < 6) {
+                // Dia de trabalho
+                schedule.push({
+                    funcionario_id: funcionarioId,
+                    data: currentDateStr,
+                    turno: currentTurn
+                });
+                workDayCounter++;
+            } else {
+                // Dia de folga
+                offDayCounter++;
+                if (offDayCounter === 2) {
+                    // Fim do ciclo de folga, reseta contadores e gira o turno
+                    workDayCounter = 0;
+                    offDayCounter = 0;
+                    
+                    const currentTurnIndex = turnSequence.indexOf(currentTurn);
+                    currentTurn = turnSequence[(currentTurnIndex + 1) % turnSequence.length];
+                }
+            }
+        }
+        return schedule;
+    }
+
+
+    async loadEscalaData() {
+        try {
+            this.funcionarios = await fetchEscalaFuncionarios() || [];
     
-    // --- USUÁRIOS ---
+            const today = new Date();
+            const endDate = new Date();
+            endDate.setDate(today.getDate() + 7);
+    
+            const turnosData = await fetchEscalaTurnos(
+                today.toISOString().split('T')[0],
+                endDate.toISOString().split('T')[0]
+            ) || [];
+    
+            this.escalaData = {};
+            turnosData.forEach(turno => {
+                if (!this.escalaData[turno.funcionario_id]) {
+                    this.escalaData[turno.funcionario_id] = {};
+                }
+                this.escalaData[turno.funcionario_id][turno.data] = turno.turno;
+            });
+    
+        } catch (error) {
+            handleOperation(error);
+            this.funcionarios = [];
+            this.escalaData = {};
+        }
+    }
+
+    renderEscalaTab() {
+        const currentShift = getCurrentShift();
+        const funcionariosNoTurno = this.funcionarios.filter(f => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const turnoDoFuncionario = this.escalaData[f.id]?.[todayStr];
+            return turnoDoFuncionario === currentShift.turno;
+        });
+
+        return `
+            <div class="escala-view">
+                <div class="escala-actions">
+                    <button class="btn-primary" id="btn-manage-funcionarios">
+                        <i class="ph-fill ph-users"></i> Gerenciar Funcionários
+                    </button>
+                    <button class="btn-secondary" id="btn-save-escala" style="display: none;">
+                        <i class="ph-fill ph-floppy-disk"></i> Salvar Alterações na Escala
+                    </button>
+                </div>
+
+                <div class="turno-atual-dashboard">
+                    ${this.renderEscalaDashboard(currentShift, funcionariosNoTurno)}
+                </div>
+
+                <div class="escala-calendario-container">
+                    ${this.renderEscalaCalendar()}
+                </div>
+            </div>
+        `;
+    }
+
+    renderEscalaDashboard(currentShift, funcionarios) {
+        return `
+            <div class="turno-header">
+                <div class="turno-info">
+                    <h3>Dashboard do Turno Atual</h3>
+                    <p>Funcionários trabalhando agora (${currentShift.inicio} - ${currentShift.fim})</p>
+                </div>
+                <span class="turno-badge turno-${currentShift.turno.toLowerCase()}">${currentShift.nome}</span>
+            </div>
+            <div class="turno-funcionarios-grid">
+                ${this.funcoes.map(funcao => {
+                    const funcionariosDaFuncao = funcionarios.filter(f => f.funcao === funcao);
+                    return `
+                        <div class="funcao-card">
+                            <h4><i class="ph-fill ph-user-gear"></i> ${funcao}</h4>
+                            <div class="funcionarios-list">
+                                ${funcionariosDaFuncao.length > 0 ? 
+                                    funcionariosDaFuncao.map(f => `<div class="funcionario-item"><i class="ph-fill ph-user"></i> ${f.nome}</div>`).join('') :
+                                    '<p class="empty-state-funcao">Nenhum funcionário neste turno.</p>'
+                                }
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    }
+
+    renderEscalaCalendar() {
+        const today = new Date();
+        const dates = Array.from({ length: 8 }, (_, i) => {
+            const date = new Date(today);
+            date.setDate(today.getDate() + i);
+            return date;
+        });
+    
+        const headerHTML = dates.map(date => {
+            const day = date.toLocaleDateString('pt-BR', { weekday: 'short' });
+            const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            return `<th>${day.toUpperCase()}<span class="header-date">${dateStr}</span></th>`;
+        }).join('');
+    
+        const bodyHTML = this.funcionarios.map(func => {
+            const cellsHTML = dates.map(date => {
+                const dateStr = date.toISOString().split('T')[0];
+                const turno = this.escalaData[func.id]?.[dateStr] || 'Folga';
+                const selectId = `turno-${func.id}-${dateStr}`;
+                
+                return `
+                    <td>
+                        <select class="turno-select turno-${turno}" id="${selectId}" data-funcionario-id="${func.id}" data-date="${dateStr}">
+                            <option value="Folga" ${turno === 'Folga' ? 'selected' : ''}>Folga</option>
+                            <option value="A" ${turno === 'A' ? 'selected' : ''}>Turno A</option>
+                            <option value="B" ${turno === 'B' ? 'selected' : ''}>Turno B</option>
+                            <option value="C" ${turno === 'C' ? 'selected' : ''}>Turno C</option>
+                        </select>
+                    </td>
+                `;
+            }).join('');
+    
+            return `
+                <tr>
+                    <td class="funcionario-info">
+                        <span class="funcionario-nome">${func.nome}</span>
+                        <span class="funcionario-funcao">${func.funcao}</span>
+                    </td>
+                    ${cellsHTML}
+                </tr>
+            `;
+        }).join('');
+    
+        return `
+            <h3>Calendário de Escala (Próximos 7 dias)</h3>
+            <div class="escala-table-wrapper">
+                <table class="escala-table">
+                    <thead>
+                        <tr>
+                            <th class="funcionario-header">Funcionário</th>
+                            ${headerHTML}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${this.funcionarios.length > 0 ? bodyHTML : `<tr><td colspan="${dates.length + 1}">Nenhum funcionário cadastrado.</td></tr>`}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    async handleSaveEscala() {
+        if (!this.scheduleChanged) {
+            showToast('Nenhuma alteração na escala para salvar.', 'info');
+            return;
+        }
+    
+        showLoading();
+        try {
+            const upsertData = [];
+            this.container.querySelectorAll('.turno-select').forEach(select => {
+                const turno = select.value;
+                // Apenas salva se não for "Folga", para não poluir o banco
+                if (turno !== 'Folga') {
+                    upsertData.push({
+                        funcionario_id: parseInt(select.dataset.funcionarioId, 10),
+                        data: select.dataset.date,
+                        turno: turno
+                    });
+                }
+            });
+    
+            await saveEscalaTurnos(upsertData);
+    
+            showToast('Escala salva com sucesso!', 'success');
+            this.scheduleChanged = false;
+            const saveButton = document.getElementById('btn-save-escala');
+            if (saveButton) saveButton.style.display = 'none';
+    
+            // Recarrega os dados para atualizar o dashboard do turno
+            await this.loadTabContent();
+    
+        } catch (error) {
+            handleOperation(error);
+        } finally {
+            hideLoading();
+        }
+    }
+    
+    showManageFuncionariosModal() {
+        const funcoesOptions = this.funcoes.map(f => `<option value="${f}">${f}</option>`).join('');
+        const todayString = new Date().toISOString().split('T')[0];
+    
+        const rows = this.funcionarios.map(f => `
+            <tr>
+                <td>${f.nome}</td>
+                <td>${f.funcao}</td>
+                <td>
+                    <button class="action-btn delete-btn-modern btn-delete-funcionario" data-id="${f.id}"><i class="ph-fill ph-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    
+        const modalContent = `
+            <div class="gerenciar-funcionarios-modal">
+                <form id="form-add-funcionario" class="form-modern" style="margin-bottom: 24px;">
+                    <h4>Adicionar Novo Funcionário</h4>
+                    <div class="form-group">
+                        <label for="nome-funcionario">Nome</label>
+                        <input type="text" id="nome-funcionario" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="funcao-funcionario">Função</label>
+                        <select id="funcao-funcionario" class="form-select" required>
+                            <option value="">Selecione...</option>
+                            ${funcoesOptions}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="data-inicio-escala">Data de Início na Escala</label>
+                        <input type="date" id="data-inicio-escala" class="form-input" value="${todayString}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="turno-inicial">Turno Inicial</label>
+                        <select id="turno-inicial" class="form-select" required>
+                            <option value="">Selecione...</option>
+                            <option value="A">Turno A</option>
+                            <option value="B">Turno B</option>
+                            <option value="C">Turno C</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary">Adicionar</button>
+                </form>
+    
+                <h4>Funcionários Cadastrados</h4>
+                <div class="table-wrapper" style="max-height: 300px; overflow-y: auto;">
+                    <table class="data-table-modern">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Função</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lista-funcionarios-body">
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    
+        openModal('Gerenciar Funcionários da Escala', modalContent);
+    
+        document.getElementById('form-add-funcionario').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nome = document.getElementById('nome-funcionario').value;
+            const funcao = document.getElementById('funcao-funcionario').value;
+            const dataInicio = document.getElementById('data-inicio-escala').value;
+            const turnoInicial = document.getElementById('turno-inicial').value;
+            
+            showLoading();
+            try {
+                // 1. Insere o funcionário
+                const { data: novoFuncionario, error: insertError } = await insertItem('escala_funcionarios', { nome, funcao });
+                if(insertError) throw insertError;
+
+                // 2. Gera a escala 6x2 automática
+                const escalaGerada = this.generate6x2Schedule(novoFuncionario.id, dataInicio, turnoInicial);
+
+                // 3. Salva a escala gerada no banco de dados
+                await saveEscalaTurnos(escalaGerada);
+                
+                closeModal();
+                await this.loadTabContent(); // Recarrega tudo
+                showToast('Funcionário adicionado e escala gerada!', 'success');
+            } catch (error) {
+                handleOperation(error);
+            } finally {
+                hideLoading();
+            }
+        });
+    
+        document.getElementById('lista-funcionarios-body').addEventListener('click', async (e) => {
+            if (e.target.closest('.btn-delete-funcionario')) {
+                const id = e.target.closest('.btn-delete-funcionario').dataset.id;
+                if (confirm('Deseja realmente excluir este funcionário? As escalas associadas também serão removidas.')) {
+                    showLoading();
+                    try {
+                        await deleteItem('escala_funcionarios', id);
+                        closeModal();
+                        await this.loadTabContent();
+                        showToast('Funcionário excluído!', 'success');
+                    } catch (error) {
+                        handleOperation(error);
+                    } finally {
+                        hideLoading();
+                    }
+                }
+            }
+        });
+    }
+
+
+    // --- MÉTODOS DA ABA DE USUÁRIOS ---
     async loadUserData() {
         try {
             this.users = await fetchAppUsers();
@@ -148,7 +505,6 @@ export class GerencialView {
             const toggleIcon = user.ativo ? 'ph-fill ph-user-x' : 'ph-fill ph-user-check';
             const toggleTitle = user.ativo ? 'Inativar Usuário (Bloquear Acesso)' : 'Ativar Usuário (Permitir Acesso)';
             
-            // CORRIGIDO: Variável de cor CSS e estilos de padding forçados.
             const toggleBgColor = user.ativo ? 'var(--accent-danger)' : 'var(--accent-primary)'; 
             
             return `
@@ -236,7 +592,6 @@ export class GerencialView {
         `;
         openModal(`Editar Perfil: ${user.nome_completo}`, modalContent);
 
-        // CORREÇÃO APLICADA: Listener anexado diretamente, eliminando setTimeout
         const form = document.getElementById('edit-user-form');
         if(form) {
             form.addEventListener('submit', (e) => this.handleUserEdit(e));
@@ -259,10 +614,8 @@ export class GerencialView {
             await updateAppUser(userId, updateData);
             showToast(`Usuário ${nome_completo} atualizado com sucesso!`, 'success');
             closeModal();
-            await this.loadUserData(); 
-            this.renderUsersTab();
+            await this.loadTabContent();
         } catch (error) {
-            // handleOperation(error); // Removido para mostrar a mensagem amigável
             showToast(`Erro ao editar usuário: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             hideLoading();
@@ -305,8 +658,7 @@ export class GerencialView {
             const action = newStatus ? 'Ativado' : 'Inativado';
             showToast(`Usuário ${userName} ${action} com sucesso!`, 'success');
             
-            await this.loadUserData(); 
-            this.renderUsersTab();
+            await this.loadTabContent();
 
         } catch (error) {
             showToast(`Erro ao alterar status: ${error.message || 'Erro desconhecido'}`, 'error');
@@ -345,7 +697,6 @@ export class GerencialView {
         `;
         openModal('Cadastrar Novo Usuário', modalContent);
         
-        // CORREÇÃO APLICADA: Listener anexado diretamente
         const form = document.getElementById('register-user-form');
         if(form) {
             form.addEventListener('submit', this.handleUserRegistration.bind(this));
@@ -365,10 +716,8 @@ export class GerencialView {
             await registerAppUser(username_app, password, nome_completo, tipo_usuario);
             showToast(`Usuário ${username_app} criado com sucesso!`, 'success');
             closeModal();
-            await this.loadUserData(); 
-            this.renderUsersTab();
+            await this.loadTabContent();
         } catch (error) {
-            // handleOperation(error); // Removido para mostrar a mensagem amigável
             showToast(`Erro ao registrar usuário: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             hideLoading();
@@ -400,18 +749,17 @@ export class GerencialView {
             
             showToast(`Usuário ${userName} excluído com sucesso!`, 'success');
             
-            await this.loadUserData(); 
-            this.renderUsersTab();
+            await this.loadTabContent();
 
         } catch (error) {
-            // handleOperation(error); // Removido para mostrar a mensagem amigável
             showToast(`Erro ao excluir usuário: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             hideLoading();
         }
     }
     
-    // New/Updated action types for the filter (based on logs in api.js)
+    // --- MÉTODOS DA ABA DE LOGS ---
+
     getLogActionOptions() {
         return [
             { value: 'LOGIN', label: 'Login (Sucesso/Falha)' },
@@ -425,12 +773,10 @@ export class GerencialView {
         ];
     }
     
-    // Auxiliar para formatação (reutilizado de relatorios.js/cadastros.js)
     formatOption(option) {
         if (!option || typeof option !== 'string') return 'N/A';
         return option.charAt(0).toUpperCase() + option.slice(1).replace(/_/g, ' ');
     }
-
 
     async loadLogData(applyFilter = false) {
          if (!applyFilter) {
@@ -440,7 +786,7 @@ export class GerencialView {
          
          const filters = {
              tipo_usuario: document.getElementById('log-filter-role')?.value,
-             tipo_acao: document.getElementById('log-filter-action')?.value, // NOVO: Captura o filtro de ação
+             tipo_acao: document.getElementById('log-filter-action')?.value,
              dataInicio: document.getElementById('log-filter-start')?.value,
              dataFim: document.getElementById('log-filter-end')?.value,
          };
@@ -452,8 +798,6 @@ export class GerencialView {
              
              let auditLogs = await fetchUserAuditLogs(null, 200) || []; 
 
-             console.log(`[DEBUG LOGS] Logs brutos carregados: ${auditLogs.length}`);
-             
              // Aplica os filtros
              if (filters.dataInicio) {
                  const startDate = new Date(filters.dataInicio).getTime();
@@ -466,15 +810,12 @@ export class GerencialView {
                  auditLogs = auditLogs.filter(log => new Date(log.timestamp).getTime() < endDateTimestamp);
              }
              
-             // NOVO: Filtro por Tipo de Ação
              if (filters.tipo_acao) {
                  const actionFilter = filters.tipo_acao;
                  if (actionFilter === 'LOGIN') {
                      auditLogs = auditLogs.filter(log => log.action.includes('LOGIN'));
                  } else if (actionFilter === 'OTHER') {
-                     // Filtra por ações que NÃO SÃO as principais listadas
                      const mainActions = this.getLogActionOptions().map(opt => opt.value).filter(v => v !== 'LOGIN' && v !== 'OTHER');
-                     // Expande para os sub-logs de LOGIN
                      const expandedMainActions = mainActions.concat(['LOGIN_SUCCESS', 'LOGIN_FAILED']);
                      
                      auditLogs = auditLogs.filter(log => !expandedMainActions.includes(log.action) && !log.action.includes('LOGIN'));
@@ -484,22 +825,17 @@ export class GerencialView {
                  }
              }
 
-             // Filtra por Tipo de Usuário (lado do cliente)
              if (filters.tipo_usuario) {
                  const userIdsWithRole = users.filter(u => u.tipo_usuario === filters.tipo_usuario).map(u => u.id);
-                 // Se o filtro de usuário estiver ativo, mostra apenas logs onde o usuário existe e tem o papel correto.
                  auditLogs = auditLogs.filter(log => log.user_id && userIdsWithRole.includes(log.user_id));
              }
 
-             // Formata os logs com nome de usuário
              this.logs = auditLogs.map(log => {
                  const userInfo = userMap.get(log.user_id);
                  return {
                      timestamp: log.timestamp,
-                     // Formata a ação para ser legível (ex: USER_UPDATE -> User Update)
                      tipo_log: this.formatOption(log.action), 
                      mensagem: log.details, 
-                     // Exibe o nome se existir, senão o ID (ou 'Sistema' se user_id for null, como em LOGIN_FAILED)
                      tipo_usuario: userInfo ? `${userInfo.name} (${this.formatOption(userInfo.role)})` : (log.user_id === null ? 'Sistema/Tentativa' : `ID:${log.user_id}`)
                  };
              });
@@ -525,7 +861,6 @@ export class GerencialView {
             `<option value="${opt.value}">${opt.label}</option>`
         ).join('');
         
-        // MODIFICAÇÃO AQUI: Altera a ordem das colunas e a exibição
         const logRows = logsToDisplay.map(log => `
             <tr>
                 <td>${formatDateTime(log.timestamp)}</td>

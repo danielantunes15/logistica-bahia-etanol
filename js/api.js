@@ -796,6 +796,42 @@ export async function updateFilaCarregamento(filasData) {
 
 // ----------------------------------------------------------------
 
+// --- NOVAS FUNÇÕES PARA A ESCALA ---
+/**
+ * Busca funcionários da escala.
+ */
+export async function fetchEscalaFuncionarios() {
+    return await fetchTable('escala_funcionarios', '*');
+}
+
+/**
+ * Busca os turnos de uma escala dentro de um período.
+ * @param {string} startDate - Data de início no formato ISO (YYYY-MM-DD).
+ * @param {string} endDate - Data de fim no formato ISO (YYYY-MM-DD).
+ */
+export async function fetchEscalaTurnos(startDate, endDate) {
+    const { data, error } = await supabase
+        .from('escala_turnos')
+        .select('*')
+        .gte('data', startDate)
+        .lte('data', endDate);
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Salva (insere ou atualiza) os turnos da escala.
+ * @param {Array} turnosData - Array de objetos: [{ funcionario_id, data, turno }]
+ */
+export async function saveEscalaTurnos(turnosData) {
+    const { data, error } = await supabase
+        .from('escala_turnos')
+        .upsert(turnosData, { onConflict: 'funcionario_id, data' });
+    if (error) throw error;
+    return { data };
+}
+// --- FIM DAS FUNÇÕES DE ESCALA ---
+
 export async function insertItem(tableName, dataToInsert) {
     if (tableName === 'equipamentos') return await insertEquipment(dataToInsert);
     if (tableName === 'caminhoes') return await insertCaminhao(dataToInsert);
