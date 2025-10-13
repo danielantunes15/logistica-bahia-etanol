@@ -1,5 +1,5 @@
 // js/views/gerencial.js
-import { registerAppUser, fetchAppUsers, deleteAppUser, updateAppUser, fetchUserAuditLogs, fetchEscalaFuncionarios, fetchEscalaTurnos, saveEscalaTurnos, insertItem, deleteItem, updateItem } from '../api.js';
+import { registerAppUser, fetchAppUsers, deleteAppUser, updateAppUser, fetchEscalaFuncionarios, fetchEscalaTurnos, saveEscalaTurnos, insertItem, deleteItem } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { formatDateTime, getCurrentShift } from '../timeUtils.js';
 import { openModal, closeModal } from '../components/modal.js';
@@ -7,12 +7,10 @@ import { openModal, closeModal } from '../components/modal.js';
 export class GerencialView {
     constructor() {
         this.container = null;
-        this.activeTab = 'usuarios';
+        this.activeTab = 'escala'; // Padrão agora é a escala
         this.users = [];
-        this.logs = [];
-        // Estado para a nova aba de Escala
+        // Estado para a aba de Escala
         this.funcionarios = [];
-        this.turnos = [];
         this.escalaData = {}; // Objeto para mapear { funcionarioId: { 'YYYY-MM-DD': 'A' } }
         this.startDate = new Date();
         this.scheduleChanged = false; // Flag para rastrear mudanças
@@ -41,14 +39,11 @@ export class GerencialView {
                 </div>
 
                 <div class="report-internal-menu gerencial-internal-menu">
-                    <button class="btn-secondary internal-menu-btn ${this.activeTab === 'usuarios' ? 'active' : ''}" data-tab="usuarios">
-                        <i class="ph-fill ph-users-three"></i> Gerenciar Usuários
-                    </button>
                     <button class="btn-secondary internal-menu-btn ${this.activeTab === 'escala' ? 'active' : ''}" data-tab="escala">
                         <i class="ph-fill ph-calendar-check"></i> Escala de Turnos
                     </button>
-                    <button class="btn-secondary internal-menu-btn ${this.activeTab === 'logs' ? 'active' : ''}" data-tab="logs">
-                        <i class="ph-fill ph-clipboard-text"></i> Logs da Aplicação
+                    <button class="btn-secondary internal-menu-btn ${this.activeTab === 'usuarios' ? 'active' : ''}" data-tab="usuarios">
+                        <i class="ph-fill ph-users-three"></i> Gerenciar Usuários
                     </button>
                 </div>
 
@@ -93,9 +88,6 @@ export class GerencialView {
                 const userName = target.closest('tr')?.querySelector('td:nth-child(1)')?.textContent.trim() || 'Usuário';
                 this.showDeleteUserModal(userId, userName);
             }
-            
-            // Ações da aba Logs
-            if (target.closest('#apply-log-filters')) this.loadLogData(true);
 
             // Ações da aba Escala
             if (target.closest('#btn-manage-funcionarios')) this.showManageFuncionariosModal();
@@ -109,13 +101,7 @@ export class GerencialView {
         
         showLoading();
         try {
-            if (this.activeTab === 'usuarios') {
-                await this.loadUserData(); 
-                contentContainer.innerHTML = this.renderUsersTab();
-            } else if (this.activeTab === 'logs') {
-                await this.loadLogData(true); // Força a busca real dos logs
-                contentContainer.innerHTML = this.renderLogsTab();
-            } else if (this.activeTab === 'escala') {
+            if (this.activeTab === 'escala') {
                 await this.loadEscalaData();
                 contentContainer.innerHTML = this.renderEscalaTab();
                 // Adiciona listener de change após renderizar o calendário
@@ -133,6 +119,9 @@ export class GerencialView {
                         }
                     });
                 }
+            } else if (this.activeTab === 'usuarios') {
+                await this.loadUserData(); 
+                contentContainer.innerHTML = this.renderUsersTab();
             }
         } catch (error) {
             handleOperation(error);
@@ -756,161 +745,5 @@ export class GerencialView {
         } finally {
             hideLoading();
         }
-    }
-    
-    // --- MÉTODOS DA ABA DE LOGS ---
-
-    getLogActionOptions() {
-        return [
-            { value: 'LOGIN', label: 'Login (Sucesso/Falha)' },
-            { value: 'USER_CREATED', label: 'Criação de Usuário' },
-            { value: 'USER_UPDATE', label: 'Edição de Dados/Status' },
-            { value: 'USER_DELETED', label: 'Exclusão de Usuário' },
-            { value: 'PASSWORD_CHANGE', label: 'Troca de Senha' },
-            { value: 'LOGOUT', label: 'Logout' },
-            { value: 'SESSION_EXPIRED', label: 'Sessão Expirada' },
-            { value: 'OTHER', label: 'Outras Ações (API)' },
-        ];
-    }
-    
-    formatOption(option) {
-        if (!option || typeof option !== 'string') return 'N/A';
-        return option.charAt(0).toUpperCase() + option.slice(1).replace(/_/g, ' ');
-    }
-
-    async loadLogData(applyFilter = false) {
-         if (!applyFilter) {
-             this.logs = [];
-             return;
-         }
-         
-         const filters = {
-             tipo_usuario: document.getElementById('log-filter-role')?.value,
-             tipo_acao: document.getElementById('log-filter-action')?.value,
-             dataInicio: document.getElementById('log-filter-start')?.value,
-             dataFim: document.getElementById('log-filter-end')?.value,
-         };
-         
-         showLoading();
-         try {
-             const users = await fetchAppUsers() || [];
-             const userMap = new Map(users.map(u => [u.id, { name: u.nome_completo, role: u.tipo_usuario }]));
-             
-             let auditLogs = await fetchUserAuditLogs(null, 200) || []; 
-
-             // Aplica os filtros
-             if (filters.dataInicio) {
-                 const startDate = new Date(filters.dataInicio).getTime();
-                 auditLogs = auditLogs.filter(log => new Date(log.timestamp).getTime() >= startDate);
-             }
-             if (filters.dataFim) {
-                 const endDate = new Date(filters.dataFim);
-                 endDate.setDate(endDate.getDate() + 1);
-                 const endDateTimestamp = endDate.getTime();
-                 auditLogs = auditLogs.filter(log => new Date(log.timestamp).getTime() < endDateTimestamp);
-             }
-             
-             if (filters.tipo_acao) {
-                 const actionFilter = filters.tipo_acao;
-                 if (actionFilter === 'LOGIN') {
-                     auditLogs = auditLogs.filter(log => log.action.includes('LOGIN'));
-                 } else if (actionFilter === 'OTHER') {
-                     const mainActions = this.getLogActionOptions().map(opt => opt.value).filter(v => v !== 'LOGIN' && v !== 'OTHER');
-                     const expandedMainActions = mainActions.concat(['LOGIN_SUCCESS', 'LOGIN_FAILED']);
-                     
-                     auditLogs = auditLogs.filter(log => !expandedMainActions.includes(log.action) && !log.action.includes('LOGIN'));
-                     
-                 } else {
-                     auditLogs = auditLogs.filter(log => log.action === actionFilter);
-                 }
-             }
-
-             if (filters.tipo_usuario) {
-                 const userIdsWithRole = users.filter(u => u.tipo_usuario === filters.tipo_usuario).map(u => u.id);
-                 auditLogs = auditLogs.filter(log => log.user_id && userIdsWithRole.includes(log.user_id));
-             }
-
-             this.logs = auditLogs.map(log => {
-                 const userInfo = userMap.get(log.user_id);
-                 return {
-                     timestamp: log.timestamp,
-                     tipo_log: this.formatOption(log.action), 
-                     mensagem: log.details, 
-                     tipo_usuario: userInfo ? `${userInfo.name} (${this.formatOption(userInfo.role)})` : (log.user_id === null ? 'Sistema/Tentativa' : `ID:${log.user_id}`)
-                 };
-             });
-             
-             if (this.logs.length === 0) {
-                 showToast('Nenhum log encontrado para os filtros selecionados.', 'info');
-             }
-             
-             this.renderLogsTab(); 
-             
-         } catch (error) {
-              console.error("[ERRO FATAL CARREGAMENTO DE LOGS]", error);
-              showToast('Erro ao carregar logs. Verifique a API/Tabela.', 'error');
-              this.logs = [];
-         } finally {
-             hideLoading();
-         }
-    }
-
-    renderLogsTab() {
-        const logsToDisplay = this.logs; 
-        const actionOptionsHTML = this.getLogActionOptions().map(opt => 
-            `<option value="${opt.value}">${opt.label}</option>`
-        ).join('');
-        
-        const logRows = logsToDisplay.map(log => `
-            <tr>
-                <td>${formatDateTime(log.timestamp)}</td>
-                <td><strong>${log.tipo_usuario || 'Sistema'}</strong></td>
-                <td>${log.tipo_log}</td>
-                <td>${log.mensagem}</td>
-            </tr>
-        `).join('');
-
-        return `
-            <div class="logs-tab">
-                <div class="report-filters log-filters" style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background-color: var(--bg-dark); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-                    
-                    <select id="log-filter-role" class="form-select">
-                        <option value="">Tipo Usuário (Todos)</option>
-                        <option value="admin">Administrador</option>
-                        <option value="usuario">Usuário Padrão</option>
-                    </select>
-                    
-                    <select id="log-filter-action" class="form-select">
-                        <option value="">Tipo de Ação (Todos)</option>
-                        ${actionOptionsHTML}
-                    </select>
-
-                    <label for="log-filter-start">De:</label>
-                    <input type="date" id="log-filter-start" class="form-input" style="width: 150px;">
-                    <label for="log-filter-end">Até:</label>
-                    <input type="date" id="log-filter-end" class="form-input" style="width: 150px;">
-                    
-                    <button class="btn-primary" id="apply-log-filters">
-                        <i class="ph-fill ph-funnel"></i> Filtrar Logs
-                    </button>
-                </div>
-                
-                <div class="table-wrapper" style="overflow-x: auto;">
-                    <table class="data-table-modern" style="min-width: 800px;">
-                        <thead>
-                            <tr>
-                                <th>Horário</th>
-                                <th>Usuário (Quem Fez)</th>
-                                <th>Ação/Contexto</th>
-                                <th>Detalhes da Alteração</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${logRows.length > 0 ? logRows : '<tr><td colspan="4">Nenhum log de auditoria encontrado.</td></tr>'}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
     }
 }
