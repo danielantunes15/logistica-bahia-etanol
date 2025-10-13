@@ -62,27 +62,6 @@ export class ControleView {
                 <div class="controle-grid" id="main-grid">
                     ${this.renderFrentes()}
                 </div>
-
-                <div class="historico-container">
-                    <div class="historico-header">
-                        <h2>Histórico de Movimentação da Frota</h2>
-                    </div>
-                    <div class="table-wrapper">
-                        <table class="data-table-modern" id="historico-table">
-                            <thead>
-                                <tr>
-                                    <th>Horário</th>
-                                    <th>Caminhão</th>
-                                    <th>Status Anterior</th>
-                                    <th>Status Novo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${this.renderHistorico()}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
             </div>
         `;
         this.container = container.querySelector('#controle-view');
@@ -264,18 +243,6 @@ export class ControleView {
                 </div>
             `;
         }).join('');
-    }
-
-    renderHistorico() {
-        const { caminhao_historico = [] } = this.data;
-        return caminhao_historico.slice(0, 15).map(log => `
-            <tr>
-                <td>${formatDateTime(log.timestamp_mudanca)}</td>
-                <td>${log.caminhoes?.cod_equipamento || 'N/A'}</td>
-                <td><span class="caminhao-status-badge status-${log.status_anterior}">${this.statusLabels[log.status_anterior] || log.status_anterior}</span></td>
-                <td><span class="caminhao-status-badge status-${log.status_novo}">${this.statusLabels[log.status_novo] || log.status_novo}</span></td>
-            </tr>
-        `).join('');
     }
 
     addEventListeners() {

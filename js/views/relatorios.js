@@ -158,8 +158,8 @@ export class RelatoriosView {
             { name: 'Gráficos de Utilização', id: 'charts' },
             { name: 'Relatório de Paradas (Caminhões)', id: 'downtime-caminhao' },
             { name: 'Relatório de Paradas (Equipamentos)', id: 'downtime-equipamento' },
-            { name: 'Tempo Médio de Ciclo (Caminhões)', id: 'time-cycle' },
-            // NOVO: Botão para Relatório de Ocorrências
+            { name: 'Tempo de Ciclo (Caminhões)', id: 'time-cycle' },
+            { name: 'Movimentação de Frota', id: 'movimentacao-frota' },
             { name: 'Relatório de Ocorrências', id: 'ocorrencias' }
         ];
         
@@ -228,20 +228,19 @@ export class RelatoriosView {
         
         const filters = document.getElementById('filter-resource-group');
         const downtimeStatusFilter = document.getElementById('filter-downtime-status');
-        const motivoParadaFilter = document.getElementById('filter-motivo-parada'); // NOVO: Captura o elemento
+        const motivoParadaFilter = document.getElementById('filter-motivo-parada');
         
         if (filters) {
-            // Esconde filtros em alguns relatórios específicos (como ocorrências)
+            // Esconde filtros apenas para o relatório de ocorrências
             filters.style.display = (reportName === 'ocorrencias') ? 'none' : 'flex';
         }
         
-        // NOVO: Mostrar/Esconder os filtros de inatividade e motivo
         const isDowntimeReport = reportName.startsWith('downtime');
         if (downtimeStatusFilter) {
             downtimeStatusFilter.style.display = isDowntimeReport ? 'flex' : 'none';
         }
         if (motivoParadaFilter) {
-             motivoParadaFilter.style.display = isDowntimeReport ? 'flex' : 'none'; // NOVO
+             motivoParadaFilter.style.display = isDowntimeReport ? 'flex' : 'none';
         }
         
 
@@ -258,12 +257,78 @@ export class RelatoriosView {
             case 'time-cycle':
                 await this.renderTimeCycleReport();
                 break;
-            // NOVO: Case para Relatório de Ocorrências
+            case 'movimentacao-frota':
+                await this.renderMovimentacaoFrotaTable();
+                break;
             case 'ocorrencias':
                 await this.renderOcorrenciasReport();
                 break;
             default:
                 document.getElementById('report-content-container').innerHTML = `<div class="empty-state">Selecione um relatório.</div>`;
+        }
+    }
+
+    async renderMovimentacaoFrotaTable() {
+        showLoading();
+        const container = document.getElementById('report-content-container');
+        try {
+            const filters = this.getFilterValues();
+            const caminhãoMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
+    
+            // Primeiro, obtenha todo o histórico que corresponde aos filtros
+            let filteredHistory = this.filterHistory(
+                this.data.caminhao_historico, caminhãoMap, filters.dataInicio, filters.dataFim,
+                filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
+            );
+            
+            // Verifique se algum filtro relevante está ativo
+            const isAnyFilterActive = filters.dataInicio || filters.dataFim || filters.equipamento || filters.frente || filters.proprietario;
+    
+            // Se nenhum filtro estiver ativo, pegue apenas os 10 mais recentes
+            let displayHistory = filteredHistory;
+            if (!isAnyFilterActive) {
+                displayHistory = filteredHistory.slice(0, 10);
+            }
+    
+            const rows = displayHistory.map(log => `
+                <tr>
+                    <td>${formatDateTime(log.timestamp_mudanca)}</td>
+                    <td>${log.caminhoes?.cod_equipamento || 'N/A'}</td>
+                    <td><span class="caminhao-status-badge status-${log.status_anterior}">${this.caminhaoStatusLabels[log.status_anterior] || log.status_anterior}</span></td>
+                    <td><span class="caminhao-status-badge status-${log.status_novo}">${this.caminhaoStatusLabels[log.status_novo] || log.status_novo}</span></td>
+                </tr>
+            `).join('');
+    
+            // Mensagem de contagem dinâmica
+            const recordCountMessage = isAnyFilterActive ? `${filteredHistory.length} Registros Encontrados` : `Últimos ${displayHistory.length} Registros`;
+    
+            const tableHTML = `
+                <div class="report-table-container">
+                     <h3 style="padding: 0 24px; margin-bottom: 16px;">Histórico de Movimentação da Frota (${recordCountMessage})</h3>
+                    <div style="padding: 0 24px; overflow-x: auto;">
+                        <table class="data-table-modern">
+                            <thead>
+                                <tr>
+                                    <th>Horário</th>
+                                    <th>Caminhão</th>
+                                    <th>Status Anterior</th>
+                                    <th>Status Novo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.length > 0 ? rows : '<tr><td colspan="4">Nenhum registro de movimentação encontrado para os filtros selecionados.</td></tr>'}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            container.innerHTML = tableHTML;
+    
+        } catch (error) {
+            container.innerHTML = `<div class="empty-state">Erro ao gerar relatório de movimentação: ${error.message}</div>`;
+            console.error("Erro em renderMovimentacaoFrotaTable:", error);
+        } finally {
+            hideLoading();
         }
     }
     
