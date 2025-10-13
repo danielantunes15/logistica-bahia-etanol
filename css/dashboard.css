@@ -200,6 +200,33 @@
     background-clip: unset;
 }
 
+/* NOVO: Estilos para a equipe de turno */
+.on-shift-info {
+    display: flex;
+    gap: 20px;
+    text-align: center;
+    justify-content: center;
+    flex-grow: 1;
+}
+
+#on-shift-leaders,
+#on-shift-weighers {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+#on-shift-leaders span,
+#on-shift-weighers span {
+    font-weight: 600;
+    color: var(--text-primary);
+    background-color: var(--bg-light);
+    padding: 3px 10px;
+    border-radius: 6px;
+    margin-left: 6px;
+}
+/* FIM NOVO */
+
+
 .last-update {
     font-size: 0.8rem;
     color: var(--text-secondary);

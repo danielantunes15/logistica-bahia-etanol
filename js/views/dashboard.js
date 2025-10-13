@@ -3,6 +3,8 @@ import { mapManager } from '../maps.js';
 import { dataCache } from '../dataCache.js';
 import { showToast, showLoading, hideLoading, calculateDistance } from '../helpers.js'; 
 import { CAMINHAO_ROUTE_STATUS } from '../constants.js';
+import { getCurrentShift } from '../timeUtils.js';
+import { fetchEscalaFuncionarios, fetchEscalaTurnos } from '../api.js';
 
 // Coordenadas da usina (Definidas aqui para o cálculo Haversine)
 const USINA_COORDS = [-17.642301, -40.181525];
@@ -66,6 +68,10 @@ export class DashboardView {
                         <div class="stats-panel">
                             <div class="panel-header">
                                 <h3>Status das Operações</h3>
+                                <div class="on-shift-info">
+                                    <div id="on-shift-leaders"></div>
+                                    <div id="on-shift-weighers"></div>
+                                </div>
                                 <div class="last-update" id="last-update">
                                     Atualizado agora
                                 </div>
@@ -245,6 +251,7 @@ export class DashboardView {
             this.data = await dataCache.fetchMetadata(forceRefresh); 
             this.updateDashboardStats();
             this.updateMap();
+            await this.updateOnShiftStaff();
             this.updateLastUpdateTime();
         } catch (error) {
             console.error('Erro ao carregar dados do dashboard:', error);
@@ -391,6 +398,47 @@ export class DashboardView {
 
         const operacoesAtivas = totalActive;
         this.updateStatElement('operacoes-ativas', operacoesAtivas);
+    }
+
+    async updateOnShiftStaff() {
+        const leadersEl = document.getElementById('on-shift-leaders');
+        const weighersEl = document.getElementById('on-shift-weighers');
+        if (!leadersEl || !weighersEl) return;
+    
+        try {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const currentShiftInfo = getCurrentShift();
+    
+            // Busca os dados da escala
+            const funcionarios = await fetchEscalaFuncionarios();
+            const turnosHoje = await fetchEscalaTurnos(todayStr, todayStr);
+    
+            // Mapeia os turnos de hoje para fácil acesso
+            const turnosMap = new Map();
+            turnosHoje.forEach(t => {
+                turnosMap.set(t.funcionario_id, t.turno);
+            });
+    
+            // Filtra os funcionários que estão no turno atual e separa por função
+            const onShiftLeaders = funcionarios.filter(f =>
+                f.funcao === 'Líder de Produção Agrícola' &&
+                turnosMap.get(f.id) === currentShiftInfo.turno
+            ).map(f => f.nome).join(', ');
+    
+            const onShiftWeighers = funcionarios.filter(f =>
+                f.funcao === 'Balanceiro' &&
+                turnosMap.get(f.id) === currentShiftInfo.turno
+            ).map(f => f.nome).join(', ');
+    
+            // Atualiza o HTML
+            leadersEl.innerHTML = `Líder(es) de Turno: <span>${onShiftLeaders || 'N/D'}</span>`;
+            weighersEl.innerHTML = `Balanceiro(s): <span>${onShiftWeighers || 'N/D'}</span>`;
+    
+        } catch (error) {
+            console.error('Erro ao buscar equipe do turno:', error);
+            leadersEl.innerHTML = `Líder(es) de Turno: <span>Erro</span>`;
+            weighersEl.innerHTML = `Balanceiro(s): <span>Erro</span>`;
+        }
     }
 
     updateStatElement(elementId, value) {
