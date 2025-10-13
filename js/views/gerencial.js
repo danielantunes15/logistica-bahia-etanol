@@ -149,7 +149,7 @@ export class GerencialView {
 
         for (let i = 0; i < 30; i++) { // Gera 30 dias de escala
             const currentDate = new Date(startDateStr);
-            currentDate.setDate(currentDate.getDate() + i);
+            currentDate.setUTCDate(currentDate.getUTCDate() + i); // Use UTC to avoid timezone shifts
             const currentDateStr = currentDate.toISOString().split('T')[0];
 
             if (workDayCounter < 6) {
@@ -277,50 +277,64 @@ export class GerencialView {
             return `<th>${day.toUpperCase()}<span class="header-date">${dateStr}</span></th>`;
         }).join('');
     
-        const bodyHTML = this.funcionarios.map(func => {
-            const cellsHTML = dates.map(date => {
-                const dateStr = date.toISOString().split('T')[0];
-                const turno = this.escalaData[func.id]?.[dateStr] || 'Folga';
-                const selectId = `turno-${func.id}-${dateStr}`;
-                
-                return `
-                    <td>
-                        <select class="turno-select turno-${turno}" id="${selectId}" data-funcionario-id="${func.id}" data-date="${dateStr}">
-                            <option value="Folga" ${turno === 'Folga' ? 'selected' : ''}>Folga</option>
-                            <option value="A" ${turno === 'A' ? 'selected' : ''}>Turno A</option>
-                            <option value="B" ${turno === 'B' ? 'selected' : ''}>Turno B</option>
-                            <option value="C" ${turno === 'C' ? 'selected' : ''}>Turno C</option>
-                        </select>
-                    </td>
-                `;
-            }).join('');
+        // Inicia a construção do HTML dos calendários
+        let allCalendarsHTML = '';
     
-            return `
-                <tr>
-                    <td class="funcionario-info">
-                        <span class="funcionario-nome">${func.nome}</span>
-                        <span class="funcionario-funcao">${func.funcao}</span>
-                    </td>
-                    ${cellsHTML}
-                </tr>
-            `;
-        }).join('');
+        this.funcoes.forEach(funcao => {
+            const funcionariosDaFuncao = this.funcionarios.filter(f => f.funcao === funcao);
+            
+            if (funcionariosDaFuncao.length > 0) {
+                const bodyHTML = funcionariosDaFuncao.map(func => {
+                    const cellsHTML = dates.map(date => {
+                        const dateStr = date.toISOString().split('T')[0];
+                        const turno = this.escalaData[func.id]?.[dateStr] || 'Folga';
+                        const selectId = `turno-${func.id}-${dateStr}`;
+                        
+                        return `
+                            <td>
+                                <select class="turno-select turno-${turno}" id="${selectId}" data-funcionario-id="${func.id}" data-date="${dateStr}">
+                                    <option value="Folga" ${turno === 'Folga' ? 'selected' : ''}>Folga</option>
+                                    <option value="A" ${turno === 'A' ? 'selected' : ''}>Turno A</option>
+                                    <option value="B" ${turno === 'B' ? 'selected' : ''}>Turno B</option>
+                                    <option value="C" ${turno === 'C' ? 'selected' : ''}>Turno C</option>
+                                </select>
+                            </td>
+                        `;
+                    }).join('');
+            
+                    return `
+                        <tr>
+                            <td class="funcionario-info">
+                                <span class="funcionario-nome">${func.nome}</span>
+                                <span class="funcionario-funcao">${func.funcao}</span>
+                            </td>
+                            ${cellsHTML}
+                        </tr>
+                    `;
+                }).join('');
+    
+                allCalendarsHTML += `
+                    <h3 style="margin-top: 32px;">${funcao}</h3>
+                    <div class="escala-table-wrapper">
+                        <table class="escala-table">
+                            <thead>
+                                <tr>
+                                    <th class="funcionario-header">Funcionário</th>
+                                    ${headerHTML}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${bodyHTML}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+        });
     
         return `
-            <h3>Calendário de Escala (Próximos 7 dias)</h3>
-            <div class="escala-table-wrapper">
-                <table class="escala-table">
-                    <thead>
-                        <tr>
-                            <th class="funcionario-header">Funcionário</th>
-                            ${headerHTML}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${this.funcionarios.length > 0 ? bodyHTML : `<tr><td colspan="${dates.length + 1}">Nenhum funcionário cadastrado.</td></tr>`}
-                    </tbody>
-                </table>
-            </div>
+            <h2 style="font-size: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Calendário de Escala (Próximos 7 dias)</h2>
+            ${allCalendarsHTML || '<p class="empty-state">Nenhum funcionário cadastrado para exibir a escala.</p>'}
         `;
     }
 
