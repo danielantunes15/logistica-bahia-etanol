@@ -94,6 +94,10 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
         </div>
     `;
 
+    // REMOVIDO: Bloco de IFRAME CLIMATEMPO
+    const weatherEmbed = ''; 
+
+
     sidebar.innerHTML = `
         <div class="sidebar-header">
             <img src="assets/logo-bel.png" alt="Logo LOGISTICA BEL" id="sidebar-logo">
@@ -137,7 +141,11 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
                 <i class="ph-fill ph-siren"></i>
                 <span>Ocorrências</span>
             </button>
-            
+
+            <button class="nav-button" data-view="tempo"> 
+                <i class="ph-fill ph-cloud-sun"></i>
+                <span>Tempo</span>
+            </button>
             <button class="nav-button" data-view="relatorios">
                 <i class="ph-fill ph-chart-bar"></i>
                 <span>Relatórios</span>
@@ -147,6 +155,8 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
             
             ${cadastrosGroup}
         </nav>
+        
+        ${weatherEmbed}
         
         ${profileFooterBlock}
     `;

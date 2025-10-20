@@ -13,6 +13,8 @@ import { GerencialView } from './gerencial.js'; // NOVO: Tela Gerencial
 import { BoletimDiarioView } from './boletimDiario.js'; 
 // NOVO: Importa OcorrenciasView
 import { OcorrenciasView } from './ocorrencias.js'; 
+// NOVO: Importa TempoView
+import { TempoView } from './tempo.js'; 
 
 export class ViewManager {
     constructor(appManager) { // Recebe o App Manager
@@ -46,6 +48,9 @@ export class ViewManager {
         // NOVO: Registra a view de Ocorrências
         this.views.set('ocorrencias', new OcorrenciasView());
         
+        // NOVO: Registra a view de Tempo
+        this.views.set('tempo', new TempoView());
+
         this.views.set('cadastro-fazendas', new CadastrosView('fazendas'));
         this.views.set('cadastro-caminhoes', new CadastrosView('caminhoes'));
         this.views.set('cadastro-equipamentos', new CadastrosView('equipamentos'));
