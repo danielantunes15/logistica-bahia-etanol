@@ -2,7 +2,7 @@
 
 import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
-import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA
+import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString, groupDowntimeSessions } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA (Adiciona groupDowntimeSessions)
 import { openModal, closeModal } from '../components/modal.js';
 import { dataCache } from '../dataCache.js';
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS } from '../constants.js';
@@ -109,45 +109,39 @@ export class ControleView {
 
     // MODIFICADO: Painel de Caminhões Parados / Quebrados (Com Data/Hora e Duração)
     renderParadosPanel() {
-        const { caminhoes = [] } = this.data;
+        const { caminhoes = [], caminhao_historico = [] } = this.data;
         const downtimeStatus = ['parado', 'quebrado'];
         const paradosQuebrados = caminhoes.filter(c => downtimeStatus.includes(c.status));
         
-        const downtimeInfo = new Map();
-        // Encontra o log de INÍCIO de inatividade para os caminhões
-        const sortedHistory = this.data.caminhao_historico.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
+        // CORREÇÃO DA LÓGICA: Usa a função de utilidade para obter SESSÕES de inatividade.
+        const allDowntimeSessions = groupDowntimeSessions(caminhao_historico, 'caminhao_id', downtimeStatus);
         
-        for (const log of sortedHistory) {
-            const isStart = downtimeStatus.includes(log.status_novo) && !downtimeStatus.includes(log.status_anterior);
-            const isUpdate = downtimeStatus.includes(log.status_novo) && downtimeStatus.includes(log.status_anterior);
-            const isEnd = log.status_novo === 'disponivel' || log.status_novo === 'indo_carregar';
+        // Filtra apenas as sessões ATIVAS (end_time === null)
+        const openDowntimeSessions = allDowntimeSessions.filter(s => s.end_time === null);
+        
+        // Mapeia as sessões abertas pelo ID do caminhão para fácil lookup
+        const downtimeInfoMap = new Map();
+        openDowntimeSessions.forEach(session => {
+            // Usa os dados do log de início para o motivo e hora de início
+            downtimeInfoMap.set(session.startLog.caminhao_id, {
+                startTime: session.startTime, 
+                motivo: session.startLog.motivo_parada || 'Não informado',
+                currentStatus: session.startStatus 
+            });
+        });
 
-            if (isStart) {
-                // Inicia nova sessão de inatividade
-                downtimeInfo.set(log.caminhao_id, {
-                    startTime: log.timestamp_mudanca,
-                    motivo: log.motivo_parada || 'Não informado',
-                    currentStatus: log.status_novo
-                });
-            } else if (isUpdate && downtimeInfo.has(log.caminhao_id)) {
-                // Apenas atualiza o motivo e status se já estiver em inatividade
-                 downtimeInfo.get(log.caminhao_id).motivo = log.motivo_parada || downtimeInfo.get(log.caminhao_id).motivo;
-                 downtimeInfo.get(log.caminhao_id).currentStatus = log.status_novo;
-            } else if (isEnd) {
-                // Limpa a sessão se o caminhão voltar a ficar disponível/em ciclo
-                downtimeInfo.delete(log.caminhao_id);
-            }
-        }
-        
         // Re-processa apenas os caminhões atualmente parados
         const rows = paradosQuebrados.map(c => {
-            const info = downtimeInfo.get(c.id) || { startTime: c.created_at, motivo: 'N/A', currentStatus: c.status };
-            const duration = calculateDowntimeDuration(info.startTime, null); // Null para calcular até o momento atual
+            // Tenta encontrar a sessão aberta no mapa
+            const info = downtimeInfoMap.get(c.id) || { startTime: c.created_at, motivo: 'N/A', currentStatus: c.status };
+            
+            // Calcula a duração da parada atual
+            const duration = calculateDowntimeDuration(info.startTime, null); 
             
             return `
                 <tr>
                     <td><strong>${c.cod_equipamento}</strong></td>
-                    <td><span class="caminhao-status-badge status-${info.currentStatus}">${this.statusLabels[info.currentStatus]}</span></td>
+                    <td><span class="caminhao-status-badge status-${c.status}">${this.statusLabels[c.status]}</span></td>
                     <td>${info.motivo}</td>
                     <td>${formatDateTime(info.startTime)}</td>
                     <td><span style="font-weight: 600;">${duration}</span></td>
@@ -451,14 +445,13 @@ export class ControleView {
         // Se o caminhão está parado/quebrado, oferece o modal de gerenciamento/finalização da inatividade.
         if (isCurrentDowntime) {
              // Tenta encontrar a hora de início para passar ao modal de finalização
-             const sortedHistory = this.data.caminhao_historico.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
-             let startTime = caminhao.created_at; 
-             for (const log of sortedHistory) {
-                 if (log.caminhao_id === caminhaoId && isDowntimeStatus.includes(log.status_novo) && !isDowntimeStatus.includes(log.status_anterior)) {
-                     startTime = log.timestamp_mudanca;
-                     break; 
-                 }
+             const openSessions = groupDowntimeSessions(this.data.caminhao_historico, 'caminhao_id', isDowntimeStatus).filter(s => s.end_time === null && s.startLog.caminhao_id === caminhaoId);
+             
+             let startTime = caminhao.created_at; // Fallback
+             if (openSessions.length > 0) {
+                 startTime = openSessions[0].startTime;
              }
+
              
              // Se o status é de inatividade, oferece o modal de finalização/edição do status da inatividade
              const downtimeForm = `

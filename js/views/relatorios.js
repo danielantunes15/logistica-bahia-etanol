@@ -112,7 +112,7 @@ export class RelatoriosView {
                     <div class="filter-group" id="filter-resource-group" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background-color: var(--bg-light); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; flex-grow: 1;">
                         <label style="font-weight: 600; color: var(--accent-primary);">Recursos:</label>
                         <select id="filter-equipamento" class="form-select" style="min-width: 200px;">
-                            <option value="">Equipamento (Todos)</option>
+                            <option value="">Todos os Recursos</option>
                         </select>
                         <select id="filter-frente" class="form-select">
                             <option value="">Frente (Todas)</option>
@@ -216,6 +216,42 @@ export class RelatoriosView {
         if(dateStartInput) dateStartInput.value = '';
         // --- FIM MELHORIA ---
     }
+    
+    /**
+     * @MODIFICADO
+     * Busca dados da API, pulando o cache se houver filtros de data para garantir 
+     * que a API ignore o limite de 90 dias e traga o período solicitado.
+     */
+    async fetchReportDataWithFilters(filters) {
+        const isDateFilterActive = filters.dataInicio || filters.dataFim;
+        
+        if (isDateFilterActive) {
+            let startDateISO = null;
+            let endDateISO = null;
+            
+            // Tratamento de Data Início: 00:00:00 do dia
+            if (filters.dataInicio) {
+                 const date = new Date(filters.dataInicio);
+                 date.setHours(0, 0, 0, 0); 
+                 startDateISO = date.toISOString();
+            }
+            
+            // Tratamento de Data Fim: 23:59:59 do dia
+            if (filters.dataFim) {
+                 const date = new Date(filters.dataFim);
+                 date.setHours(23, 59, 59, 999);
+                 endDateISO = date.toISOString();
+            }
+
+            // Chama a API com as datas explícitas e daysBack=null para não aplicar o filtro padrão.
+            const reportData = await fetchAllData(null, startDateISO, endDateISO); 
+            return reportData;
+        } else {
+             // Se nenhum filtro de data for ativo, usa o cache (que usa o padrão de 90 dias).
+            return dataCache.fetchAllData();
+        }
+    }
+
 
     async showReport(reportName) {
         this.currentReport = reportName;
@@ -273,11 +309,16 @@ export class RelatoriosView {
         const container = document.getElementById('report-content-container');
         try {
             const filters = this.getFilterValues();
-            const caminhãoMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
+            
+            // AQUI: Busca dados com os filtros, pulando o cache se houver filtro de data.
+            const currentData = await this.fetchReportDataWithFilters(filters); 
+            
+            const caminhãoMap = new Map((currentData.caminhoes || []).map(c => [c.id, c]));
     
             // Primeiro, obtenha todo o histórico que corresponde aos filtros
+            // Data é nula, pois já foi aplicada na API
             let filteredHistory = this.filterHistory(
-                this.data.caminhao_historico, caminhãoMap, filters.dataInicio, filters.dataFim,
+                currentData.caminhao_historico, caminhãoMap, null, null,
                 filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             
@@ -338,8 +379,12 @@ export class RelatoriosView {
         const container = document.getElementById('report-content-container');
         
         try {
-            const { ocorrencias = [], frentes_servico = [] } = this.data;
             const filters = this.getFilterValues();
+            
+            // AQUI: Busca dados com os filtros, pulando o cache se houver filtro de data.
+            const currentData = await this.fetchReportDataWithFilters(filters); 
+
+            const { ocorrencias = [], frentes_servico = [] } = currentData;
             
             // 1. Filtrar ocorrências por período (apenas o que tem hora_inicio)
             let filteredOcorrencias = ocorrencias.filter(o => o.hora_inicio);
@@ -430,6 +475,7 @@ export class RelatoriosView {
             const statusLabel = isFinished ? 'Resolvido' : 'Em Aberto';
             const horaFimDisplay = isFinished ? formatDateTime(item.hora_fim) : '---';
             const durationDisplay = isFinished ? duration : `<strong style="color: var(--accent-danger);">${duration}</strong>`;
+
             
             const frentesNomes = (item.frentes_impactadas || [])
                                     .map(fId => frenteMap.get(fId))
@@ -577,11 +623,16 @@ export class RelatoriosView {
         
         try {
             const filters = this.getFilterValues();
-            const caminhãoMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
+            
+            // AQUI: Busca dados com os filtros, pulando o cache se houver filtro de data.
+            const currentData = await this.fetchReportDataWithFilters(filters); 
+            
+            const caminhãoMap = new Map((currentData.caminhoes || []).map(c => [c.id, c]));
             
             // 1. Filtra o histórico apenas por tempo e recursos
+            // Data é nula, pois já foi aplicada na API
             const filteredHistory = this.filterHistory(
-                this.data.caminhao_historico, caminhãoMap, filters.dataInicio, filters.dataFim, 
+                currentData.caminhao_historico, caminhãoMap, null, null, 
                 filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             
@@ -611,12 +662,17 @@ export class RelatoriosView {
         
         try {
             const filters = this.getFilterValues();
+            
+            // AQUI: Busca dados com os filtros, pulando o cache se houver filtro de data.
+            const currentData = await this.fetchReportDataWithFilters(filters); 
+            
             // NOVO: Define os status de inatividade a serem filtrados
             const downtimeStatusFilter = filters.downtimeStatus ? [filters.downtimeStatus] : ['parado', 'quebrado'];
-            const caminhãoMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
+            const caminhãoMap = new Map((currentData.caminhoes || []).map(c => [c.id, c]));
             
+            // Data é nula, pois já foi aplicada na API
             const filteredHistory = this.filterHistory(
-                this.data.caminhao_historico, caminhãoMap, filters.dataInicio, filters.dataFim, 
+                currentData.caminhao_historico, caminhãoMap, null, null, 
                 filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             
@@ -636,7 +692,7 @@ export class RelatoriosView {
                 const caminhao = caminhãoMap.get(session.startLog.caminhao_id);
                 session.cod_equipamento = caminhao?.cod_equipamento || 'N/A';
                 session.tipo = 'Caminhão';
-                const frente = this.data.frentes_servico.find(f => f.id === caminhao?.frente_id);
+                const frente = currentData.frentes_servico.find(f => f.id === caminhao?.frente_id);
                 session.frente = frente?.nome || 'N/A';
             });
             
@@ -661,12 +717,17 @@ export class RelatoriosView {
         
         try {
             const filters = this.getFilterValues();
+            
+            // AQUI: Busca dados com os filtros, pulando o cache se houver filtro de data.
+            const currentData = await this.fetchReportDataWithFilters(filters); 
+            
             // NOVO: Define os status de inatividade a serem filtrados
             const downtimeStatusFilter = filters.downtimeStatus ? [filters.downtimeStatus] : ['parado', 'quebrado'];
-            const equipamentoMap = new Map((this.data.equipamentos || []).map(e => [e.id, e]));
+            const equipamentoMap = new Map((currentData.equipamentos || []).map(e => [e.id, e]));
             
+            // Data é nula, pois já foi aplicada na API
             const filteredHistory = this.filterHistory(
-                this.data.equipamento_historico, equipamentoMap, filters.dataInicio, filters.dataFim, 
+                currentData.equipamento_historico, equipamentoMap, null, null, 
                 filters.equipamento, filters.frente, filters.proprietario, 'equipamento_id'
             );
             
@@ -958,11 +1019,18 @@ export class RelatoriosView {
     }
 
 
+    /**
+     * @MODIFICADO
+     * Filtra o histórico de logs. A filtragem por data (start, end) é ignorada 
+     * no cliente, pois agora é feita na API via fetchReportDataWithFilters().
+     */
     filterHistory(history, itemMap, start, end, itemFilter, frenteFilter, proprietarioFilter, idColumn) {
         let filtered = history;
         const numericFrenteId = frenteFilter ? parseInt(frenteFilter) : null;
         const numericProprietarioId = proprietarioFilter ? parseInt(proprietarioFilter) : null;
 
+        // REMOÇÃO DA LÓGICA DE FILTRAGEM DE DATA NO CLIENTE
+        /*
         if (start) {
             const startDate = new Date(start).getTime();
             filtered = filtered.filter(log => new Date(log.timestamp_mudanca).getTime() >= startDate);
@@ -973,6 +1041,7 @@ export class RelatoriosView {
             const endDateTimestamp = endDate.getTime();
             filtered = filtered.filter(log => new Date(log.timestamp_mudanca).getTime() < endDateTimestamp);
         }
+        */
         
         if (itemFilter) {
             const [type, id] = itemFilter.split('-');
@@ -1044,20 +1113,24 @@ export class RelatoriosView {
         
         try {
             const filters = this.getFilterValues();
-            const caminhoesMap = new Map((this.data.caminhoes || []).map(c => [c.id, c]));
-            const equipamentosMap = new Map((this.data.equipamentos || []).map(e => [e.id, e]));
+            
+            // AQUI: Busca dados com os filtros, pulando o cache se houver filtro de data.
+            const currentData = await this.fetchReportDataWithFilters(filters); 
+            
+            const caminhoesMap = new Map((currentData.caminhoes || []).map(c => [c.id, c]));
+            const equipamentosMap = new Map((currentData.equipamentos || []).map(e => [e.id, e]));
 
-            // 1. FILTRAGEM
+            // 1. FILTRAGEM (Data é nula, pois já foi aplicada na API)
             let filteredWorkHistory = this.filterHistory(
-                this.data.caminhao_historico, caminhoesMap, filters.dataInicio, filters.dataFim, 
+                currentData.caminhao_historico, caminhoesMap, null, null, 
                 filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             let filteredDowntimeCaminhaoHistory = this.filterHistory(
-                this.data.caminhao_historico, caminhoesMap, filters.dataInicio, filters.dataFim, 
+                currentData.caminhao_historico, caminhoesMap, null, null, 
                 filters.equipamento, filters.frente, filters.proprietario, 'caminhao_id'
             );
             let filteredDowntimeEquipamentoHistory = this.filterHistory(
-                this.data.equipamento_historico, equipamentosMap, filters.dataInicio, filters.dataFim, 
+                currentData.equipamento_historico, equipamentosMap, null, null, 
                 filters.equipamento, filters.frente, filters.proprietario, 'equipamento_id'
             );
 
@@ -1066,9 +1139,9 @@ export class RelatoriosView {
             // CÁLCULO DE DOWNTIME POR TIPO (GRÁFICO 1)
             const downtimeHoursByType = this.calculateDowntimeHoursByType(
                 filteredDowntimeEquipamentoHistory, 
-                this.data.equipamentos,
+                currentData.equipamentos,
                 filteredDowntimeCaminhaoHistory,
-                this.data.caminhoes
+                currentData.caminhoes
             );
             const downtimeTypeLabels = downtimeHoursByType.map(item => item.cod_equipamento);
             const downtimeTypeData = downtimeHoursByType.map(item => item.totalHours);
@@ -1079,8 +1152,8 @@ export class RelatoriosView {
                 filteredWorkHistory, 
                 filteredDowntimeCaminhaoHistory,
                 filteredDowntimeEquipamentoHistory,
-                this.data.caminhoes,
-                this.data.equipamentos
+                currentData.caminhoes,
+                currentData.equipamentos
             );
             
             const comparisonTypeDatasets = [
@@ -1104,15 +1177,15 @@ export class RelatoriosView {
 
 
             // CÁLCULO INDIVIDUAL E UTILIZAÇÃO (GRÁFICO 3)
-            const workHoursCaminhoes = this.calculateWorkHours(filteredWorkHistory, this.data.caminhoes, 'caminhao_id');
-            const workHoursEquipamentos = this.calculateWorkHours(filteredDowntimeEquipamentoHistory, this.data.equipamentos, 'equipamento_id');
+            const workHoursCaminhoes = this.calculateWorkHours(filteredWorkHistory, currentData.caminhoes, 'caminhao_id');
+            const workHoursEquipamentos = this.calculateWorkHours(filteredDowntimeEquipamentoHistory, currentData.equipamentos, 'equipamento_id');
             const allWorkHours = [...workHoursCaminhoes, ...workHoursEquipamentos];
             
             const individualDowntimeHours = this.calculateIndividualDowntimeHours(
                 filteredDowntimeCaminhaoHistory, 
                 filteredDowntimeEquipamentoHistory, 
-                this.data.caminhoes, 
-                this.data.equipamentos
+                currentData.caminhoes, 
+                currentData.equipamentos
             );
             
             const comparisonDataIndividual = this.prepareComparisonData(allWorkHours, individualDowntimeHours);
@@ -1123,7 +1196,7 @@ export class RelatoriosView {
             // 6. ARMAZENAR DADOS PARA EXPORTAÇÃO
             this.exportData = {
                 comparisonData: comparisonDataIndividual, 
-                downtimeByType: this.calculateDowntimeHoursByType(filteredDowntimeEquipamentoHistory, this.data.equipamentos, filteredDowntimeCaminhaoHistory, this.data.caminhoes),
+                downtimeByType: this.calculateDowntimeHoursByType(filteredDowntimeEquipamentoHistory, currentData.equipamentos, filteredDowntimeCaminhaoHistory, currentData.caminhoes),
                 utilizationData: utilizationData,
                 filterContext: {
                     periodo: `${filters.dataInicio || 'Início'} a ${filters.dataFim || 'Fim'}`,

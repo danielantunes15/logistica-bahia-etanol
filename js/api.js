@@ -164,30 +164,57 @@ export async function fetchMetadata() {
     }
 }
 
-// --- NOVA FUNÇÃO INTERNA: Busca Logs Históricos com Filtro de Tempo (90 dias) ---
-async function fetchHistoricalTable(tableName, select, dateLimitISO) {
-    // Busca logs mais recentes que a data limite
-    const { data, error } = await supabase
+// --- NOVA FUNÇÃO INTERNA: Busca Logs Históricos com Filtro de Tempo ---
+async function fetchHistoricalTable(tableName, select, dateLimitISO, dateStartISO = null, dateEndISO = null) {
+    let query = supabase
         .from(tableName)
-        .select(select)
-        .gte('timestamp_mudanca', dateLimitISO) 
-        .order('timestamp_mudanca', { ascending: false }); 
+        .select(select);
+    
+    // 1. Aplica filtro de Data Fim se fornecido
+    if (dateEndISO) {
+        query = query.lte('timestamp_mudanca', dateEndISO);
+    }
+    
+    // 2. Aplica filtro de Data Início se fornecido
+    if (dateStartISO) {
+        query = query.gte('timestamp_mudanca', dateStartISO);
+    }
+    
+    // 3. Aplica o filtro de limite de 90 dias APENAS se nenhum filtro de data explícito for usado
+    // Se startDateISO ou endDateISO forem fornecidos, o dateLimitISO (90 dias) é ignorado.
+    if (!dateStartISO && !dateEndISO && dateLimitISO) {
+        query = query.gte('timestamp_mudanca', dateLimitISO);
+    }
+
+    query = query.order('timestamp_mudanca', { ascending: false }); 
+    
+    const { data, error } = await query;
     if (error) throw error;
     return data;
 }
 // -------------------------------------------------------------------
 
 /**
- * Função para buscar todos os dados, incluindo histórico (90 dias), usada por Relatórios e Vistas detalhadas.
+ * Função para buscar todos os dados, incluindo histórico, usada por Relatórios e Vistas detalhadas.
+ *
+ * @param {number|null} daysBack - Limite de dias a buscar. Use null para não aplicar limite.
+ * @param {string|null} startDateISO - Data de início explícita para o histórico (ISO).
+ * @param {string|null} endDateISO - Data de fim explícita para o histórico (ISO).
  */
-export async function fetchAllData(daysBack = 90) {
+export async function fetchAllData(daysBack = 90, startDateISO = null, endDateISO = null) {
     try {
-        const dateLimit = new Date();
-        // Se daysBack for nulo (passado por Relatórios para não aplicar filtro de tempo se já houver filtro de data), não aplica.
-        if (daysBack !== null) {
+        let dateLimitISO = null;
+
+        // Se daysBack for usado (com valor diferente de null) E não houver datas explícitas
+        if (daysBack !== null && !startDateISO && !endDateISO) {
+            const dateLimit = new Date();
             dateLimit.setDate(dateLimit.getDate() - daysBack);
+            dateLimitISO = dateLimit.toISOString();
         }
-        const dateLimitISO = daysBack !== null ? dateLimit.toISOString() : null;
+
+        // Se houver datas explícitas, elas serão passadas para o logFetcher e anularão o dateLimitISO internamente.
+        const logFetcher = (tableName, select) => 
+            fetchHistoricalTable(tableName, select, dateLimitISO, startDateISO, endDateISO);
 
         const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico, ocorrencias] = await Promise.all([
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
@@ -198,9 +225,8 @@ export async function fetchAllData(daysBack = 90) {
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
             
-            // Filtro de tempo para histórico
-            dateLimitISO ? fetchHistoricalTable('caminhao_historico', '*, caminhoes(cod_equipamento)', dateLimitISO) : fetchTable('caminhao_historico', '*, caminhoes(cod_equipamento)'),
-            dateLimitISO ? fetchHistoricalTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada', dateLimitISO) : fetchTable('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada'),
+            logFetcher('caminhao_historico', '*, caminhoes(cod_equipamento)'),
+            logFetcher('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada'),
             // NOVO: Adiciona a tabela de ocorrências
             fetchTable('ocorrencias', '*') 
         ]);
