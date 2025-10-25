@@ -2,7 +2,8 @@
 import { showToast, showLoading, hideLoading } from '../helpers.js';
 
 // OpenWeatherMap API Key
-const API_KEY = 'fdcb3d82c679c196a11975457733c8d6';
+// MUDANÇA: A chave hardcoded foi removida e é carregada via objeto global window.env
+const API_KEY = window.env.OPENWEATHER_API_KEY;
 
 // Cidades a serem monitoradas com as coordenadas (Ibirapuã removida e Usina renomeada)
 const CITIES_TO_MONITOR = [

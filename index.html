@@ -51,6 +51,19 @@
         <div class="spinner"></div>
     </div>
     
+    <script>
+        // NOVO: Objeto global para carregar as chaves (simula variáveis de ambiente)
+        // ESTA É A PRÓXIMA MELHOR PRÁTICA ANTES DE USAR UM BUILD PROCESS / BACKEND.
+        window.env = {
+            // Chaves Supabase (URL e ANON KEY) - Use suas chaves REAIS aqui.
+            SUPABASE_URL: 'https://uogorpanshybcuhdekhg.supabase.co',
+            SUPABASE_KEY_ANON: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvZ29ycGFuc2h5YmN1aGRla2hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk2MTcxNzYsImV4cCI6MjA3NTE5MzE3Nn0.LSGlAeeLZsPnEw3GtEXzY4D9f3UZhk7SXyBgrGYaKMg',
+            
+            // Chave OpenWeatherMap - Use sua chave REAL aqui.
+            OPENWEATHER_API_KEY: 'fdcb3d82c679c196a11975457733c8d6'
+        };
+    </script>
+    
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
