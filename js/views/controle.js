@@ -32,10 +32,30 @@ export class ControleView {
 
     async loadData(forceRefresh = false) {
         showLoading(); // Chamada inicial de loading para o show()
+        
+        // NOVO: 1. Salva a posição de scroll antes de renderizar
+        let savedScrollTop = 0;
+        // O elemento de view tem a rolagem (overflow-y: auto)
+        if (this.container && this.container.scrollTop > 0) {
+            savedScrollTop = this.container.scrollTop;
+            console.log(`Scroll: Salvando posição ${savedScrollTop}`);
+        }
+
         try {
             this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
             this.render();
             this.addEventListeners(); // CORREÇÃO: Rebind listeners após renderizar o HTML
+            
+            // NOVO: 2. Restaura a posição de scroll após renderizar
+            if (savedScrollTop > 0) {
+                // Pequeno delay para garantir que o navegador complete o redesenho do DOM
+                setTimeout(() => {
+                     if (this.container) {
+                          this.container.scrollTop = savedScrollTop;
+                          console.log(`Scroll: Resturando para ${savedScrollTop}`);
+                     }
+                }, 50); 
+            }
         } catch (error) {
             handleOperation(error);
         } finally {
