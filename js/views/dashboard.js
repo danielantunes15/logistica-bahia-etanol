@@ -14,7 +14,7 @@ export class DashboardView {
     constructor() {
         this.container = null;
         this.data = {};
-        this.autoRefreshInterval = null;
+        this.autoRefreshInterval = null; // MANTIDO: Mas não mais usado para polling
         // MUDANÇA: Estado de filtragem da legenda (inicia tudo ativo)
         this.activeFilters = {
             usina: true,
@@ -23,18 +23,34 @@ export class DashboardView {
             inativa: true,
             ocorrencia: true // NOVO: Filtro para ocorrências
         };
+        this._boundStatusUpdateHandler = this.handleStatusUpdate.bind(this); // Para o listener
     }
 
     async show() {
         await this.loadHTML();
         await this.initializeMap(); 
         await this.loadData();
-        this.startAutoRefresh();
+        // REMOVIDO: this.startAutoRefresh();
         this.addEventListeners();
+        
+        // NOVO: Adiciona o listener de Real-Time
+        window.addEventListener('statusUpdated', this._boundStatusUpdateHandler); 
     }
 
     async hide() {
-        this.stopAutoRefresh();
+        // REMOVIDO: this.stopAutoRefresh();
+        // NOVO: Remove o listener ao sair da view
+        window.removeEventListener('statusUpdated', this._boundStatusUpdateHandler);
+    }
+
+    // NOVO: Handler para o evento global
+    handleStatusUpdate(e) {
+        // Verifica se a atualização é relevante para o Dashboard antes de recarregar
+        const tables = ['caminhoes', 'frentes_servico', 'ocorrencias'];
+        if (tables.includes(e.detail.table)) {
+             // Força o refresh para buscar a nova versão que invalidou o cache
+             this.loadData(true); 
+        }
     }
 
     async loadHTML() {
@@ -257,21 +273,6 @@ export class DashboardView {
             console.error('Erro ao carregar dados do dashboard:', error);
             showToast('Erro ao carregar dados', 'error');
         } 
-    }
-
-    startAutoRefresh() {
-        // Atualizar a cada 30 segundos
-        this.autoRefreshInterval = setInterval(() => {
-            // Chama loadData que usará o cache se o tempo de 10s não tiver passado.
-            this.loadData();
-        }, 30000);
-    }
-
-    stopAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-            this.autoRefreshInterval = null;
-        }
     }
 
     // MUDANÇA: Lógica de contagem e cálculo do Raio Médio

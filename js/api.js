@@ -143,9 +143,10 @@ export async function updateCaminhao(id, data) {
 }
 
 /**
- * Função otimizada para buscar apenas metadados necessários para o Dashboard e Cadastros.
+ * Função otimizada para buscar todos os dados cadastrais (Master Data) sem logs de histórico.
+ * Usada por Cadastros e outras views leves.
  */
-export async function fetchMetadata() {
+export async function fetchMasterData() {
     try {
         const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros] = await Promise.all([
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
@@ -159,10 +160,33 @@ export async function fetchMetadata() {
         
         return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros }; 
     } catch (error) {
+        console.error('Erro ao buscar master data:', error);
+        throw error;
+    }
+}
+
+/**
+ * Função otimizada para buscar apenas metadados necessários para o Dashboard.
+ */
+export async function fetchMetadata() {
+    // Busca um subconjunto de dados mestre. Note que esta função não precisa do cache interno,
+    // pois o dataCache.js gerencia isso, mas a deixamos mais leve.
+    try {
+        const [caminhoes, equipamentos, frentes_servico, fazendas, ocorrencias] = await Promise.all([
+            fetchTable('caminhoes', 'id, status, frente_id'), // Apenas o essencial para contadores
+            fetchTable('equipamentos', 'id, status, frente_id, finalidade'),
+            fetchTable('frentes_servico', 'id, nome, status, fazenda_id'),
+            fetchTable('fazendas', 'id, latitude, longitude'),
+            fetchTable('ocorrencias', 'id, status'), // Apenas o essencial para contadores
+        ]);
+        
+        return { caminhoes, equipamentos, frentes_servico, fazendas, ocorrencias }; 
+    } catch (error) {
         console.error('Erro ao buscar metadados:', error);
         throw error;
     }
 }
+
 
 // --- NOVA FUNÇÃO INTERNA: Busca Logs Históricos com Filtro de Tempo ---
 async function fetchHistoricalTable(tableName, select, dateLimitISO, dateStartISO = null, dateEndISO = null) {

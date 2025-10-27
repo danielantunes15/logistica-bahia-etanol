@@ -2,7 +2,8 @@
 
 import { fetchAllData } from '../api.js';
 import { showToast } from '../helpers.js';
-import { formatDateTime } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA
+import { formatDateTime } from '../timeUtils.js'; 
+import { dataCache } from '../dataCache.js'; // Importar dataCache
 
 export class DescargaView {
     constructor() {
@@ -10,17 +11,32 @@ export class DescargaView {
         this.data = {};
         this.statusToMonitor = 'descarregando';
         this.autoRefreshInterval = null;
+        this._boundStatusUpdateHandler = this.handleStatusUpdate.bind(this); // Para o listener
     }
 
     async show() {
         await this.loadHTML();
         await this.loadData();
-        this.startAutoRefresh();
+        // REMOVIDO: this.startAutoRefresh();
         this.addEventListeners();
+        
+        // NOVO: Adiciona o listener de Real-Time
+        window.addEventListener('statusUpdated', this._boundStatusUpdateHandler); 
     }
 
     async hide() {
-        this.stopAutoRefresh();
+        // REMOVIDO: this.stopAutoRefresh();
+        // NOVO: Remove o listener ao sair da view
+        window.removeEventListener('statusUpdated', this._boundStatusUpdateHandler);
+    }
+    
+    // NOVO: Handler para o evento global
+    handleStatusUpdate(e) {
+        // Apenas recarrega se o evento for na tabela de caminhões
+        if (e.detail.table === 'caminhoes') {
+             // Força o refresh para buscar a nova versão que invalidou o cache
+             this.loadData(true); 
+        }
     }
 
     async loadHTML() {
@@ -49,23 +65,10 @@ export class DescargaView {
         `;
     }
 
-    startAutoRefresh() {
-        // Atualizar a cada 15 segundos
-        this.autoRefreshInterval = setInterval(() => {
-            this.loadData();
-        }, 15000);
-    }
-
-    stopAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-            this.autoRefreshInterval = null;
-        }
-    }
-
-    async loadData() {
+    async loadData(forceRefresh = false) {
         try {
-            this.data = await fetchAllData();
+            // Usa fetchAllData pois precisa do caminhao_historico para a hora de entrada na descarga.
+            this.data = await dataCache.fetchAllData(forceRefresh); 
             this.processAndRender();
         } catch (error) {
             showToast('Erro ao carregar dados de descarga', 'error');
@@ -194,7 +197,7 @@ export class DescargaView {
         const refreshBtn = document.getElementById('refresh-descarga');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                this.loadData();
+                this.loadData(true); // Força o refresh, ignorando o cache
                 showToast('Fila de descarga atualizada', 'success');
             });
         }

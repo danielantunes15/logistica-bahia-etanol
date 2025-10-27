@@ -82,7 +82,8 @@ export class CadastrosView {
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
+            // MUDANÇA: Usa a nova função para buscar apenas dados mestres
+            this.data = await dataCache.fetchMasterDataOnly(forceRefresh); 
             this.renderTable();
         } catch (error) {
             console.error(`Erro ao carregar dados de ${this.tipo}:`, error);

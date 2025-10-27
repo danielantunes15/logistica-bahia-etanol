@@ -6,7 +6,7 @@ import { initializeViews } from './views/viewManager.js';
 // Importações atualizadas para o novo sistema seguro
 import { getLocalSession, logoutAppUser, updateUserPassword, forceLogout } from './api.js'; 
 import { showToast, showLoading, hideLoading, handleOperation } from './helpers.js';
-// MUDANÇA: Importa dataCache para buscar os metadados
+// MUDANÇA: Importa dataCache para buscar os metadados e iniciar Real-Time
 import { dataCache } from './dataCache.js';
 
 class App {
@@ -25,18 +25,16 @@ class App {
             console.log('🚀 Iniciando aplicação...');
             
             await loadModal();
-            
-            // Inicializa o ViewManager passando a referência do App
             await initializeViews(this);
             
-            // Verifica a sessão persistida no localStorage
+            // NOVO: Inicia a escuta Real-Time imediatamente
+            dataCache.subscribeToRealTimeUpdates(); 
+            
             const session = await getLocalSession(); 
             
             if (session) {
-                // Se houver sessão válida, vai para o fluxo pós-login
                 await this.initializeAfterLogin(); 
             } else {
-                // Caso contrário, mostra a tela de login
                 this.showLoginScreen();
             }
             
