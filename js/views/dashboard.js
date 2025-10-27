@@ -635,11 +635,33 @@ export class DashboardView {
                             <p><strong>Frentes Impactadas:</strong> <span class="value">${(ocorrencia.frentes_impactadas || []).length}</span></p>
                             <p><strong>Registro:</strong> <span class="value">${new Date(ocorrencia.created_at).toLocaleDateString('pt-BR')}</span></p>
                         </div>
+                        
+                        <div class="popup-actions">
+                            <button class="btn-primary btn-action-map" data-action="goToOcorrencias" data-ocorrencia-id="${ocorrencia.id}" title="Gerenciar Ocorrência">
+                                <i class="ph-fill ph-siren"></i> Gerenciar Ocorrência
+                            </button>
+                        </div>
                     </div>
                 `;
                 
                 marker.bindPopup(popupContent);
                 marker.addTo(map);
+                
+                // NOVO: Adiciona o listener de clique no pop-up para navegar
+                marker.on('popupopen', () => {
+                     const btn = document.querySelector(`.ocorrencia-marker .btn-action-map`);
+                     if (btn) {
+                         btn.addEventListener('click', () => {
+                             // Dispara o evento de troca de view
+                             window.dispatchEvent(new CustomEvent('viewChanged', { 
+                                 detail: { 
+                                     view: 'ocorrencias' 
+                                 } 
+                             }));
+                         });
+                     }
+                 });
+
 
                 if (!mapManager.markers.has('dashboard-ocorrencias')) {
                     mapManager.markers.set('dashboard-ocorrencias', []);

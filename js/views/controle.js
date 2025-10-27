@@ -2,7 +2,7 @@
 
 import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
-import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString, groupDowntimeSessions } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA (Adiciona groupDowntimeSessions)
+import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString, groupDowntimeSessions, formatMillisecondsToHoursMinutes, calculateTimeDifference } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA (Adiciona calculateTimeDifference e formatMillisecondsToHoursMinutes)
 import { openModal, closeModal } from '../components/modal.js';
 import { dataCache } from '../dataCache.js';
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS } from '../constants.js';
@@ -402,6 +402,14 @@ export class ControleView {
 
         // CORREÇÃO: Usa a função getBrtNowString
         const nowString = getBrtNowString();
+        
+        // Calcula a duração inicial (para o display)
+        const initialDiffMillis = calculateTimeDifference(startTime, nowString);
+        const initialDuration = formatMillisecondsToHoursMinutes(initialDiffMillis);
+        
+        // Define a cor de alerta se a duração inicial for negativa (o que não deveria ocorrer com nowString, mas é uma proteção)
+        const durationColor = initialDiffMillis < 0 ? 'var(--accent-danger)' : 'var(--accent-primary)';
+
 
         const modalContent = `
             <p>Finalizando inatividade para: <strong>${caminhao.cod_equipamento}</strong></p>
@@ -410,18 +418,76 @@ export class ControleView {
             <form id="finalize-downtime-form" class="action-modal-form">
                 <div class="form-group">
                     <label>Hora de Retorno (Fim da Inatividade)</label>
-                    <input type="datetime-local" name="hora_fim" class="form-input" value="${nowString}" required>
+                    <input type="datetime-local" name="hora_fim" id="hora_fim_input" class="form-input" value="${nowString}" required>
                     <p class="form-help">Edite se a hora de retorno for diferente da hora atual.</p>
                 </div>
                 
+                <p style="text-align: center; font-size: 1.1rem; margin-top: 15px;">
+                    Duração Total: <strong id="downtime-duration-display" style="color: ${durationColor};">${initialDuration}</strong>
+                </p>
+                
                 <button type="submit" class="btn-primary">Finalizar (Tornar Disponível)</button>
             </form>
+            
+            <script>
+                const startTimeIso = '${startTime}';
+                const horaFimInput = document.getElementById('hora_fim_input');
+                const durationDisplay = document.getElementById('downtime-duration-display');
+
+                // Mapeia as funções de utilidade de tempo para o script inline (Corrigido para Concatenação)
+                window.timeUtils = {
+                    calculateTimeDifference: (start, end) => {
+                         const startMs = new Date(start).getTime();
+                         const endMs = new Date(end).getTime();
+                         return endMs - startMs;
+                    },
+                    formatMillisecondsToHoursMinutes: (ms) => {
+                         if (ms < 0) ms = 0;
+                         const diffHours = Math.floor(ms / (1000 * 60 * 60));
+                         const diffMinutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+                         if (diffHours > 0) {
+                             return diffHours + 'h ' + diffMinutes + 'm'; 
+                         } else {
+                             return diffMinutes + 'm'; 
+                         }
+                    }
+                };
+
+                function updateDuration() {
+                    const endTime = horaFimInput.value;
+                    if (!endTime) return;
+
+                    const diffMillis = window.timeUtils.calculateTimeDifference(startTimeIso, endTime);
+                    const durationText = window.timeUtils.formatMillisecondsToHoursMinutes(Math.abs(diffMillis));
+                    
+                    durationDisplay.textContent = durationText;
+
+                    if (diffMillis < 0) {
+                        durationDisplay.style.color = 'var(--accent-danger)';
+                        durationDisplay.textContent += ' (Inválida)';
+                        horaFimInput.classList.add('is-invalid');
+                    } else {
+                        durationDisplay.style.color = 'var(--accent-primary)';
+                        horaFimInput.classList.remove('is-invalid');
+                    }
+                }
+                
+                horaFimInput.addEventListener('input', updateDuration);
+                updateDuration(); // Garante o estado inicial
+            </script>
         `;
         openModal('Finalizar Inatividade - ' + this.statusLabels[caminhao.status], modalContent);
 
         document.getElementById('finalize-downtime-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const horaFim = e.target.hora_fim.value;
+            
+            // Validação final: o tempo de fim não pode ser anterior ao tempo de início.
+            if (calculateTimeDifference(startTime, horaFim) < 0) {
+                 showToast('A Hora de Retorno não pode ser anterior à Hora de Início.', 'error');
+                 document.getElementById('hora_fim_input').classList.add('is-invalid');
+                 return;
+            }
             
             // Passa a hora de fim (BRT) e o novo status 'disponivel'
             this.handleStatusUpdate(caminhaoId, 'disponivel', null, 'Ciclo finalizado, caminhão disponível!', null, getBrtIsoString(horaFim));

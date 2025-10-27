@@ -41,3 +41,14 @@ export const CAMINHAO_ROUTE_STATUS = [
     'patio_carregado',
     'descarregando'
 ];
+
+// NOVO: Motivos pré-definidos para Parada/Quebra (Centralizados)
+export const PREDEFINED_MOTIVES = [
+    'Manutenção Preventiva',
+    'Manutenção Corretiva (Motor/Câmbio)',
+    'Pneu Furado/Estourado',
+    'Aguardando Peça/Componente',
+    'Caminhão Bloqueado (Administrativo)',
+    'Problema Elétrico/Eletrônico',
+    'Outros' 
+];

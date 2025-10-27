@@ -72,6 +72,17 @@ export function getBrtIsoStringAlt() {
     return now.toISOString();
 }
 
+// NOVO: Calcula a diferença em milissegundos entre dois timestamps ISO ou T-strings
+export function calculateTimeDifference(startTime, endTime) {
+    if (!startTime || !endTime) return 0;
+    
+    const start = new Date(startTime).getTime();
+    const end = new Date(endTime).getTime();
+
+    // Retorna a diferença (pode ser negativo)
+    return end - start;
+}
+
 // --- NOVAS FUNÇÕES DE TURNO ---
 
 /**

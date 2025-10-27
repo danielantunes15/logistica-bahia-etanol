@@ -5,20 +5,12 @@ import { openModal, closeModal } from '../components/modal.js'; // NOVO: Importa
 // NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
 // MODIFICADO: Importa constantes
-import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE } from '../constants.js';
+import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, PREDEFINED_MOTIVES } from '../constants.js';
 // NOVO: Importa calculateActiveDuration
 import { calculateActiveDuration } from '../timeUtils.js';
 
-// NOVO: Motivos pré-definidos para Parada/Quebra
-const PREDEFINED_MOTIVES = [
-    'Manutenção Preventiva',
-    'Manutenção Corretiva (Motor/Câmbio)',
-    'Pneu Furado/Estourado',
-    'Aguardando Peça/Componente',
-    'Caminhão Bloqueado (Administrativo)',
-    'Problema Elétrico/Eletrônico',
-    'Outros' 
-];
+// REMOVIDO: Motivos pré-definidos para Parada/Quebra (agora em constants.js)
+// const PREDEFINED_MOTIVES = [ ... ];
 
 export class FrotaView {
     constructor() {
@@ -270,6 +262,7 @@ export class FrotaView {
         const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
         if (!caminhao) return;
         
+        // CORREÇÃO: Usa a constante importada
         const motivesOptions = PREDEFINED_MOTIVES.map(motive => 
             `<option value="${motive}">${motive}</option>`
         ).join('');

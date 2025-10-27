@@ -1,7 +1,7 @@
 // js/views/equipamentos.js
 import { fetchAllData, updateEquipamentoStatus } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
-import { formatDateTime, calculateDowntimeDuration, groupDowntimeSessions, getBrtNowString, getBrtIsoString } from '../timeUtils.js'; // IMPORTAÇÕES CORRIGIDAS
+import { formatDateTime, calculateDowntimeDuration, groupDowntimeSessions, getBrtNowString, getBrtIsoString, calculateTimeDifference, formatMillisecondsToHoursMinutes } from '../timeUtils.js'; // IMPORTAÇÕES CORRIGIDAS
 import { openModal, closeModal } from '../components/modal.js';
 // NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
@@ -16,6 +16,7 @@ export class EquipamentosView {
         // REMOVIDO: Definição local de statusLabels
         this.statusLabels = EQUIPAMENTO_STATUS_LABELS;
         this.frentesMap = new Map(); // Inicialização do mapa de frentes
+        this.latestDowntimeMap = new Map(); // NOVO: Mapa para armazenar o tempo de início das paradas abertas
         this._boundClickHandler = null; // Para armazenar a referência do handler e removê-lo
     }
 
@@ -30,8 +31,19 @@ export class EquipamentosView {
         showLoading();
         try {
             this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
-            // Mapeia Frentes para fácil acesso no painel de parados
             this.frentesMap = new Map(this.data.frentes_servico.map(f => [f.id, f.nome]));
+            
+            // NOVO: Calcula o mapa de inatividade uma vez para reuso (Necessário para a correção da inatividade)
+            const downtimeStatuses = ['parado', 'quebrado'];
+            const openDowntimeSessions = groupDowntimeSessions(this.data.equipamento_historico, 'equipamento_id', downtimeStatuses).filter(s => s.end_time === null);
+            this.latestDowntimeMap = new Map(openDowntimeSessions.map(s => [
+                s.startLog.equipamento_id, {
+                    motivo: s.startLog.motivo_parada || 'Não informado',
+                    frenteNome: s.frente,
+                    startTime: s.startTime,
+                }
+            ]));
+
             this.render();
             this.addEventListeners(); // CORREÇÃO: Rebind listeners após cada renderização
         } catch (error) {
@@ -57,8 +69,8 @@ export class EquipamentosView {
                 
                 ${this.renderParadosPanel()} 
 
-                <div class="controle-grid" id="main-grid">
-                    ${this.renderFrentes()}
+                <div class="controle-grid" id="main-grid" style="grid-template-columns: 1fr;">
+                    ${this.renderEquipamentosByOwner()}
                 </div>
 
                 <div class="historico-container">
@@ -93,27 +105,15 @@ export class EquipamentosView {
 
     // --- PAINEL DE MAQUINÁRIO PARADO/QUEBRADO GERAL (COM DURAÇÃO ATUAL) ---
     renderParadosPanel() {
-        const { equipamentos = [], proprietarios = [], equipamento_historico = [] } = this.data;
+        const { equipamentos = [], proprietarios = [] } = this.data;
         
         const proprietariosMap = new Map(proprietarios.map(p => [p.id, p]));
         const parados = equipamentos.filter(e => e.status === 'parado' || e.status === 'quebrado');
-        const downtimeStatuses = ['parado', 'quebrado'];
-
-        // NOVO: Usa a função de agrupamento para obter o estado mais recente/aberto
-        const openDowntimeSessions = groupDowntimeSessions(equipamento_historico, 'equipamento_id', downtimeStatuses).filter(s => s.end_time === null);
-        const latestDowntime = new Map(openDowntimeSessions.map(s => [
-            s.startLog.equipamento_id, {
-                motivo: s.startLog.motivo_parada || 'Não informado',
-                frenteNome: s.frente,
-                startTime: s.startTime, // Adiciona o tempo de início
-            }
-        ]));
-        
-        // Se o equipamento atual estiver na lista de parados, seu motivo mais recente estará em latestDowntime
         
         const rows = parados.map(e => {
             const proprietario = proprietariosMap.get(e.proprietario_id)?.nome || 'N/A';
-            const downtimeInfo = latestDowntime.get(e.id) || { motivo: 'Não informado', frenteNome: 'N/A', startTime: e.created_at };
+            // Usa o mapa precalculado
+            const downtimeInfo = this.latestDowntimeMap.get(e.id) || { motivo: 'Não informado', frenteNome: 'N/A', startTime: e.created_at };
             const statusLabel = this.statusLabels[e.status];
             
             // NOVO: Calcula a duração da parada atual
@@ -129,7 +129,7 @@ export class EquipamentosView {
                     <td>${downtimeInfo.motivo}</td>
                     <td><strong style="color: var(--accent-danger);">${duration}</strong></td>
                     <td>
-                        <button class="action-btn edit-btn-modern btn-parados-action" data-equipamento-id="${e.id}" data-frente-id="${e.frente_id || ''}" title="Finalizar Parada / Mudar Status">
+                        <button class="action-btn edit-btn-modern btn-parados-action" data-equipamento-id="${e.id}" data-frente-id="${e.frente_id || ''}" title="Finalizar Parada / Mudar Status" data-start-time="${downtimeInfo.startTime}">
                             <i class="ph-fill ph-pencil-simple"></i>
                         </button>
                     </td>
@@ -192,63 +192,113 @@ export class EquipamentosView {
         `;
     }
 
-    renderFrentes() {
-        const { frentes_servico = [], equipamentos = [] } = this.data;
-        return frentes_servico.map(frente => {
-            // Inclui equipamentos ativos e parados na frente para fácil controle
-            const equipamentosNaFrente = equipamentos.filter(e => e.frente_id === frente.id);
-            const fazendaAtual = frente.fazendas;
+    // NOVO: Renderiza equipamentos agrupados por Proprietário (Reaproveitando a lógica de FrotaView)
+    renderEquipamentosByOwner() {
+        const { equipamentos = [], frentes_servico = [], proprietarios = [] } = this.data;
 
-            return `
-                <div class="frente-card">
-                    <div class="frente-header">
-                        <div class="frente-header-main">
-                            <i class="ph-fill ph-users-three"></i><h3>${frente.nome}</h3>
-                        </div>
-                        <div class="frente-fazenda-info">
-                            <div class="fazenda-display">
-                                <i class="ph-fill ph-tree-evergreen"></i>
-                                <span class="fazenda-nome">${fazendaAtual?.nome || 'Nenhuma Fazenda Associada'}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="frente-body">
-                        <h4>Equipamentos em Operação / Parados na Frente</h4>
-                        <table class="caminhoes-em-operacao-table">
+        // Mapeia Proprietários e Frentes por ID para fácil acesso
+        const proprietariosMap = new Map(proprietarios.map(p => [p.id, p]));
+        const frentesMap = new Map(frentes_servico.map(f => [f.id, f]));
+        
+        // 1. Agrupar equipamentos por Proprietário
+        const equipamentosByOwner = new Map();
+        
+        equipamentos.forEach(equipamento => {
+            const ownerName = equipamento.proprietarios?.nome || 'Proprietário Não Informado';
+            
+            // Adiciona o equipamento ao seu grupo
+            if (!equipamentosByOwner.has(ownerName)) {
+                equipamentosByOwner.set(ownerName, []);
+            }
+            equipamentosByOwner.get(ownerName).push(equipamento);
+        });
+
+        if (equipamentos.length === 0) {
+            return `<div class="empty-state"><i class="ph-fill ph-tractor"></i><p>Nenhum equipamento cadastrado.</p></div>`;
+        }
+
+        // 2. Ordenar os Proprietários alfabeticamente
+        const sortedOwnerNames = Array.from(equipamentosByOwner.keys()).sort((a, b) => a.localeCompare(b));
+        
+        let allTablesHTML = '';
+
+        // 3. Gerar HTML para cada grupo (Proprietário)
+        sortedOwnerNames.forEach(ownerName => {
+            const ownerEquipamentos = equipamentosByOwner.get(ownerName);
+            
+            // Ordena os equipamentos dentro do grupo por código (numérico)
+            ownerEquipamentos.sort((a, b) => {
+                 const codA = parseInt(a.cod_equipamento, 10) || Infinity;
+                 const codB = parseInt(b.cod_equipamento, 10) || Infinity;
+                 return codA - codB;
+            });
+
+            const tbodyHTML = ownerEquipamentos.map(e => {
+                const frente = e.frente_id ? frentesMap.get(e.frente_id) : null;
+                const statusLabel = this.statusLabels[e.status];
+
+                // NOVO: Botão de ação (se ativo, mostra Mover/Status, se inativo, mostra Finalizar)
+                let actionButton;
+                if (e.status === 'ativo' && e.frente_id) {
+                     actionButton = `<button class="btn-primary btn-move-status" style="font-size: 0.8rem; padding: 6px 10px;" data-equipamento-id="${e.id}" data-frente-id="${e.frente_id}">Mover / Status</button>`;
+                } else if (e.status === 'ativo' && !e.frente_id) {
+                     actionButton = `<button class="btn-secondary btn-assign-modal" data-frente-id="none" data-equipamento-id="${e.id}">Designar</button>`;
+                } else {
+                     // Máquina Inativa: Usa o startTime precalculado
+                     const downtimeInfo = this.latestDowntimeMap.get(e.id) || { startTime: e.created_at };
+                     actionButton = `<button class="btn-primary btn-parados-action" data-equipamento-id="${e.id}" data-frente-id="${e.frente_id || ''}" data-start-time="${downtimeInfo.startTime}">Finalizar Parada</button>`;
+                }
+
+
+                return `
+                    <tr>
+                        <td><strong>${e.cod_equipamento}</strong></td>
+                        <td>${e.finalidade}</td>
+                        <td>${e.descricao}</td>
+                        <td><span class="caminhao-status-badge status-${e.status}">${statusLabel}</span></td>
+                        <td>${frente ? frente.nome : '---'}</td>
+                        <td style="width: 150px;">${actionButton}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Estrutura do novo grupo (Reutiliza as classes CSS de frota.css)
+            const tableHTML = `
+                <div class="owner-frota-group">
+                    <h2 class="owner-frota-title">${ownerName} (${ownerEquipamentos.length} Equipament${ownerEquipamentos.length === 1 ? 'o' : 'os'})</h2>
+                    <div class="table-wrapper" style="overflow-x: auto;">
+                        <table class="data-table-modern frota-owner-table">
                             <thead>
                                 <tr>
-                                    <th>Cód. Equipamento</th>
+                                    <th style="width: 100px;">Cód. Equipamento</th>
                                     <th>Finalidade</th>
+                                    <th>Descrição</th>
                                     <th>Status</th>
-                                    <th>Ações</th>
+                                    <th>Frente de Serviço</th>
+                                    <th style="width: 150px;">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                ${equipamentosNaFrente.length > 0 ? equipamentosNaFrente.map(e => `
-                                    <tr>
-                                        <td><strong>${e.cod_equipamento}</strong></td>
-                                        <td>${e.finalidade}</td>
-                                        <td><span class="caminhao-status-badge status-${e.status}">${this.statusLabels[e.status] || 'N/A'}</span></td>
-                                        <td>
-                                            <button class="btn-primary btn-move-status" style="font-size: 0.8rem; padding: 6px 10px;" data-equipamento-id="${e.id}" data-frente-id="${frente.id}">Mover / Status</button>
-                                        </td>
-                                    </tr>
-                                `).join('') : '<tr><td colspan="4">Nenhum equipamento nesta frente.</td></tr>'}
-                                
-                                <tr>
-                                    <td colspan="4">
-                                        <button class="btn-secondary btn-assign-modal" data-frente-id="${frente.id}" style="width: 100%; margin-top: 10px;">
-                                            + Adicionar Equipamento
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
+                            <tbody>${tbodyHTML}</tbody>
                         </table>
                     </div>
                 </div>
             `;
-        }).join('');
+            allTablesHTML += tableHTML;
+        });
+
+        // Adiciona o botão "Adicionar Novo" no final para consistência com o painel original
+        const addEquipamentoButton = `
+            <div style="padding: 0 24px 24px;">
+                <button class="btn-primary" onclick="window.dispatchEvent(new CustomEvent('viewChanged', { detail: { view: 'cadastro-equipamentos' } }))">
+                    <i class="ph-fill ph-plus-circle"></i>
+                    Cadastrar Novo Equipamento
+                </button>
+            </div>
+        `;
+
+        return allTablesHTML + addEquipamentoButton;
     }
+
 
     renderHistoricoFilters() {
         // Implementação básica de filtros (apenas HTML, a lógica de filtragem seria mais complexa)
@@ -327,8 +377,16 @@ export class EquipamentosView {
 
             if (btnMoveStatus) this.showMoveEquipmentModal(btnMoveStatus.dataset.equipamentoId, btnMoveStatus.dataset.frenteId); // NEW ACTION
             if (btnRefresh) this.loadData(true); // Força refresh
-            if (btnAssign) this.showAssignmentModal(btnAssign.dataset.frenteId);
-            if (btnParadosAction) this.showParadosActionModal(btnParadosAction.dataset.equipamentoId, btnParadosAction.dataset.frenteId);
+            // MUDANÇA: O botão de designar não está mais na FrenteCard, mas na linha. A frente é determinada pelo dataset ou pelo fato de não haver frente.
+            if (btnAssign) { 
+                const equipamentoId = btnAssign.dataset.equipamentoId;
+                const frenteId = btnAssign.dataset.frenteId === 'none' ? null : btnAssign.dataset.frenteId;
+                this.showAssignmentModal(frenteId, equipamentoId);
+            }
+            if (btnParadosAction) {
+                // NOVO: Passa o start-time do dataset do botão
+                 this.showParadosActionModal(btnParadosAction.dataset.equipamentoId, btnParadosAction.dataset.frenteId, btnParadosAction.dataset.startTime);
+            }
         };
 
         // Adiciona o listener ao novo container
@@ -409,24 +467,81 @@ export class EquipamentosView {
         // Handler para Parada/Quebra (Redireciona para o modal existente)
         document.getElementById('btn-status-parada-quebra').addEventListener('click', () => {
             closeModal();
-            // Chama a função que contém o formulário com o status e o motivo
+            // Chama a função que contém o formulário com o status e o motivo (hora de início é o created_at, mas isso será corrigido no modal)
             this.showStatusUpdateModal(equipamentoId, currentFrenteId); 
         });
     }
 
     // --- FIM DA NOVA FUNÇÃO ---
 
-    showAssignmentModal(frenteId) {
-        const { equipamentos = [] } = this.data;
-        // Equipamentos que não estão associados a nenhuma frente e não estão quebrados
-        // Note: Agora 'ativo' com frente_id=null é um disponível.
-        const equipamentosDisponiveis = equipamentos.filter(e => !e.frente_id && e.status !== 'quebrado');
+    showAssignmentModal(frenteId, equipamentoId = null) {
+        const { equipamentos = [], frentes_servico = [] } = this.data;
         
+        // B. Fluxo de designar um equipamento que já foi disponibilizado (vindo da lista de proprietários)
+        if (equipamentoId) {
+             // Filtra frentes ativas/cata com fazenda associada
+             const frentesComFazenda = frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'));
+             const equipamento = equipamentos.find(e => e.id == equipamentoId);
+
+
+             const modalContent = `
+                <p>Designando equipamento: <strong>${equipamento.cod_equipamento} (${equipamento.finalidade})</strong></p>
+                <form id="assign-equipamento-form" class="action-modal-form">
+                    <input type="hidden" name="equipamento" value="${equipamentoId}">
+                    <div class="form-group">
+                        <label>Designar para Frente</label>
+                        <select name="frente_id" class="form-select" required>
+                            <option value="">Selecione a Frente...</option>
+                            ${frentesComFazenda.map(f => `<option value="${f.id}">${f.nome} (${this.statusLabels[f.status]})</option>`).join('')}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn-primary">Designar Equipamento</button>
+                </form>
+            `;
+            openModal('Designar Equipamento para Frente', modalContent);
+
+            document.getElementById('assign-equipamento-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const novaFrenteId = e.target.frente_id.value;
+                
+                showLoading();
+                try {
+                    // Ao designar, o status é 'ativo' e a frente é associada. Usa a hora atual corrigida
+                    const logTimestamp = getBrtIsoString();
+                    await updateEquipamentoStatus(equipamentoId, 'ativo', novaFrenteId, logTimestamp, 'Designado para frente');
+                    
+                    dataCache.invalidateAllData();
+
+                    showToast('Equipamento designado com sucesso!', 'success');
+                    closeModal();
+                    await this.loadData(true); 
+                } catch (error) {
+                    handleOperation(error);
+                } finally {
+                    hideLoading();
+                }
+            });
+             return;
+        } 
+        
+        // Fluxo original do botão + Adicionar (Não é mais usado pelo novo layout de proprietários, mas mantido como fallback)
+        
+        // Equipamentos que não estão associados a nenhuma frente e não estão quebrados
+        const equipamentosDisponiveis = equipamentos.filter(e => !e.frente_id && e.status !== 'quebrado');
+        const targetFrente = frentes_servico.find(f => f.id == frenteId);
+
+        if (!targetFrente) return;
+        
+        if (equipamentosDisponiveis.length === 0) {
+             showToast('Nenhum equipamento disponível para designar.', 'info');
+             return;
+        }
+
         const modalContent = `
             <form id="assign-equipamento-form" class="action-modal-form">
                 <input type="hidden" name="frente_id" value="${frenteId}">
                 <div class="form-group">
-                    <label>1. Escolha o Equipamento Disponível</label>
+                    <label>1. Escolha o Equipamento Disponível para a Frente ${targetFrente.nome}</label>
                     <select name="equipamento" class="form-select" required>
                         <option value="">Selecione...</option>
                         ${equipamentosDisponiveis.map(e => `<option value="${e.id}">${e.cod_equipamento} (${e.finalidade})</option>`).join('')}
@@ -462,18 +577,28 @@ export class EquipamentosView {
     }
 
     // --- Modal para Ações no Painel de Parados (Finalizar / Mudar Status) ---
-    showParadosActionModal(equipamentoId, frenteId) {
+    showParadosActionModal(equipamentoId, frenteId, downtimeStartTime) {
         const equipamento = this.data.equipamentos.find(e => e.id == equipamentoId);
         if (!equipamento) return;
+        
+        const startTime = downtimeStartTime;
 
         // CORREÇÃO: Usa a função getBrtNowString
         const nowString = getBrtNowString();
         
+        // Calcula a duração inicial (para o display)
+        const initialDiffMillis = calculateTimeDifference(startTime, nowString);
+        const initialDuration = formatMillisecondsToHoursMinutes(initialDiffMillis);
+        const durationColor = initialDiffMillis < 0 ? 'var(--accent-danger)' : 'var(--accent-primary)';
+
+
         // Filtra frentes que possuem fazenda para designação
         const frentesComFazenda = this.data.frentes_servico.filter(f => f.fazenda_id);
 
         const modalContent = `
             <p>Equipamento: <strong>${equipamento.cod_equipamento} (${equipamento.finalidade})</strong></p>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">Início da Parada: ${formatDateTime(startTime)}</p>
+            
             <form id="finalizar-parada-form" class="action-modal-form">
                 <input type="hidden" name="equipamento_id" value="${equipamento.id}">
                 <div class="form-group">
@@ -485,8 +610,13 @@ export class EquipamentosView {
                 </div>
                 <div class="form-group">
                     <label>Hora de Finalização da Parada</label>
-                    <input type="datetime-local" name="hora_fim" class="form-input" value="${nowString}" required>
+                    <input type="datetime-local" name="hora_fim" id="hora_fim_input" class="form-input" value="${nowString}" required>
                 </div>
+                
+                <p style="text-align: center; font-size: 1.1rem; margin-top: 15px;">
+                    Duração Total: <strong id="downtime-duration-display" style="color: ${durationColor};">${initialDuration}</strong>
+                </p>
+
                 <button type="submit" class="btn-primary">Finalizar Parada (Tornar Ativo)</button>
             </form>
             
@@ -507,6 +637,53 @@ export class EquipamentosView {
                 </div>
                 <button type="submit" class="btn-secondary">Mudar Status</button>
             </form>
+            
+            <script>
+                const startTimeIso = '${startTime}';
+                const horaFimInput = document.getElementById('hora_fim_input');
+                const durationDisplay = document.getElementById('downtime-duration-display');
+
+                // Mapeia as funções de utilidade de tempo para o script inline (Corrigido para Concatenação)
+                window.timeUtils = {
+                    calculateTimeDifference: (start, end) => {
+                         const startMs = new Date(start).getTime();
+                         const endMs = new Date(end).getTime();
+                         return endMs - startMs;
+                    },
+                    formatMillisecondsToHoursMinutes: (ms) => {
+                         if (ms < 0) ms = 0;
+                         const diffHours = Math.floor(ms / (1000 * 60 * 60));
+                         const diffMinutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+                         if (diffHours > 0) {
+                             return diffHours + 'h ' + diffMinutes + 'm'; 
+                         } else {
+                             return diffMinutes + 'm'; 
+                         }
+                    }
+                };
+                
+                function updateDuration() {
+                    const endTime = horaFimInput.value;
+                    if (!endTime) return;
+
+                    const diffMillis = window.timeUtils.calculateTimeDifference(startTimeIso, endTime);
+                    const durationText = window.timeUtils.formatMillisecondsToHoursMinutes(Math.abs(diffMillis));
+                    
+                    durationDisplay.textContent = durationText;
+
+                    if (diffMillis < 0) {
+                        durationDisplay.style.color = 'var(--accent-danger)';
+                        durationDisplay.textContent += ' (Inválida)';
+                        horaFimInput.classList.add('is-invalid');
+                    } else {
+                        durationDisplay.style.color = 'var(--accent-primary)';
+                        horaFimInput.classList.remove('is-invalid');
+                    }
+                }
+                
+                horaFimInput.addEventListener('input', updateDuration);
+                updateDuration(); // Garante o estado inicial
+            </script>
         `;
         openModal('Finalizar/Mudar Status de Parada', modalContent);
 
@@ -517,6 +694,12 @@ export class EquipamentosView {
             const horaFim = form.hora_fim.value;
             const novaFrenteId = form.frente_id.value;
             
+            if (calculateTimeDifference(startTime, horaFim) < 0) {
+                 showToast('A Hora de Retorno não pode ser anterior à Hora de Início.', 'error');
+                 document.getElementById('hora_fim_input').classList.add('is-invalid');
+                 return;
+            }
+
             if (!novaFrenteId) {
                 showToast('É obrigatório selecionar uma Frente de Serviço para ativar o equipamento.', 'error');
                 return;
@@ -589,7 +772,9 @@ export class EquipamentosView {
 
         } else {
              // Se estiver parado ou quebrado, redireciona para o modal completo (showParadosActionModal)
-             this.showParadosActionModal(equipamentoId, frenteId);
+             // Tenta encontrar o start time do downtime
+             const downtimeInfo = this.latestDowntimeMap.get(equipamentoId) || { startTime: equipamento.created_at };
+             this.showParadosActionModal(equipamentoId, frenteId, downtimeInfo.startTime); 
         }
     }
     
