@@ -99,9 +99,6 @@ export class TempoView {
                     </button>
                 </div>
                 
-                <div id="fazenda-summary-container" style="padding: 0 24px 24px;">
-                    </div>
-
                 <div class="weather-summary-grid" id="weather-summary-grid">
                     <div class="empty-state" style="grid-column: 1 / -1;">
                         <i class="ph-fill ph-cloud-lightning-rain" style="font-size: 3rem;"></i>
@@ -129,7 +126,7 @@ export class TempoView {
             this.locationsToMonitor = this.getDynamicLocations(allData);
 
             // 3. Renderiza o resumo das frentes ANTES de buscar as cidades
-            await this.renderFazendaSummary(allData);
+            // REMOVIDO: await this.renderFazendaSummary(allData);
 
             // 4. Faz o fetch de todos os locais (agora só cidades)
             const currentFetchPromises = this.locationsToMonitor.map(loc => 
@@ -167,100 +164,8 @@ export class TempoView {
         return FIXED_LOCATIONS;
     }
     
-    // NOVO: Função para renderizar um resumo do risco nas frentes/fazendas
-    async renderFazendaSummary(allData) {
-        const summaryContainer = document.getElementById('fazenda-summary-container');
-        if (!summaryContainer) return;
-        
-        const { frentes_servico = [], fazendas = [] } = allData;
-        const fazendasMap = new Map(fazendas.map(f => [f.id, f]));
+    // REMOVIDO: O método renderFazendaSummary foi removido daqui
 
-        // 1. Identifica as FRENTES/FAZENDAS a monitorar (ativa, inativa, fazendo_cata)
-        const frentesMonitoradas = frentes_servico.filter(frente => frente.fazenda_id);
-
-        const farmIds = new Set(frentesMonitoradas.map(f => f.fazenda_id));
-        const uniqueFarmsToMonitor = Array.from(farmIds).map(id => fazendasMap.get(id))
-                                                         .filter(f => f && f.latitude && f.longitude);
-        
-        if (frentesMonitoradas.length === 0) {
-            summaryContainer.innerHTML = '';
-            return;
-        }
-
-        // 2. Fetch de previsão DETALHADA para as fazendas únicas (necessário para POP e Max/Min 24h)
-        const forecastPromises = uniqueFarmsToMonitor.map(f => this.fetchWeather(
-            { name: f.nome, type: 'fazenda', lat: parseFloat(f.latitude), lon: parseFloat(f.longitude) }, 'forecast'
-        ));
-        
-        const results = await Promise.all(forecastPromises);
-        
-        // 3. Calcula o risco agregado e as novas métricas
-        let minTempGlobal = Infinity;
-        let maxTempGlobal = -Infinity;
-        let maxPopGlobal = 0;
-        let minHumidityGlobal = Infinity; // NOVO: Mínimo Umidade
-        let maxHumidityGlobal = -Infinity; // NOVO: Máximo Umidade
-
-        results.forEach(res => {
-            // Garante que a chamada à API foi bem-sucedida e tem lista de previsão
-            if (res.list && res.list.length > 0) {
-                
-                // Processa as primeiras 8 entradas (aprox. 24h)
-                res.list.slice(0, 8).forEach(hourly => {
-                    if (hourly.main && hourly.wind) {
-                        
-                        const humidity = hourly.main.humidity;
-                        
-                        // Min/Max Temp
-                        minTempGlobal = Math.min(minTempGlobal, hourly.main.temp_min);
-                        maxTempGlobal = Math.max(maxTempGlobal, hourly.main.temp_max);
-                        
-                        // Max POP
-                        maxPopGlobal = Math.max(maxPopGlobal, hourly.pop * 100);
-
-                        // NOVO: Min/Max da Umidade Relativa
-                        minHumidityGlobal = Math.min(minHumidityGlobal, humidity);
-                        maxHumidityGlobal = Math.max(maxHumidityGlobal, humidity);
-                    }
-                });
-            }
-        });
-
-        // Define o status de Umidade final
-        const humidityRange = `${minHumidityGlobal.toFixed(0)}% / ${maxHumidityGlobal.toFixed(0)}%`;
-        
-        // Caso não haja dados válidos
-        if (minTempGlobal === Infinity) {
-            minTempGlobal = 0; 
-            maxTempGlobal = 0; 
-        }
-        
-        // 4. Renderiza o painel de resumo
-        const summaryHTML = `
-            <h2 style="font-size: 1.5rem; color: var(--text-primary); margin-bottom: 16px;">Resumo Meteorológico das Frentes</h2>
-            <div class="controle-dashboard-summary" style="margin-bottom: 0; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-                <div class="summary-card" style="border-color: #805AD5;">
-                    <div class="summary-card-value">${frentesMonitoradas.length}</div>
-                    <div class="summary-card-label">Frentes de Serviço Monitoradas</div>
-                </div>
-                <div class="summary-card" style="border-color: var(--accent-primary);">
-                    <div class="summary-card-value">${minTempGlobal.toFixed(1)}°C / ${maxTempGlobal.toFixed(1)}°C</div>
-                    <div class="summary-card-label">Faixa de Temperatura (24h)</div>
-                </div>
-                <div class="summary-card" style="border-color: #2B6CB0;">
-                    <div class="summary-card-value">${maxPopGlobal.toFixed(0)}%</div>
-                    <div class="summary-card-label">Prob. Máxima de Chuva (24h)</div>
-                </div>
-                <div class="summary-card" style="border-color: #ED8936;">
-                    <div class="summary-card-value">${humidityRange}</div>
-                    <div class="summary-card-label">Umidade Relativa (Mín/Máx 24h)</div>
-                </div>
-            </div>
-        `;
-        
-        summaryContainer.innerHTML = summaryHTML;
-    }
-    
     // MUDANÇA: fetchWeather agora usa o nome original do objeto de localização.
     async fetchWeather(location, type = 'weather') {
         const url = `https://api.openweathermap.org/data/2.5/${type}?lat=${location.lat}&lon=${location.lon}&appid=${API_KEY}&units=metric&lang=pt_br`;
