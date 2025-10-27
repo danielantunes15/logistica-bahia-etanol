@@ -521,12 +521,9 @@ export class TempoView {
                     <td>${time}</td>
                     <td><img src="https://openweathermap.org/img/wn/${icon}.png" class="table-icon"> ${description.charAt(0).toUpperCase() + description.slice(1)}</td>
                     <td><strong>${Math.round(temp)}°C</strong></td>
-                    <td class="risk-cell">
-                        <span class="risk-badge ${risk.color}">${risk.status}</span>
-                    </td>
                     <td>${Math.round(windKmh)} km/h</td>
                     <td>${humidity}%</td>
-                    <td>${dewPoint}°C</td>
+                    <td>${popDisplay}</td>
                 </tr>
             `;
         }).join('');
@@ -540,10 +537,9 @@ export class TempoView {
                             <th>Hora</th>
                             <th>Condição</th>
                             <th>Temp.</th>
-                            <th>Risco Pulver.</th>
                             <th>Vento</th>
                             <th>Umidade</th>
-                            <th>P. Orvalho</th>
+                            <th>Prob. Chuva</th>
                         </tr>
                     </thead>
                     <tbody>
