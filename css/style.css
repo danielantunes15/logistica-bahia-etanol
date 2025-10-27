@@ -503,7 +503,7 @@ body {
     border-radius: 12px;
     border: 1px solid var(--border-color);
     width: 90%;
-    max-width: 500px;
+    max-width: 750px; /* ALTERADO: Aumentado para 700px */
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     transform: scale(0.95);
     transition: all 0.3s ease-in-out;
@@ -705,6 +705,11 @@ body {
     .dashboard-actions {
         width: 100%;
         justify-content: flex-end;
+    }
+    
+    /* Reduz o max-width do modal em telas muito pequenas para evitar que ele estoure */
+    .modal-content {
+        max-width: 90%;
     }
 }
 
