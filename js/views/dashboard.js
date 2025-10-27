@@ -649,7 +649,10 @@ export class DashboardView {
                 
                 // NOVO: Adiciona o listener de clique no pop-up para navegar
                 marker.on('popupopen', () => {
-                     const btn = document.querySelector(`.ocorrencia-marker .btn-action-map`);
+                     // CORREÇÃO: Altera o seletor para buscar a o botão pelo atributo data-action,
+                     // pois a classe '.ocorrencia-marker' não está no container do popup.
+                     const btn = document.querySelector('[data-action="goToOcorrencias"]');
+
                      if (btn) {
                          btn.addEventListener('click', () => {
                              // Dispara o evento de troca de view
