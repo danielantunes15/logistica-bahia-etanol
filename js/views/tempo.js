@@ -1,16 +1,17 @@
 // js/views/tempo.js
 import { showToast, showLoading, hideLoading } from '../helpers.js';
+import { dataCache } from '../dataCache.js'; // NOVO: Importar dataCache
 
 // OpenWeatherMap API Key
 // MUDANÇA: A chave hardcoded foi removida e é carregada via objeto global window.env
 const API_KEY = window.env.OPENWEATHER_API_KEY;
 
-// Cidades a serem monitoradas com as coordenadas (Ibirapuã removida e Usina renomeada)
-const CITIES_TO_MONITOR = [
-    { name: 'Bahia Etanol', lat: -17.6423, lon: -40.1815 },
-    { name: 'Lajedão-BA', lat: -17.6138, lon: -40.345 },
-    { name: 'Nanuque-MG', lat: -17.8389, lon: -40.3539 },
-    { name: 'S. Aimorés-MG', lat: -17.7828, lon: -40.2477 } // Serra dos Aimorés
+// MUDANÇA: Lista fixa de locais agora é um fallback e ponto de partida
+const FIXED_LOCATIONS = [
+    { name: 'Usina Bahia Etanol', type: 'city', lat: -17.6423, lon: -40.1815 },
+    { name: 'Lajedão-BA', type: 'city', lat: -17.6138, lon: -40.345 },
+    { name: 'Nanuque-MG', type: 'city', lat: -17.8389, lon: -40.3539 },
+    { name: 'S. Aimorés-MG', type: 'city', lat: -17.7828, lon: -40.2477 } // Serra dos Aimorés
 ];
 
 // Helper para converter UNIX timestamp para BRT HH:MM
@@ -69,6 +70,7 @@ export class TempoView {
     constructor() {
         this.container = null;
         this.weatherData = [];
+        this.locationsToMonitor = []; // NOVO: Lista dinâmica de locais para monitorar
     }
 
     async show() {
@@ -97,6 +99,9 @@ export class TempoView {
                     </button>
                 </div>
                 
+                <div id="fazenda-summary-container" style="padding: 0 24px 24px;">
+                    </div>
+
                 <div class="weather-summary-grid" id="weather-summary-grid">
                     <div class="empty-state" style="grid-column: 1 / -1;">
                         <i class="ph-fill ph-cloud-lightning-rain" style="font-size: 3rem;"></i>
@@ -117,20 +122,34 @@ export class TempoView {
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            const currentFetchPromises = CITIES_TO_MONITOR.map(city => 
-                this.fetchWeather(city, 'weather')
+            // 1. Busca todos os dados cadastrais (Necessário para a nova função FazendaSummary)
+            const allData = await dataCache.fetchAllData(forceRefresh);
+
+            // 2. Monta a lista de locais APENAS com as cidades fixas
+            this.locationsToMonitor = this.getDynamicLocations(allData);
+
+            // 3. Renderiza o resumo das fazendas ANTES de buscar as cidades
+            await this.renderFazendaSummary(allData);
+
+            // 4. Faz o fetch de todos os locais (agora só cidades)
+            const currentFetchPromises = this.locationsToMonitor.map(loc => 
+                this.fetchWeather(loc, 'weather')
             );
-            const forecastFetchPromises = CITIES_TO_MONITOR.map(city =>
-                this.fetchWeather(city, 'forecast')
+            const forecastFetchPromises = this.locationsToMonitor.map(loc =>
+                this.fetchWeather(loc, 'forecast')
             );
 
             const currentResults = await Promise.all(currentFetchPromises);
             const forecastResults = await Promise.all(forecastFetchPromises);
             
-            this.weatherData = currentResults.map((current, index) => ({
-                ...current,
-                forecast: forecastResults[index].list
-            }));
+            this.weatherData = currentResults.map((current, index) => {
+                const forecastList = forecastResults[index].list || []; 
+                return {
+                    ...current,
+                    forecast: forecastList,
+                    originalLocation: this.locationsToMonitor[index]
+                }
+            });
             
             this.renderWeatherContent();
 
@@ -142,15 +161,100 @@ export class TempoView {
         }
     }
     
-    async fetchWeather(city, type = 'weather') {
-        const url = `https://api.openweathermap.org/data/2.5/${type}?lat=${city.lat}&lon=${city.lon}&appid=${API_KEY}&units=metric&lang=pt_br`;
+    // MUDANÇA: Função agora retorna APENAS os locais fixos.
+    getDynamicLocations(allData) {
+        // Ignora frentes e retorna apenas os locais fixos
+        return FIXED_LOCATIONS;
+    }
+    
+    // NOVO: Função para renderizar um resumo do risco nas fazendas
+    async renderFazendaSummary(allData) {
+        const summaryContainer = document.getElementById('fazenda-summary-container');
+        if (!summaryContainer) return;
+        
+        // 1. Identifica todas as fazendas com coordenadas
+        const fazendasToMonitor = (allData.fazendas || []).filter(f => f.latitude && f.longitude);
+        if (fazendasToMonitor.length === 0) {
+            summaryContainer.innerHTML = '';
+            return;
+        }
+
+        // 2. Fetch de previsão atual para todas as fazendas (Risco)
+        const weatherPromises = fazendasToMonitor.map(f => this.fetchWeather(
+            { name: f.nome, type: 'fazenda', lat: parseFloat(f.latitude), lon: parseFloat(f.longitude) }, 'weather'
+        ));
+        
+        const results = await Promise.all(weatherPromises);
+        
+        // 3. Calcula o risco agregado
+        let dangerCount = 0;
+        let warningCount = 0;
+        let totalCount = 0;
+        let maxTemp = -Infinity;
+        let minTemp = Infinity;
+        
+        results.forEach(res => {
+            // Garante que a chamada à API foi bem-sucedida
+            if (res.main && res.wind) {
+                const temp = res.main.temp;
+                maxTemp = Math.max(maxTemp, temp);
+                minTemp = Math.min(minTemp, temp);
+
+                const windKmh = res.wind.speed * 3.6;
+                const humidity = res.main.humidity;
+                const risk = getSprayingRisk(windKmh, humidity);
+                
+                if (risk.status === 'NÃO APLICAR') {
+                    dangerCount++;
+                } else if (risk.status === 'ATENÇÃO') {
+                    warningCount++;
+                }
+                totalCount++;
+            }
+        });
+
+        // Caso não haja dados de temperatura válidos
+        if (maxTemp === -Infinity) {
+             maxTemp = 0; 
+             minTemp = 0; 
+        }
+
+        // 4. Renderiza o painel de resumo
+        const summaryHTML = `
+            <div class="controle-dashboard-summary" style="margin-bottom: 0; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                <div class="summary-card" style="border-color: #805AD5;">
+                    <div class="summary-card-value">${totalCount}</div>
+                    <div class="summary-card-label">Fazendas Monitoradas</div>
+                </div>
+                <div class="summary-card" style="border-color: var(--accent-danger);">
+                    <div class="summary-card-value">${dangerCount}</div>
+                    <div class="summary-card-label">Risco CRÍTICO Pulverização</div>
+                </div>
+                <div class="summary-card" style="border-color: #ED8936;">
+                    <div class="summary-card-value">${warningCount}</div>
+                    <div class="summary-card-label">Risco ATENÇÃO Pulverização</div>
+                </div>
+                <div class="summary-card" style="border-color: var(--accent-primary);">
+                    <div class="summary-card-value">${minTemp.toFixed(1)}°C / ${maxTemp.toFixed(1)}°C</div>
+                    <div class="summary-card-label">Faixa de Temperatura (Mín/Máx)</div>
+                </div>
+            </div>
+        `;
+        
+        summaryContainer.innerHTML = summaryHTML;
+    }
+    
+    // MUDANÇA: fetchWeather agora usa o nome original do objeto de localização.
+    async fetchWeather(location, type = 'weather') {
+        const url = `https://api.openweathermap.org/data/2.5/${type}?lat=${location.lat}&lon=${location.lon}&appid=${API_KEY}&units=metric&lang=pt_br`;
         
         const response = await fetch(url);
         if (!response.ok) {
-            throw new Error(`Falha ao buscar ${type} para ${city.name}`);
+            // Retorna um objeto que permite o tratamento de erros em loadData
+            return { displayName: location.name, list: [], main: {}, wind: {}, error: `HTTP Error ${response.status}` };
         }
         const data = await response.json();
-        return { ...data, displayName: city.name };
+        return { ...data, displayName: location.name }; 
     }
     
     renderWeatherContent() {
@@ -158,27 +262,44 @@ export class TempoView {
         this.renderDetailTables();
     }
     
-    // 1. RENDERIZA OS CARDS DE RESUMO EM LINHA HORIZONTAL
+    // 1. RENDERIZA OS CARDS DE RESUMO EM LINHA HORIZONTAL (APENAS CIDADES FIXAS)
     renderSummaryCards() {
         const gridContainer = document.getElementById('weather-summary-grid');
         if (!gridContainer) return;
         
-        gridContainer.style.gridTemplateColumns = `repeat(${this.weatherData.length}, 1fr)`;
+        // MUDANÇA: Permite que a grade se ajuste automaticamente
+        gridContainer.style.gridTemplateColumns = `repeat(auto-fit, minmax(280px, 1fr))`; 
         
         const cardsHTML = this.weatherData.map(cityData => {
+            
+            // Tratamento de Erro Básico para o Card de Resumo
+            if (cityData.error || !cityData.main || cityData.forecast.length === 0) {
+                 return `
+                    <div class="summary-card-horizontal" style="border-color: var(--accent-danger);">
+                        <h2 class="city-name-summary">${cityData.displayName}</h2>
+                        <p class="fazenda-subtitle-summary" style="color: var(--accent-danger);">Dados indisponíveis</p>
+                        <div class="summary-details"><p style="font-size: 0.9rem; color: var(--text-secondary);">Verifique a conexão ou a API (${cityData.error || 'Sem previsão detalhada'}).</p></div>
+                    </div>
+                `;
+            }
+
             const currentWeather = cityData.main;
             const weatherDescription = cityData.weather[0];
             const iconUrl = `https://openweathermap.org/img/wn/${weatherDescription.icon}@2x.png`;
             const windSpeed = (cityData.wind.speed * 3.6).toFixed(1);
             const sunrise = getLocalTime(cityData.sys.sunrise);
             const sunset = getLocalTime(cityData.sys.sunset);
-
+            
             // Média de vento para os próximos 5 dias
             const avgWind = calculateAverageWind(cityData.forecast);
             
+            // Título (apenas o nome da cidade fixa)
+            let cardTitle = cityData.displayName;
+            
             return `
                 <div class="summary-card-horizontal">
-                    <h2 class="city-name-summary">${cityData.displayName}</h2>
+                    <h2 class="city-name-summary">${cardTitle}</h2>
+                    
                     <div class="summary-details">
                         <div class="summary-temp-block">
                             <img src="${iconUrl}" class="icon-summary">
@@ -205,7 +326,7 @@ export class TempoView {
         gridContainer.innerHTML = cardsHTML;
     }
     
-    // 2. RENDERIZA AS TABELAS DETALHADAS ABAIXO DO RESUMO
+    // 2. RENDERIZA AS TABELAS DETALHADAS ABAIXO DO RESUMO (APENAS CIDADES FIXAS)
     renderDetailTables() {
         const tablesContainer = document.getElementById('weather-tables-container');
         if (!tablesContainer) return;
@@ -213,28 +334,155 @@ export class TempoView {
         let tablesHTML = '';
         
         this.weatherData.forEach(cityData => {
-            const cityTitle = cityData.displayName;
-            const hourlyTable = this.generateHourlyTable(cityData.forecast.slice(0, 8)); // Próximas 24h
-            const dailyTable = this.generateDailyTable(cityData.forecast); // Próximos 5 dias
+            // Apenas renderiza detalhes se for uma cidade FIXA e houver dados de previsão
+            const isTargetLocation = cityData.originalLocation.type === 'city';
             
-            tablesHTML += `
-                <div class="city-tables-block">
-                    <h2 class="city-tables-title">${cityTitle}: Previsão Detalhada</h2>
-                    
-                    <div class="table-group-wrapper">
-                        ${hourlyTable}
-                        ${dailyTable}
+            if (isTargetLocation && cityData.forecast.length > 0) {
+
+                const cityTitle = cityData.displayName;
+                const hourlyForecast = cityData.forecast.slice(0, 8); // Próximas 24h
+                const hourlyChart = this.drawHourlyChart(cityData.originalLocation.name, cityData.originalLocation.type, hourlyForecast); // Gera o HTML do gráfico
+                const hourlyTableHTML = this.generateHourlyTable(hourlyForecast); // Gera o HTML da tabela
+                
+                const dailyTable = this.generateDailyTable(cityData.forecast); // Próximos 5 dias
+                
+                tablesHTML += `
+                    <div class="city-tables-block">
+                        <h2 class="city-tables-title">${cityTitle}: Previsão Detalhada</h2>
+                        
+                        <div class="table-group-wrapper">
+                            <div class="hourly-decision-block">
+                                ${hourlyChart} 
+                                ${hourlyTableHTML}
+                            </div>
+                            ${dailyTable}
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
         });
         
         tablesContainer.innerHTML = tablesHTML;
+        
+        // Destrói e redesenha o gráfico APÓS a injeção do HTML
+        this.weatherData.forEach(cityData => {
+            const isTargetLocation = cityData.originalLocation.type === 'city';
+
+            if (isTargetLocation && cityData.forecast.length > 0) {
+                this.initializeChart(cityData.originalLocation.name, cityData.originalLocation.type, cityData.forecast.slice(0, 8));
+            }
+        });
     }
 
+    // NOVO: Adiciona a função para criar o HTML do Canvas
+    drawHourlyChart(cityName, type, forecastList) {
+        const chartId = `hourlyChart-${type}-${cityName.replace(/\s/g, '-').replace(':', '-')}`;
+        return `
+            <div class="forecast-table-wrapper table-hourly-chart">
+                <h3 class="table-title" style="color: var(--accent-primary);">Tendência Horária (Temperatura & Chuva)</h3>
+                <div style="height: 250px; padding: 10px;">
+                    <canvas id="${chartId}" style="width: 100%; height: 100%;"></canvas>
+                </div>
+            </div>
+        `;
+    }
+
+    // NOVO: Adiciona a função para inicializar o gráfico (chamada APÓS o render)
+    initializeChart(cityName, type, forecastList) {
+        const chartId = `hourlyChart-${type}-${cityName.replace(/\s/g, '-').replace(':', '-')}`;
+        const ctx = document.getElementById(chartId);
+        if (!ctx) return;
+        
+        const labels = forecastList.map(f => new Date(f.dt * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+        const tempDataset = forecastList.map(f => f.main.temp);
+        const popDataset = forecastList.map(f => f.pop * 100);
+        
+        // Destrói o gráfico anterior (se existir)
+        if (ctx.chart) {
+            ctx.chart.destroy();
+        }
+
+        ctx.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Temperatura (°C)',
+                        data: tempDataset,
+                        borderColor: 'rgba(237, 137, 54, 1)', // Laranja
+                        backgroundColor: 'rgba(237, 137, 54, 0.2)',
+                        yAxisID: 'y',
+                        tension: 0.3,
+                        fill: false,
+                    },
+                    {
+                        label: 'Prob. Chuva (%)',
+                        data: popDataset,
+                        borderColor: 'rgba(43, 108, 176, 1)', // Azul
+                        backgroundColor: 'rgba(43, 108, 176, 0.4)',
+                        yAxisID: 'y1',
+                        tension: 0.3,
+                        fill: true,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: { display: true, text: 'Temp. (°C)', color: '#F7FAFC' },
+                        ticks: { color: '#A0AEC0' },
+                        grid: { color: '#4A5568' }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: { display: true, text: 'Chuva (%)', color: '#F7FAFC' },
+                        grid: { drawOnChartArea: false },
+                        min: 0,
+                        max: 100,
+                        ticks: { color: '#A0AEC0' }
+                    },
+                    x: {
+                        ticks: { color: '#A0AEC0' },
+                        grid: { color: '#4A5568' }
+                    }
+                },
+                plugins: {
+                    legend: { labels: { color: '#F7FAFC' } }
+                }
+            }
+        });
+    }
+    
     // GERA TABELA HORÁRIA (24H)
     generateHourlyTable(forecastList) {
+        
+        // CORREÇÃO: Garante que forecastList tem dados antes de mapear
+        if (!forecastList || forecastList.length === 0) {
+            return `
+                <div class="forecast-table-wrapper table-24h">
+                    <h3 class="table-title">Próximas 24 Horas (Decisão Operacional)</h3>
+                    <p style="padding: 20px; text-align: center; color: var(--text-secondary);">Sem dados de previsão por hora disponíveis.</p>
+                </div>
+            `;
+        }
+
         const rowsHTML = forecastList.map(f => {
+            
+            // Proteção contra logs incompletos da API (embora o fallback deva ter evitado isso)
+            if (!f.weather || f.weather.length === 0 || !f.main) return '';
+
             const time = new Date(f.dt * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             const temp = f.main.temp;
             const humidity = f.main.humidity;
@@ -259,7 +507,6 @@ export class TempoView {
                     <td class="risk-cell">
                         <span class="risk-badge ${risk.color}">${risk.status}</span>
                     </td>
-                    <td>${popDisplay}</td>
                     <td>${Math.round(windKmh)} km/h</td>
                     <td>${humidity}%</td>
                     <td>${dewPoint}°C</td>
@@ -277,7 +524,6 @@ export class TempoView {
                             <th>Condição</th>
                             <th>Temp.</th>
                             <th>Risco Pulver.</th>
-                            <th>Prob. Chuva</th>
                             <th>Vento</th>
                             <th>Umidade</th>
                             <th>P. Orvalho</th>
@@ -293,9 +539,23 @@ export class TempoView {
 
     // GERA TABELA DIÁRIA (5 DIAS)
     generateDailyTable(forecastList) {
+        
+        // CORREÇÃO: Garante que forecastList tem dados antes de extrair
+        if (!forecastList || forecastList.length === 0) {
+            return `
+                <div class="forecast-table-wrapper table-5day">
+                    <h3 class="table-title">Próximos 5 Dias</h3>
+                    <p style="padding: 20px; text-align: center; color: var(--text-secondary);">Sem dados de previsão por 5 dias disponíveis.</p>
+                </div>
+            `;
+        }
+
         const dailyForecasts = this.extractDailyForecast(forecastList);
         
         const rowsHTML = dailyForecasts.map((daily, index) => {
+            // Proteção contra logs incompletos da API
+            if (!daily.weather || daily.weather.length === 0 || !daily.main) return '';
+
             const date = new Date(daily.dt * 1000).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' });
             const maxTemp = Math.round(daily.main.temp_max);
             const minTemp = Math.round(daily.main.temp_min);
