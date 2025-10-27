@@ -198,7 +198,8 @@ export class TempoView {
         let minTempGlobal = Infinity;
         let maxTempGlobal = -Infinity;
         let maxPopGlobal = 0;
-        let maxRiskLevel = 0; // 3=Critical (DANGER), 2=Attention (WARNING), 1=Ideal (SUCCESS)
+        let minHumidityGlobal = Infinity; // NOVO: Mínimo Umidade
+        let maxHumidityGlobal = -Infinity; // NOVO: Máximo Umidade
 
         results.forEach(res => {
             // Garante que a chamada à API foi bem-sucedida e tem lista de previsão
@@ -207,6 +208,9 @@ export class TempoView {
                 // Processa as primeiras 8 entradas (aprox. 24h)
                 res.list.slice(0, 8).forEach(hourly => {
                     if (hourly.main && hourly.wind) {
+                        
+                        const humidity = hourly.main.humidity;
+                        
                         // Min/Max Temp
                         minTempGlobal = Math.min(minTempGlobal, hourly.main.temp_min);
                         maxTempGlobal = Math.max(maxTempGlobal, hourly.main.temp_max);
@@ -214,33 +218,23 @@ export class TempoView {
                         // Max POP
                         maxPopGlobal = Math.max(maxPopGlobal, hourly.pop * 100);
 
-                        // Max Risk
-                        const windKmh = hourly.wind.speed * 3.6;
-                        const humidity = hourly.main.humidity;
-                        const risk = getSprayingRisk(windKmh, humidity);
-                        
-                        let currentRiskLevel = 1;
-                        if (risk.status === 'ATENÇÃO') currentRiskLevel = 2;
-                        if (risk.status === 'NÃO APLICAR') currentRiskLevel = 3;
-
-                        maxRiskLevel = Math.max(maxRiskLevel, currentRiskLevel);
+                        // NOVO: Min/Max da Umidade Relativa
+                        minHumidityGlobal = Math.min(minHumidityGlobal, humidity);
+                        maxHumidityGlobal = Math.max(maxHumidityGlobal, humidity);
                     }
                 });
             }
         });
 
-        // Define o status de risco final
-        let finalRiskStatus = { status: 'IDEAL', color: 'summary-disponivel' };
-        if (maxRiskLevel === 2) finalRiskStatus = { status: 'ATENÇÃO', color: 'summary-parado' };
-        if (maxRiskLevel === 3) finalRiskStatus = { status: 'CRÍTICO', color: 'summary-quebrado' };
+        // Define o status de Umidade final
+        const humidityRange = `${minHumidityGlobal.toFixed(0)}% / ${maxHumidityGlobal.toFixed(0)}%`;
         
         // Caso não haja dados válidos
         if (minTempGlobal === Infinity) {
             minTempGlobal = 0; 
             maxTempGlobal = 0; 
         }
-
-
+        
         // 4. Renderiza o painel de resumo
         const summaryHTML = `
             <h2 style="font-size: 1.5rem; color: var(--text-primary); margin-bottom: 16px;">Resumo Meteorológico das Frentes</h2>
@@ -257,9 +251,9 @@ export class TempoView {
                     <div class="summary-card-value">${maxPopGlobal.toFixed(0)}%</div>
                     <div class="summary-card-label">Prob. Máxima de Chuva (24h)</div>
                 </div>
-                <div class="summary-card ${finalRiskStatus.color}">
-                    <div class="summary-card-value">${finalRiskStatus.status}</div>
-                    <div class="summary-card-label">Risco de Pulverização (24h)</div>
+                <div class="summary-card" style="border-color: #ED8936;">
+                    <div class="summary-card-value">${humidityRange}</div>
+                    <div class="summary-card-label">Umidade Relativa (Mín/Máx 24h)</div>
                 </div>
             </div>
         `;
