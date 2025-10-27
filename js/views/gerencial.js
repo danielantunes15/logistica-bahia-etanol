@@ -164,6 +164,39 @@ export class GerencialView {
         }
         return schedule;
     }
+    
+    /**
+     * NOVO: Gera escala 6x2 SEM rodízio de turno (turno fixo).
+     */
+    generate6x2FixedTurnSchedule(funcionarioId, startDateStr, fixedTurno) {
+        const schedule = [];
+        let workDayCounter = 0;
+        let offDayCounter = 0;
+
+        for (let i = 0; i < 30; i++) { // Gera 30 dias de escala
+            const currentDate = new Date(startDateStr);
+            currentDate.setUTCDate(currentDate.getUTCDate() + i);
+            const currentDateStr = currentDate.toISOString().split('T')[0];
+
+            if (workDayCounter < 6) {
+                schedule.push({
+                    funcionario_id: funcionarioId,
+                    data: currentDateStr,
+                    turno: fixedTurno // Turno é sempre o inicial/fixo
+                });
+                workDayCounter++;
+            } else {
+                offDayCounter++;
+                if (offDayCounter === 2) {
+                    workDayCounter = 0;
+                    offDayCounter = 0;
+                    // Nenhuma lógica para mudar o turno aqui
+                }
+            }
+        }
+        return schedule;
+    }
+
 
     async loadEscalaData() {
         try {
@@ -420,11 +453,23 @@ export class GerencialView {
             try {
                 const { data: novoFuncionario, error: insertError } = await insertItem('escala_funcionarios', { nome, funcao });
                 if(insertError) throw insertError;
-                const escalaGerada = this.generate6x2Schedule(novoFuncionario.id, dataInicio, turnoInicial);
-                await saveEscalaTurnos(escalaGerada);
+                
+                // ALTERAÇÃO PARA APLICAR TURNO FIXO APENAS PARA MOTORISTA DE PIPA
+                if (funcao === 'Motorista de Pipa') {
+                     // Usa a nova função que NÃO faz o rodízio de turnos
+                     const escalaGerada = this.generate6x2FixedTurnSchedule(novoFuncionario.id, dataInicio, turnoInicial);
+                     await saveEscalaTurnos(escalaGerada);
+                     showToast('Funcionário adicionado e escala 6x2 (Turno Fixo) gerada!', 'success');
+                } else {
+                     // Mantém a escala com rodízio para outras funções (padrão de revezamento)
+                     const escalaGerada = this.generate6x2Schedule(novoFuncionario.id, dataInicio, turnoInicial);
+                     await saveEscalaTurnos(escalaGerada);
+                     showToast('Funcionário adicionado e escala 6x2 (Turno Rotativo) gerada!', 'success');
+                }
+
                 closeModal();
                 await this.loadTabContent();
-                showToast('Funcionário adicionado e escala gerada!', 'success');
+
             } catch (error) {
                 handleOperation(error);
             } finally {
