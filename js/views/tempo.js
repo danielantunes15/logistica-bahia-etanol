@@ -128,7 +128,7 @@ export class TempoView {
             // 2. Monta a lista de locais APENAS com as cidades fixas
             this.locationsToMonitor = this.getDynamicLocations(allData);
 
-            // 3. Renderiza o resumo das fazendas ANTES de buscar as cidades
+            // 3. Renderiza o resumo das frentes ANTES de buscar as cidades
             await this.renderFazendaSummary(allData);
 
             // 4. Faz o fetch de todos os locais (agora só cidades)
@@ -167,76 +167,99 @@ export class TempoView {
         return FIXED_LOCATIONS;
     }
     
-    // NOVO: Função para renderizar um resumo do risco nas fazendas
+    // NOVO: Função para renderizar um resumo do risco nas frentes/fazendas
     async renderFazendaSummary(allData) {
         const summaryContainer = document.getElementById('fazenda-summary-container');
         if (!summaryContainer) return;
         
-        // 1. Identifica todas as fazendas com coordenadas
-        const fazendasToMonitor = (allData.fazendas || []).filter(f => f.latitude && f.longitude);
-        if (fazendasToMonitor.length === 0) {
+        const { frentes_servico = [], fazendas = [] } = allData;
+        const fazendasMap = new Map(fazendas.map(f => [f.id, f]));
+
+        // 1. Identifica as FRENTES/FAZENDAS a monitorar (ativa, inativa, fazendo_cata)
+        const frentesMonitoradas = frentes_servico.filter(frente => frente.fazenda_id);
+
+        const farmIds = new Set(frentesMonitoradas.map(f => f.fazenda_id));
+        const uniqueFarmsToMonitor = Array.from(farmIds).map(id => fazendasMap.get(id))
+                                                         .filter(f => f && f.latitude && f.longitude);
+        
+        if (frentesMonitoradas.length === 0) {
             summaryContainer.innerHTML = '';
             return;
         }
 
-        // 2. Fetch de previsão atual para todas as fazendas (Risco)
-        const weatherPromises = fazendasToMonitor.map(f => this.fetchWeather(
-            { name: f.nome, type: 'fazenda', lat: parseFloat(f.latitude), lon: parseFloat(f.longitude) }, 'weather'
+        // 2. Fetch de previsão DETALHADA para as fazendas únicas (necessário para POP e Max/Min 24h)
+        const forecastPromises = uniqueFarmsToMonitor.map(f => this.fetchWeather(
+            { name: f.nome, type: 'fazenda', lat: parseFloat(f.latitude), lon: parseFloat(f.longitude) }, 'forecast'
         ));
         
-        const results = await Promise.all(weatherPromises);
+        const results = await Promise.all(forecastPromises);
         
-        // 3. Calcula o risco agregado
-        let dangerCount = 0;
-        let warningCount = 0;
-        let totalCount = 0;
-        let maxTemp = -Infinity;
-        let minTemp = Infinity;
-        
-        results.forEach(res => {
-            // Garante que a chamada à API foi bem-sucedida
-            if (res.main && res.wind) {
-                const temp = res.main.temp;
-                maxTemp = Math.max(maxTemp, temp);
-                minTemp = Math.min(minTemp, temp);
+        // 3. Calcula o risco agregado e as novas métricas
+        let minTempGlobal = Infinity;
+        let maxTempGlobal = -Infinity;
+        let maxPopGlobal = 0;
+        let maxRiskLevel = 0; // 3=Critical (DANGER), 2=Attention (WARNING), 1=Ideal (SUCCESS)
 
-                const windKmh = res.wind.speed * 3.6;
-                const humidity = res.main.humidity;
-                const risk = getSprayingRisk(windKmh, humidity);
+        results.forEach(res => {
+            // Garante que a chamada à API foi bem-sucedida e tem lista de previsão
+            if (res.list && res.list.length > 0) {
                 
-                if (risk.status === 'NÃO APLICAR') {
-                    dangerCount++;
-                } else if (risk.status === 'ATENÇÃO') {
-                    warningCount++;
-                }
-                totalCount++;
+                // Processa as primeiras 8 entradas (aprox. 24h)
+                res.list.slice(0, 8).forEach(hourly => {
+                    if (hourly.main && hourly.wind) {
+                        // Min/Max Temp
+                        minTempGlobal = Math.min(minTempGlobal, hourly.main.temp_min);
+                        maxTempGlobal = Math.max(maxTempGlobal, hourly.main.temp_max);
+                        
+                        // Max POP
+                        maxPopGlobal = Math.max(maxPopGlobal, hourly.pop * 100);
+
+                        // Max Risk
+                        const windKmh = hourly.wind.speed * 3.6;
+                        const humidity = hourly.main.humidity;
+                        const risk = getSprayingRisk(windKmh, humidity);
+                        
+                        let currentRiskLevel = 1;
+                        if (risk.status === 'ATENÇÃO') currentRiskLevel = 2;
+                        if (risk.status === 'NÃO APLICAR') currentRiskLevel = 3;
+
+                        maxRiskLevel = Math.max(maxRiskLevel, currentRiskLevel);
+                    }
+                });
             }
         });
 
-        // Caso não haja dados de temperatura válidos
-        if (maxTemp === -Infinity) {
-             maxTemp = 0; 
-             minTemp = 0; 
+        // Define o status de risco final
+        let finalRiskStatus = { status: 'IDEAL', color: 'summary-disponivel' };
+        if (maxRiskLevel === 2) finalRiskStatus = { status: 'ATENÇÃO', color: 'summary-parado' };
+        if (maxRiskLevel === 3) finalRiskStatus = { status: 'CRÍTICO', color: 'summary-quebrado' };
+        
+        // Caso não haja dados válidos
+        if (minTempGlobal === Infinity) {
+            minTempGlobal = 0; 
+            maxTempGlobal = 0; 
         }
+
 
         // 4. Renderiza o painel de resumo
         const summaryHTML = `
+            <h2 style="font-size: 1.5rem; color: var(--text-primary); margin-bottom: 16px;">Resumo Meteorológico das Frentes</h2>
             <div class="controle-dashboard-summary" style="margin-bottom: 0; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                 <div class="summary-card" style="border-color: #805AD5;">
-                    <div class="summary-card-value">${totalCount}</div>
-                    <div class="summary-card-label">Fazendas Monitoradas</div>
-                </div>
-                <div class="summary-card" style="border-color: var(--accent-danger);">
-                    <div class="summary-card-value">${dangerCount}</div>
-                    <div class="summary-card-label">Risco CRÍTICO Pulverização</div>
-                </div>
-                <div class="summary-card" style="border-color: #ED8936;">
-                    <div class="summary-card-value">${warningCount}</div>
-                    <div class="summary-card-label">Risco ATENÇÃO Pulverização</div>
+                    <div class="summary-card-value">${frentesMonitoradas.length}</div>
+                    <div class="summary-card-label">Frentes de Serviço Monitoradas</div>
                 </div>
                 <div class="summary-card" style="border-color: var(--accent-primary);">
-                    <div class="summary-card-value">${minTemp.toFixed(1)}°C / ${maxTemp.toFixed(1)}°C</div>
-                    <div class="summary-card-label">Faixa de Temperatura (Mín/Máx)</div>
+                    <div class="summary-card-value">${minTempGlobal.toFixed(1)}°C / ${maxTempGlobal.toFixed(1)}°C</div>
+                    <div class="summary-card-label">Faixa de Temperatura (24h)</div>
+                </div>
+                <div class="summary-card" style="border-color: #2B6CB0;">
+                    <div class="summary-card-value">${maxPopGlobal.toFixed(0)}%</div>
+                    <div class="summary-card-label">Prob. Máxima de Chuva (24h)</div>
+                </div>
+                <div class="summary-card ${finalRiskStatus.color}">
+                    <div class="summary-card-value">${finalRiskStatus.status}</div>
+                    <div class="summary-card-label">Risco de Pulverização (24h)</div>
                 </div>
             </div>
         `;
