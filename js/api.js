@@ -2,7 +2,7 @@
 
 import { supabase } from './supabase.js';
 // NOVO: Importa as funções de utilidade de autenticação
-import { hashPassword, comparePassword } from './auth_utils.js'; 
+import { hashPassword, comparePassword } from './auth_utils.js';
 
 // --- CONSTANTES DE SEGURANÇA ---
 const USER_SESSION_KEY = 'appUserSession';
@@ -22,7 +22,7 @@ let localUserSession = JSON.parse(sessionStorage.getItem(USER_SESSION_KEY)) || n
 // Verifica se a sessão expirou
 function isSessionValid(session) {
     if (!session || !session.loginTime) return false;
-    
+
     const sessionAge = Date.now() - session.loginTime;
     return sessionAge < SESSION_TIMEOUT;
 }
@@ -42,10 +42,10 @@ function cleanupExpiredAttempts() {
  */
 function isUserLockedOut(username) {
     cleanupExpiredAttempts();
-    
+
     const attempt = loginAttempts.get(username);
     if (!attempt) return false;
-    
+
     const timeSinceLastAttempt = Date.now() - attempt.lastAttempt;
     return attempt.count >= MAX_LOGIN_ATTEMPTS && timeSinceLastAttempt < LOCKOUT_TIME;
 }
@@ -55,12 +55,12 @@ function isUserLockedOut(username) {
  */
 function recordFailedLogin(username) {
     cleanupExpiredAttempts();
-    
+
     const attempt = loginAttempts.get(username) || { count: 0, lastAttempt: 0 };
     attempt.count++;
     attempt.lastAttempt = Date.now();
     loginAttempts.set(username, attempt);
-    
+
     return attempt.count;
 }
 
@@ -157,8 +157,8 @@ export async function fetchMasterData() {
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
         ]);
-        
-        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros }; 
+
+        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros };
     } catch (error) {
         console.error('Erro ao buscar master data:', error);
         throw error;
@@ -175,12 +175,12 @@ export async function fetchMetadata() {
         const [caminhoes, equipamentos, frentes_servico, fazendas, ocorrencias] = await Promise.all([
             fetchTable('caminhoes', 'id, status, frente_id'), // Apenas o essencial para contadores
             fetchTable('equipamentos', 'id, status, frente_id, finalidade'),
-            fetchTable('frentes_servico', 'id, nome, status, fazenda_id'),
-            fetchTable('fazendas', 'id, latitude, longitude'),
+            fetchTable('frentes_servico', 'id, nome, status, fazenda_id, fazendas(nome)'), // <--- MODIFICAÇÃO AQUI
+            fetchTable('fazendas', 'id, latitude, longitude, nome'), // Adicionado 'nome' aqui também para consistência, caso necessário em outros locais
             fetchTable('ocorrencias', 'id, status'), // Apenas o essencial para contadores
         ]);
-        
-        return { caminhoes, equipamentos, frentes_servico, fazendas, ocorrencias }; 
+
+        return { caminhoes, equipamentos, frentes_servico, fazendas, ocorrencias };
     } catch (error) {
         console.error('Erro ao buscar metadados:', error);
         throw error;
@@ -193,25 +193,25 @@ async function fetchHistoricalTable(tableName, select, dateLimitISO, dateStartIS
     let query = supabase
         .from(tableName)
         .select(select);
-    
+
     // 1. Aplica filtro de Data Fim se fornecido
     if (dateEndISO) {
         query = query.lte('timestamp_mudanca', dateEndISO);
     }
-    
+
     // 2. Aplica filtro de Data Início se fornecido
     if (dateStartISO) {
         query = query.gte('timestamp_mudanca', dateStartISO);
     }
-    
+
     // 3. Aplica o filtro de limite de 90 dias APENAS se nenhum filtro de data explícito for usado
     // Se startDateISO ou endDateISO forem fornecidos, o dateLimitISO (90 dias) é ignorado.
     if (!dateStartISO && !dateEndISO && dateLimitISO) {
         query = query.gte('timestamp_mudanca', dateLimitISO);
     }
 
-    query = query.order('timestamp_mudanca', { ascending: false }); 
-    
+    query = query.order('timestamp_mudanca', { ascending: false });
+
     const { data, error } = await query;
     if (error) throw error;
     return data;
@@ -237,7 +237,7 @@ export async function fetchAllData(daysBack = 90, startDateISO = null, endDateIS
         }
 
         // Se houver datas explícitas, elas serão passadas para o logFetcher e anularão o dateLimitISO internamente.
-        const logFetcher = (tableName, select) => 
+        const logFetcher = (tableName, select) =>
             fetchHistoricalTable(tableName, select, dateLimitISO, startDateISO, endDateISO);
 
         const [fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico, ocorrencias] = await Promise.all([
@@ -248,14 +248,14 @@ export async function fetchAllData(daysBack = 90, startDateISO = null, endDateIS
             fetchTable('fornecedores'),
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
-            
+
             logFetcher('caminhao_historico', '*, caminhoes(cod_equipamento)'),
             logFetcher('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada'),
             // NOVO: Adiciona a tabela de ocorrências
-            fetchTable('ocorrencias', '*') 
+            fetchTable('ocorrencias', '*')
         ]);
-        
-        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico, ocorrencias }; 
+
+        return { fazendas, caminhoes, equipamentos, frentes_servico, fornecedores, proprietarios, terceiros, caminhao_historico, equipamento_historico, ocorrencias };
     } catch (error) {
         console.error('Erro ao buscar todos os dados (FULL):', error);
         throw error;
@@ -278,15 +278,15 @@ export async function loginAppUser(username, password) {
     if (!username || !password) {
         throw new Error('Usuário e senha são obrigatórios.');
     }
-    
+
     const cleanUsername = username.trim().toLowerCase();
-    
+
     // Verifica se está bloqueado
     if (isUserLockedOut(cleanUsername)) {
         const remainingTime = Math.ceil((LOCKOUT_TIME - (Date.now() - loginAttempts.get(cleanUsername).lastAttempt)) / 60000);
         throw new Error(`Muitas tentativas falhas. Tente novamente em ${remainingTime} minutos.`);
     }
-    
+
     try {
         // 1. Consulta a tabela para buscar o usuário e o HASH da senha
         const { data, error } = await supabase
@@ -298,23 +298,23 @@ export async function loginAppUser(username, password) {
         // Proteção contra timing attacks - sempre executa comparação
         const fakeHash = '$2b$12$fakeHashForTimingProtection.fake';
         const hashedPassword = data?.senha_app || fakeHash;
-        
+
         // Sempre executa a comparação para evitar timing attacks
         const isPasswordValid = await comparePassword(password, hashedPassword);
-        
+
         if (error || !data || !isPasswordValid) {
             const attemptsLeft = MAX_LOGIN_ATTEMPTS - recordFailedLogin(cleanUsername);
             throw new Error(`Credenciais inválidas. ${attemptsLeft > 0 ? `${attemptsLeft} tentativas restantes.` : 'Conta bloqueada temporariamente.'}`);
         }
-        
+
         // Verifica se usuário está ativo
         if (data.ativo === false) {
             throw new Error('Conta inativa. Contate o administrador do sistema.');
         }
-        
+
         // Limpa tentativas após sucesso
         clearLoginAttempts(cleanUsername);
-        
+
         // Atualiza último login
         await supabase
             .from('app_users')
@@ -335,16 +335,16 @@ export async function loginAppUser(username, password) {
         // Salva sessão no SESSIONSTORAGE (MUDANÇA APLICADA AQUI)
         localUserSession = sessionData;
         sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(sessionData));
-        
+
         // Registra log de login bem-sucedido
         await logUserAction(data.id, 'LOGIN_SUCCESS', `Usuário ${data.username_app} fez login`);
-        
+
         return sessionData;
-        
+
     } catch (error) {
         // Registra log de tentativa falha
         await logUserAction(null, 'LOGIN_FAILED', `Tentativa de login falha para usuário: ${username}`);
-        
+
         if (error.code === 'PGRST116') {
             const attemptsLeft = MAX_LOGIN_ATTEMPTS - recordFailedLogin(cleanUsername);
             throw new Error(`Credenciais inválidas. ${attemptsLeft > 0 ? `${attemptsLeft} tentativas restantes.` : 'Conta bloqueada temporariamente.'}`);
@@ -361,10 +361,10 @@ export async function logoutAppUser() {
         // Registra log de logout
         await logUserAction(localUserSession.id, 'LOGOUT', `Usuário ${localUserSession.username} fez logout`);
     }
-    
+
     localUserSession = null;
     sessionStorage.removeItem(USER_SESSION_KEY); // MUDANÇA APLICADA AQUI
-    
+
     return { error: null };
 }
 
@@ -377,13 +377,13 @@ export async function getLocalSession() {
         const storedSession = sessionStorage.getItem(USER_SESSION_KEY); // MUDANÇA APLICADA AQUI
         localUserSession = storedSession ? JSON.parse(storedSession) : null;
     }
-    
+
     // Verifica se a sessão é válida
     if (localUserSession && !isSessionValid(localUserSession)) {
         await logoutAppUser();
         return null;
     }
-    
+
     return localUserSession;
 }
 
@@ -438,16 +438,16 @@ export async function updateUserPassword(userId, currentPassword, newPassword) {
     if (updateError) {
         throw updateError;
     }
-    
+
     // Atualiza a sessão local
     if (localUserSession && localUserSession.id === userId) {
         localUserSession.isFirstLogin = false;
         sessionStorage.setItem(USER_SESSION_KEY, JSON.stringify(localUserSession)); // MUDANÇA APLICADA AQUI
     }
-    
+
     // Registra log de alteração de senha
     await logUserAction(userId, 'PASSWORD_CHANGE', 'Senha alterada com sucesso');
-    
+
     return { error: null };
 }
 
@@ -458,16 +458,16 @@ export async function updateUserPassword(userId, currentPassword, newPassword) {
 export async function updateAppUser(userId, updateData) {
     // Remove a senha do objeto de dados se ela estiver presente, para evitar alterações acidentais
     delete updateData.password;
-    
+
     // 1. Verifica se o username já existe (apenas se estiver mudando o username)
     if (updateData.username_app) {
         const { data: existingUser, error: fetchError } = await supabase
             .from('app_users')
             .select('id')
             .eq('username_app', updateData.username_app);
-            
+
         if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
-        
+
         // Se encontrar outro usuário com o mesmo username
         if (existingUser && existingUser.length > 0 && existingUser[0].id !== userId) {
             throw new Error(`O usuário '${updateData.username_app}' já existe e pertence a outro perfil.`);
@@ -481,12 +481,12 @@ export async function updateAppUser(userId, updateData) {
         .eq('id', userId)
         .select()
         .single();
-        
+
     if (updateError) throw updateError;
-    
+
     // Registra log de atualização
     await logUserAction(userId, 'USER_UPDATE', `Dados do usuário atualizados: ${Object.keys(updateData).join(', ')}`);
-    
+
     return { data, error: null };
 }
 
@@ -498,11 +498,11 @@ export async function registerAppUser(username_app, password, nome_completo, tip
     if (!username_app || !password || !nome_completo) {
         throw new Error('Todos os campos são obrigatórios.');
     }
-    
+
     if (password.length < 6) {
         throw new Error('A senha deve ter pelo menos 6 caracteres.');
     }
-    
+
     const cleanUsername = username_app.trim().toLowerCase();
 
     // 1. Verifica se o username já existe
@@ -510,7 +510,7 @@ export async function registerAppUser(username_app, password, nome_completo, tip
         .from('app_users')
         .select('id')
         .eq('username_app', cleanUsername);
-        
+
     if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
     if (existingUser && existingUser.length > 0) {
         throw new Error(`O usuário '${cleanUsername}' já existe.`);
@@ -518,7 +518,7 @@ export async function registerAppUser(username_app, password, nome_completo, tip
 
     // GERA O HASH DA SENHA ANTES DE SALVAR
     const hashedPassword = await hashPassword(password);
-    
+
     // 2. Insere o novo registro (SALVANDO O HASH)
     const { data, error: insertError } = await supabase.from('app_users').insert({
         nome_completo: nome_completo,
@@ -552,12 +552,12 @@ export async function fetchAppUsers() {
  */
 export async function deleteAppUser(userId) {
     const { error } = await supabase.from('app_users').delete().eq('id', userId);
-    
+
     if (error) throw error;
-    
+
     // Registra log de exclusão
     await logUserAction(userId, 'USER_DELETED', 'Usuário excluído do sistema');
-    
+
     return { error: null };
 }
 
@@ -566,7 +566,7 @@ export async function deleteAppUser(userId) {
  */
 export async function fetchAppLogs(filters = {}) {
      let query = supabase.from('app_logs').select('*');
-     
+
      if (filters.tipo_usuario) {
          query = query.eq('tipo_usuario', filters.tipo_usuario);
      }
@@ -576,10 +576,10 @@ export async function fetchAppLogs(filters = {}) {
      if (filters.dataFim) {
          query = query.lte('timestamp', filters.dataFim);
      }
-     
+
      // Ordena do mais recente para o mais antigo
      const { data, error } = await query.order('timestamp', { ascending: false });
-     
+
      if (error) throw error;
      return data;
 }
@@ -593,14 +593,14 @@ export async function fetchUserAuditLogs(userId = null, limit = 100) {
         .select('*')
         .order('timestamp', { ascending: false })
         .limit(limit);
-    
+
     if (userId) {
         // CORREÇÃO: Usar user_id, que é o campo inserido por logUserAction
         query = query.eq('user_id', userId);
     }
-    
+
     const { data, error } = await query;
-    
+
     if (error) throw error;
     return data;
 }
@@ -625,10 +625,10 @@ export function hasPermission(requiredRole, userRole) {
         'admin': 2,
         'superadmin': 3
     };
-    
+
     const userLevel = roleHierarchy[userRole] || 0;
     const requiredLevel = roleHierarchy[requiredRole] || 0;
-    
+
     return userLevel >= requiredLevel;
 }
 
@@ -637,15 +637,15 @@ export function hasPermission(requiredRole, userRole) {
  */
 export async function requireAuth(requiredRole = 'usuario') {
     const session = await getLocalSession();
-    
+
     if (!session) {
         throw new Error('Autenticação necessária');
     }
-    
+
     if (!hasPermission(requiredRole, session.role)) {
         throw new Error('Permissão insuficiente');
     }
-    
+
     return session;
 }
 
@@ -662,7 +662,7 @@ export async function assignCaminhaoToFrente(caminhaoId, frenteId, statusInicial
         .eq('id', caminhaoId)
         .select()
         .single();
-    
+
     if (updateError) throw updateError;
 
     // 2. Cria o primeiro registro no histórico com a hora de saída informada
@@ -689,9 +689,9 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
 
     if (fetchError) throw fetchError;
     const statusAnterior = caminhaoAtual.status;
-    
+
     // CORREÇÃO: Verifica se o timestamp é nulo/indefinido e usa a hora atual se for o caso.
-    const logTimestamp = timestamp || new Date().toISOString(); 
+    const logTimestamp = timestamp || new Date().toISOString();
 
     const { error: historyError } = await supabase
         .from('caminhao_historico')
@@ -702,7 +702,7 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
             timestamp_mudanca: logTimestamp, // USANDO O TIMESTAMP CORRIGIDO
             motivo_parada: motivoParada
         });
-    
+
     if (historyError) throw historyError;
 
     // --- Lógica de Desassociação Automática ---
@@ -710,14 +710,14 @@ export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = nu
 
     // Se o novo status é 'disponivel' (fim de ciclo), 'quebrado' ou 'parado), desassocia da frente.
     if (novoStatus === 'disponivel' || novoStatus === 'quebrado' || novoStatus === 'parado') {
-        frenteParaAtualizar = null; 
+        frenteParaAtualizar = null;
     }
     // ------------------------------------------
 
     const { data, error } = await supabase
         .from('caminhoes')
-        .update({ 
-            status: novoStatus, 
+        .update({
+            status: novoStatus,
             frente_id: frenteParaAtualizar // Usa a variável corrigida
         })
         .eq('id', caminhaoId)
@@ -757,11 +757,11 @@ export async function updateEquipamentoStatus(equipamentoId, novoStatus, frenteI
         timestamp_mudanca: timestamp,
         motivo_parada: motivoParada // Envia o motivo para o banco
     };
-    
+
     const { error: historyError } = await supabase
         .from('equipamento_historico')
         .insert(logData);
-    
+
     if (historyError) throw historyError;
 
     // 2. Atualiza o status do equipamento e, se estiver ativo, associa à frente
@@ -770,7 +770,7 @@ export async function updateEquipamentoStatus(equipamentoId, novoStatus, frenteI
     if (novoStatus === 'ativo' && frenteId) {
         updateData.frente_id = frenteId;
     }
-    
+
     const { data, error } = await supabase
         .from('equipamentos')
         .update(updateData)
@@ -807,7 +807,7 @@ export async function fetchFila() {
         .from('fila_carregamento')
         .select('caminhao_id, tipo_fila, ordem')
         .order('ordem', { ascending: true });
-        
+
     if (error) throw error;
     return data;
 }
@@ -817,7 +817,7 @@ export async function fetchFila() {
  * @param {Array} filasData - Array de objetos: [{ caminhao_id, tipo_fila, ordem }]
  */
 export async function updateFilaCarregamento(filasData) {
-    
+
     // 1. Apaga todos os registros de fila existentes
     const { error: deleteError } = await supabase
         .from('fila_carregamento')
@@ -840,7 +840,7 @@ export async function updateFilaCarregamento(filasData) {
             throw insertError;
         }
     }
-    
+
     return { error: null };
 }
 
