@@ -3,7 +3,8 @@ import { showToast, handleOperation, showLoading, hideLoading } from '../helpers
 import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString } from '../timeUtils.js'; // IMPORTAÇÕES CORRIGIDAS
 import { mapManager } from '../maps.js';
 import { dataCache } from '../dataCache.js';
-import { insertItem, fetchTable, updateItem } from '../api.js';
+// ADICIONADO fetchItemById
+import { insertItem, fetchTable, updateItem, fetchItemById } from '../api.js';
 import { openModal, closeModal } from '../components/modal.js'; // Importação correta
 
 export class OcorrenciasView {
@@ -225,10 +226,13 @@ export class OcorrenciasView {
                     <td>${durationDisplay}</td>
                     
                     <td><span class="caminhao-status-badge status-${statusClass}">${statusLabel}</span></td>
-                    <td>
+                    <td style="display: flex; gap: 8px;">
                         ${!isFinished ? 
-                            `<button class="action-btn edit-btn-modern btn-close-ocorrencia" data-id="${item.id}" data-start-time="${startTime}"><i class="ph-fill ph-check-circle"></i> Encerrar</button>` 
+                            `<button class="action-btn edit-btn-modern btn-close-ocorrencia" data-id="${item.id}" data-start-time="${startTime}" title="Encerrar Ocorrência"><i class="ph-fill ph-check-circle"></i></button>` 
                             : '---'}
+                        <button class="action-btn edit-btn-modern btn-edit-ocorrencia" data-id="${item.id}" title="Editar Ocorrência">
+                            <i class="ph-fill ph-pencil-simple"></i>
+                        </button>
                     </td>
                 </tr>
             `;
@@ -261,7 +265,6 @@ export class OcorrenciasView {
         }
     }
     
-    // CORRIGIDO: Removido a declaração incorreta 'const { openModal, closeModal } = window.modal;'
     showCloseOcorrenciaModal(ocorrenciaId, startTime) {
         // CORREÇÃO: Usa a função getBrtNowString para preencher o campo datetime-local
         const nowString = getBrtNowString();
@@ -292,7 +295,6 @@ export class OcorrenciasView {
         });
     }
 
-    // CORRIGIDO: Removido a declaração incorreta 'const { closeModal } = window.modal;'
     async handleCloseOcorrencia(ocorrenciaId, horaFim) {
         showLoading();
         
@@ -321,6 +323,128 @@ export class OcorrenciasView {
             hideLoading();
         }
     }
+    
+    async showEditOcorrenciaModal(id) {
+        showLoading();
+        // 1. Garante que a lista de frentes está carregada
+        if (this.frentes.length === 0) {
+             await this.populateFrentesSelect(); // Reusa para garantir que this.frentes está populado
+        }
+        
+        // 2. Busca os dados da ocorrência
+        const { data: ocorrencia, error } = await fetchItemById('ocorrencias', id);
+        hideLoading();
+        
+        if (error) {
+            showToast('Erro ao buscar ocorrência para edição.', 'error');
+            return;
+        }
+        
+        // 3. Monta o formulário (reutilizando a estrutura do HTML de cadastro)
+        const frentesOptions = this.frentes.map(frente => {
+            // Verifica se o ID da frente está no array frentes_impactadas
+            const isSelected = (ocorrencia.frentes_impactadas || []).includes(frente.id);
+            return `<option value="${frente.id}" ${isSelected ? 'selected' : ''}>${frente.nome}</option>`;
+        }).join('');
+        
+        const tipoOptions = [
+            'acidente', 'interdicao', 'morador', 'clima', 'outros'
+        ].map(tipo => {
+            const isSelected = tipo === ocorrencia.tipo;
+            return `<option value="${tipo}" ${isSelected ? 'selected' : ''}>${this.formatOption(tipo)}</option>`;
+        }).join('');
+        
+        // CORREÇÃO: Converte a hora_inicio ISO (UTC) de volta para o formato datetime-local (BRT)
+        // Isso é necessário porque o input datetime-local espera um formato local (YYYY-MM-DDTHH:MM)
+        const horaInicioLocal = ocorrencia.hora_inicio ? new Date(ocorrencia.hora_inicio).toLocaleString('sv-SE').replace(' ', 'T').slice(0, 16) : getBrtNowString();
+        
+        const modalContent = `
+            <p>Editando Ocorrência: <strong>${this.formatOption(ocorrencia.tipo)}</strong></p>
+            
+            <form id="edit-ocorrencia-form" class="action-modal-form">
+                <input type="hidden" name="ocorrencia_id" value="${ocorrencia.id}">
+                <div class="form-group">
+                    <label for="tipo-edit">Tipo de Ocorrência</label>
+                    <select name="tipo" id="tipo-edit" class="form-select" required>
+                        <option value="">Selecione...</option>
+                        ${tipoOptions}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="frentes_impactadas_edit">Frentes Impactadas (Opcional)</label>
+                    <select name="frentes_impactadas" id="frentes_impactadas_edit" class="form-select" multiple size="5">
+                        ${frentesOptions}
+                    </select>
+                    <small>Segure CTRL/CMD para selecionar múltiplos.</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="descricao-edit">Descrição Detalhada</label>
+                    <input type="text" name="descricao" id="descricao-edit" class="form-input" required placeholder="Ex: Caminhão 101 tombou no Km 5" value="${ocorrencia.descricao}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="hora_inicio_edit">Data e Hora de Início</label>
+                    <input type="datetime-local" name="hora_inicio" id="hora_inicio_edit" class="form-input" value="${horaInicioLocal}" required>
+                </div>
+                
+                <div class="form-group" style="display: flex; gap: 10px;">
+                    <input type="text" name="latitude" id="latitude-edit" class="form-input" required placeholder="Latitude" value="${ocorrencia.latitude.toFixed(6)}" readonly>
+                    <input type="text" name="longitude" id="longitude-edit" class="form-input" required placeholder="Longitude" value="${ocorrencia.longitude.toFixed(6)}" readonly>
+                </div>
+                <small class="form-help">Para alterar a localização, feche o modal e utilize o mapa de cadastro na página.</small>
+                
+                <button type="submit" class="btn-primary" style="background-color: var(--accent-edit);">
+                    <i class="ph-fill ph-floppy-disk"></i> Salvar Alterações
+                </button>
+            </form>
+        `;
+        openModal('Editar Ocorrência', modalContent);
+
+        document.getElementById('edit-ocorrencia-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+            
+            const data = {
+                tipo: formData.get('tipo'),
+                descricao: formData.get('descricao'),
+                latitude: parseFloat(formData.get('latitude')),
+                longitude: parseFloat(formData.get('longitude')),
+                // CORREÇÃO: Converte o BRT datetime-local de volta para ISO UTC para salvar
+                hora_inicio: getBrtIsoString(formData.get('hora_inicio')),
+            };
+            
+            // Trata o multi-select de frentes
+            const frentesSelect = document.getElementById('frentes_impactadas_edit');
+            // Garante que os IDs das frentes sejam strings (UUIDs)
+            data.frentes_impactadas = Array.from(frentesSelect.selectedOptions).map(option => option.value);
+
+            this.handleEditOcorrencia(ocorrencia.id, data);
+        });
+    }
+
+    async handleEditOcorrencia(ocorrenciaId, updateData) {
+        showLoading();
+        try {
+            // A função updateItem já está importada (api.js)
+            await updateItem('ocorrencias', ocorrenciaId, updateData); 
+            
+            dataCache.invalidateAllData();
+
+            showToast('Ocorrência atualizada com sucesso!', 'success');
+            closeModal();
+            
+            await this.loadData(true); 
+
+        } catch (err) {
+            handleOperation(err);
+            showToast('Erro ao atualizar ocorrência.', 'error');
+        } finally {
+            hideLoading();
+        }
+    }
 
 
     formatOption(option) {
@@ -335,13 +459,19 @@ export class OcorrenciasView {
             form.addEventListener('submit', this.handleFormSubmit.bind(this));
         }
         
-        // Listener para o botão de Encerrar na tabela (Delegado para o container)
+        // Listener delegado para o botão de Encerrar e Editar na tabela
         this.container.addEventListener('click', (e) => {
             const closeBtn = e.target.closest('.btn-close-ocorrencia');
+            const editBtn = e.target.closest('.btn-edit-ocorrencia'); // NOVO: Botão de Editar
+            
             if (closeBtn) {
                 const id = closeBtn.dataset.id;
                 const startTime = closeBtn.dataset.startTime;
                 this.showCloseOcorrenciaModal(id, startTime);
+            }
+            
+            if (editBtn) { // NOVO: Chama o modal de edição
+                 this.showEditOcorrenciaModal(editBtn.dataset.id);
             }
         });
     }
