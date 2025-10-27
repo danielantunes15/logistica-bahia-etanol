@@ -1,17 +1,10 @@
 // js/views/tempo.js
 import { showToast, showLoading, hideLoading } from '../helpers.js';
+import { dataCache } from '../dataCache.js'; // Import dataCache
 
 // OpenWeatherMap API Key
 // MUDANÇA: A chave hardcoded foi removida e é carregada via objeto global window.env
 const API_KEY = window.env.OPENWEATHER_API_KEY;
-
-// Cidades a serem monitoradas com as coordenadas (Ibirapuã removida e Usina renomeada)
-const CITIES_TO_MONITOR = [
-    { name: 'Bahia Etanol', lat: -17.6423, lon: -40.1815 },
-    { name: 'Lajedão-BA', lat: -17.6138, lon: -40.345 },
-    { name: 'Nanuque-MG', lat: -17.8389, lon: -40.3539 },
-    { name: 'S. Aimorés-MG', lat: -17.7828, lon: -40.2477 } // Serra dos Aimorés
-];
 
 // Helper para converter UNIX timestamp para BRT HH:MM
 const getLocalTime = (timestamp) => {
@@ -69,10 +62,16 @@ export class TempoView {
     constructor() {
         this.container = null;
         this.weatherData = [];
+        this.fazendas = [];
+        // NOVO: Coordenadas padrão da usina (como fallback)
+        this.USINA_COORDS = { name: 'Usina Bahia Etanol', lat: -17.6423, lon: -40.1815 }; 
+        this.selectedLocations = [this.USINA_COORDS]; // Começa com a usina
     }
 
     async show() {
         await this.loadHTML();
+        await this.loadFazendas(); // Primeiro carrega as fazendas
+        this.renderFazendaSelector(); // Renderiza o seletor
         await this.loadData();
         this.addEventListeners();
     }
@@ -86,12 +85,62 @@ export class TempoView {
         container.innerHTML = this.getHTML();
         this.container = container.querySelector('#tempo-view');
     }
+    
+    async loadFazendas() {
+        try {
+            // Usa o fetchMasterDataOnly para carregar dados cadastrais leves
+            const masterData = await dataCache.fetchMasterDataOnly();
+            this.fazendas = masterData.fazendas
+                .filter(f => f.latitude && f.longitude)
+                .sort((a, b) => a.nome.localeCompare(b.nome));
+            
+            // Adiciona 3 fazendas padrão (excluindo a usina)
+            if (this.selectedLocations.length === 1 && this.fazendas.length > 0) {
+                this.selectedLocations.push(...this.fazendas.slice(0, 3).map(f => ({ 
+                    name: f.nome, 
+                    lat: parseFloat(f.latitude), 
+                    lon: parseFloat(f.longitude) 
+                })));
+            }
+
+        } catch (error) {
+            console.error('Erro ao carregar fazendas:', error);
+            showToast('Erro ao carregar lista de fazendas.', 'error');
+        }
+    }
+
+    renderFazendaSelector() {
+        const selectorContainer = document.getElementById('fazenda-selector-container');
+        if (!selectorContainer) return;
+        
+        const optionsHTML = this.fazendas.map(f => {
+            const isSelected = this.selectedLocations.some(loc => loc.name === f.nome);
+            return `<option value="${f.id}" ${isSelected ? 'selected' : ''}>${f.nome} (${f.cod_equipamento})</option>`;
+        }).join('');
+        
+        selectorContainer.innerHTML = `
+            <div class="form-group" style="min-width: 300px;">
+                <label for="fazenda-selector">Monitorar Localizações (Selecione até 4)</label>
+                <select name="fazenda-selector" id="fazenda-selector" class="form-select" multiple size="4">
+                    <option value="USINA" ${this.selectedLocations.some(loc => loc.name === this.USINA_COORDS.name) ? 'selected' : ''}>${this.USINA_COORDS.name}</option>
+                    ${optionsHTML}
+                </select>
+                <p class="form-help">Segure CTRL/CMD para selecionar múltiplos locais. Máximo de 4.</p>
+            </div>
+            <button class="btn-secondary" id="btn-apply-locations">
+                <i class="ph-fill ph-funnel"></i> Aplicar Locais
+            </button>
+        `;
+    }
 
     getHTML() {
         return `
             <div id="tempo-view" class="view active-view tempo-view">
-                <div class="controle-header">
-                    <h1>Previsão do Tempo</h1> <button class="btn-primary" id="refresh-tempo">
+                <div class="controle-header" style="flex-wrap: wrap;">
+                    <h1>Previsão do Tempo</h1> 
+                    <div style="display: flex; gap: 10px; align-items: flex-end;" id="fazenda-selector-container">
+                        </div>
+                    <button class="btn-primary" id="refresh-tempo">
                         <i class="ph-fill ph-arrows-clockwise"></i>
                         Atualizar Dados
                     </button>
@@ -111,16 +160,55 @@ export class TempoView {
     }
 
     addEventListeners() {
-        document.getElementById('refresh-tempo').addEventListener('click', () => this.loadData(true));
+        this.container.addEventListener('click', (e) => {
+            if (e.target.closest('#refresh-tempo')) {
+                this.loadData(true);
+            }
+            if (e.target.closest('#btn-apply-locations')) {
+                this.handleApplyLocations();
+            }
+        });
     }
+    
+    handleApplyLocations() {
+        const selector = document.getElementById('fazenda-selector');
+        if (!selector) return;
+
+        const newLocations = [];
+        Array.from(selector.selectedOptions).forEach(option => {
+            if (option.value === 'USINA') {
+                newLocations.push(this.USINA_COORDS);
+            } else {
+                const fazenda = this.fazendas.find(f => f.id == option.value);
+                if (fazenda) {
+                    newLocations.push({
+                        name: fazenda.nome,
+                        lat: parseFloat(fazenda.latitude),
+                        lon: parseFloat(fazenda.longitude)
+                    });
+                }
+            }
+        });
+
+        // Limita a 4 locais, incluindo a usina
+        this.selectedLocations = newLocations.slice(0, 4);
+        
+        if (this.selectedLocations.length === 0) {
+            this.selectedLocations = [this.USINA_COORDS]; // Pelo menos a usina
+        }
+        
+        this.renderFazendaSelector(); // Re-renderiza para atualizar os 'selected'
+        this.loadData(true);
+    }
+
 
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            const currentFetchPromises = CITIES_TO_MONITOR.map(city => 
+            const currentFetchPromises = this.selectedLocations.map(city => 
                 this.fetchWeather(city, 'weather')
             );
-            const forecastFetchPromises = CITIES_TO_MONITOR.map(city =>
+            const forecastFetchPromises = this.selectedLocations.map(city =>
                 this.fetchWeather(city, 'forecast')
             );
 
@@ -129,7 +217,8 @@ export class TempoView {
             
             this.weatherData = currentResults.map((current, index) => ({
                 ...current,
-                forecast: forecastResults[index].list
+                forecast: forecastResults[index].list,
+                displayName: currentResults[index].displayName || current.name
             }));
             
             this.renderWeatherContent();
@@ -163,6 +252,7 @@ export class TempoView {
         const gridContainer = document.getElementById('weather-summary-grid');
         if (!gridContainer) return;
         
+        // Ajusta o grid para o número de cidades selecionadas
         gridContainer.style.gridTemplateColumns = `repeat(${this.weatherData.length}, 1fr)`;
         
         const cardsHTML = this.weatherData.map(cityData => {

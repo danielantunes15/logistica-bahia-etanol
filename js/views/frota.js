@@ -6,6 +6,8 @@ import { openModal, closeModal } from '../components/modal.js'; // NOVO: Importa
 import { dataCache } from '../dataCache.js';
 // MODIFICADO: Importa constantes
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE } from '../constants.js';
+// NOVO: Importa calculateActiveDuration
+import { calculateActiveDuration } from '../timeUtils.js';
 
 // NOVO: Motivos pré-definidos para Parada/Quebra
 const PREDEFINED_MOTIVES = [
@@ -68,7 +70,8 @@ export class FrotaView {
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
+            // Usa fetchAllData para ter acesso ao caminhao_historico
+            this.data = await dataCache.fetchAllData(forceRefresh); 
             this.renderTable();
             // Atualiza o total no cabeçalho
             const totalCaminhoes = this.data.caminhoes ? this.data.caminhoes.length : 0;
@@ -88,10 +91,20 @@ export class FrotaView {
         const tableContainer = this.container.querySelector('#frota-owner-tables-container');
         if (!tableContainer) return;
         
-        const { caminhoes = [], frentes_servico = [] } = this.data;
+        const { caminhoes = [], frentes_servico = [], caminhao_historico = [] } = this.data;
 
         // Mapeia as frentes por ID para fácil acesso
         const frentesMap = new Map(frentes_servico.map(f => [f.id, f]));
+        
+        // NEW: Map latest log timestamp for each truck
+        const latestStatusTimeMap = new Map();
+        caminhao_historico
+            .sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca))
+            .forEach(log => {
+                if (!latestStatusTimeMap.has(log.caminhao_id)) {
+                    latestStatusTimeMap.set(log.caminhao_id, log.timestamp_mudanca);
+                }
+            });
         
         // 1. Agrupar caminhões por Proprietário
         const trucksByOwner = new Map();
@@ -133,6 +146,10 @@ export class FrotaView {
                 const frente = caminhao.frente_id ? frentesMap.get(caminhao.frente_id) : null;
                 const fazenda = frente?.fazendas;
 
+                // NEW: Get the start time of the current status
+                const currentStatusStartTime = latestStatusTimeMap.get(caminhao.id);
+                const activeDuration = currentStatusStartTime ? calculateActiveDuration(currentStatusStartTime) : 'N/A';
+                
                 // NOVO: Lógica do Ciclo
                 const cycleIndex = CAMINHAO_STATUS_CYCLE.indexOf(status);
                 const isCycleActive = cycleIndex !== -1;
@@ -150,13 +167,16 @@ export class FrotaView {
                     </div>
                 `;
                 
-                // NOVO RÓTULO DA ETAPA (SEMPRE VISÍVEL ABAIXO DO CÓDIGO)
-                const stageNameHTML = `<span class="cycle-stage-name">${this.statusLabels[status]}</span>`;
+                // MODIFIED: Rótulo da Etapa (Inclui a Duração Ativa)
+                const stageNameHTML = `
+                    <span class="cycle-stage-name">${this.statusLabels[status]}</span>
+                    <span class="cycle-active-duration"> — ${activeDuration}</span>
+                `;
 
                 return `
                     <tr>
                         <td>
-                            <strong>${caminhao.cod_equipamento}</strong>
+                            <strong>#${caminhao.cod_equipamento}</strong>
                             <div class="cycle-status-info">
                                 ${stageNameHTML}
                                 ${isCycleActive ? progressHTML : `<span class="caminhao-status-badge status-${status} non-cycle-status">${this.statusLabels[status]}</span>`}

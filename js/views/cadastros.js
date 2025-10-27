@@ -82,8 +82,7 @@ export class CadastrosView {
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            // MUDANÇA: Usa a nova função para buscar apenas dados mestres
-            this.data = await dataCache.fetchMasterDataOnly(forceRefresh); 
+            this.data = await dataCache.fetchMasterDataOnly(forceRefresh); // USANDO CACHE AQUI
             this.renderTable();
         } catch (error) {
             console.error(`Erro ao carregar dados de ${this.tipo}:`, error);
@@ -210,7 +209,8 @@ export class CadastrosView {
                     });
                 }
                 inputHTML += `</select>`;
-                if (field.type === 'select-multiple') inputHTML += `<div class="select-multiple-hint"><i class="ph-fill ph-info"></i> Mantenha Ctrl pressionado</div>`;
+                // REMOVIDO: A dica de CTRL/CMD para simular a preparação para um componente customizado
+                // if (field.type === 'select-multiple') inputHTML += `<div class="select-multiple-hint"><i class="ph-fill ph-info"></i> Mantenha Ctrl pressionado</div>`;
             } else {
                 inputHTML += `<input type="${field.type}" name="${field.name}" id="${id}" class="form-input" value="${value}" ${requiredAttr} data-validation="${field.validation || ''}">`; // ADD data-validation
             }

@@ -49,6 +49,43 @@ export class RelatoriosView {
         
         return result.replace(/m$/, ''); // Remove o 'm' do final para ficar H:MM
     }
+    
+    // NOVO: Função para obter datas com base no range rápido
+    getDateRange(rangeType) {
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        let startDate;
+
+        switch (rangeType) {
+            case '7d':
+                startDate = new Date(today);
+                startDate.setDate(today.getDate() - 7);
+                break;
+            case '30d':
+                startDate = new Date(today);
+                startDate.setDate(today.getDate() - 30);
+                break;
+            case 'currentMonth':
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                break;
+            case 'lastMonth':
+                startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                let endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+                endDate.setHours(23, 59, 59, 999);
+                return { 
+                    startDate: startDate.toISOString().split('T')[0], 
+                    endDate: endDate.toISOString().split('T')[0] 
+                };
+            default:
+                return { startDate: null, endDate: null };
+        }
+        
+        startDate.setHours(0, 0, 0, 0); // Start of the day
+        return { 
+            startDate: startDate.toISOString().split('T')[0], 
+            endDate: today.toISOString().split('T')[0] 
+        };
+    }
 
     async show() {
         // Pré-carregar libs de PDF para melhorar UX (Início)
@@ -101,8 +138,16 @@ export class RelatoriosView {
                     ${this.renderInternalMenu()} </div>
 
                 <div class="report-filters" style="padding: 0 24px 24px; display: flex; flex-wrap: wrap; gap: 16px;">
+                    <div class="filter-group date-range-selectors" style="display: flex; gap: 8px; align-items: center; background-color: var(--bg-light); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
+                        <label style="font-weight: 600; color: var(--accent-primary);">Período Rápido:</label>
+                        <button class="btn-secondary btn-quick-range" data-range="7d">7 Dias</button>
+                        <button class="btn-secondary btn-quick-range" data-range="30d">30 Dias</button>
+                        <button class="btn-secondary btn-quick-range" data-range="currentMonth">Mês Atual</button>
+                        <button class="btn-secondary btn-quick-range" data-range="lastMonth">Mês Passado</button>
+                    </div>
+
                     <div class="filter-group" id="filter-date-group" style="display: flex; gap: 12px; align-items: center; background-color: var(--bg-light); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px;">
-                        <label style="font-weight: 600; color: var(--accent-primary);">Período:</label>
+                        <label style="font-weight: 600; color: var(--accent-primary);">Período Manual:</label>
                         <label for="filter-data-inicio" style="color: var(--text-secondary); font-size: 0.9rem;">De:</label>
                         <input type="date" id="filter-data-inicio" class="form-input" style="width: 150px;">
                         <label for="filter-data-fim" style="color: var(--text-secondary); font-size: 0.9rem;">Até:</label>
@@ -1776,6 +1821,7 @@ export class RelatoriosView {
                  
                  csvContent += `\r\n--- Tabela 4: Detalhe dos Ciclos ---\r\n`;
                  let header4 = "Caminhao;Frente;Inicio Ciclo;Fim Ciclo;Duracao (HH:MM);Status\r\n";
+                 header4 += "ATENÇÃO: A filtragem de data para este relatório é aplicada no cliente, certifique-se de que o período é o mesmo do filtro de logs.\r\n";
                  csvContent += header4;
 
                  cycles.forEach(session => {
@@ -1816,6 +1862,12 @@ export class RelatoriosView {
             filterBtn.addEventListener('click', this.applyFilterAndRender.bind(this));
         }
         
+        // NOVO: Quick range listeners
+        this.container.querySelectorAll('.btn-quick-range').forEach(btn => {
+            btn.removeEventListener('click', this.handleQuickRangeClick.bind(this));
+            btn.addEventListener('click', this.handleQuickRangeClick.bind(this));
+        });
+        
         if (this.container) {
             this.container.querySelectorAll('.internal-menu-btn').forEach(btn => {
                 btn.removeEventListener('click', this.handleInternalMenuClick.bind(this));
@@ -1833,6 +1885,23 @@ export class RelatoriosView {
         if (exportExcelBtn) {
             exportExcelBtn.removeEventListener('click', this.exportToExcel.bind(this));
             exportExcelBtn.addEventListener('click', this.exportToExcel.bind(this));
+        }
+    }
+    
+    // NOVO: Handler para o clique dos botões de período rápido
+    handleQuickRangeClick(e) {
+        const rangeType = e.target.closest('.btn-quick-range')?.dataset.range;
+        if (rangeType) {
+            const { startDate, endDate } = this.getDateRange(rangeType);
+            
+            const dateStartInput = document.getElementById('filter-data-inicio');
+            const dateEndInput = document.getElementById('filter-data-fim');
+            
+            if (dateStartInput) dateStartInput.value = startDate;
+            if (dateEndInput) dateEndInput.value = endDate;
+            
+            // Re-render the report
+            this.applyFilterAndRender();
         }
     }
     

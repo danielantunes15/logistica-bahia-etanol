@@ -125,6 +125,22 @@ export function formatMillisecondsToHoursMinutes(diffMillis) {
 }
 
 /**
+ * NOVO: Calcula a duração desde o timestamp de uma sessão ativa até agora.
+ * @param {string|Date} startTime - Timestamp de início.
+ * @returns {string} Duração formatada (xh ym).
+ */
+export function calculateActiveDuration(startTime) {
+    const start = new Date(startTime).getTime();
+    const nowBrtIso = getBrtIsoStringAlt(); // Usa a função alternativa que pega o instante atual.
+    const end = new Date(nowBrtIso).getTime();
+
+    const diffMillis = end - start;
+    if (diffMillis < 0 || isNaN(diffMillis)) return 'Tempo Inválido';
+    
+    return formatMillisecondsToHoursMinutes(diffMillis);
+}
+
+/**
  * Calcula e formata a duração de inatividade.
  */
 export function calculateDowntimeDuration(startTime, endTime) {
