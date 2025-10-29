@@ -59,7 +59,7 @@ export class BoletimProducaoView {
      * processa os dados VINDOS DO CACHE com base no tempo passado.
      */
     calculateCycleData() {
-        // 1. Cálculo do Ciclo (Horas Passadas) - SEM ALTERAÇÕES
+        // 1. Cálculo do Ciclo (Horas Passadas)
         const now = new Date();
         const cycleStart = new Date();
         if (now.getHours() < 7) {
@@ -83,14 +83,21 @@ export class BoletimProducaoView {
             hoursPassed: hoursPassed
         };
 
-        // --- INÍCIO DA LÓGICA DE AGREGAÇÃO PARA "AGRO UNIONE - MANUAL" ---
+        // --- INÍCIO DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
 
+        // Inicializa os grupos
+        const gruposProcessados = {
+            "MANUAL": { titulo: "CANA MANUAL", frentes: [], totalMetaMomento: 0 }, // <-- Adiciona total
+            "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [], totalMetaMomento: 0 } // <-- Adiciona total
+        };
+
+        // --- LÓGICA DE AGREGAÇÃO PARA "AGRO UNIONE - MANUAL" ---
         const frentesAgregadas = [];
         let agroUnioneManualAgregada = {
-            nome: "AGRO UNIONE - MANUAL", // Nome de exibição final
+            nome: "AGRO UNIONE - MANUAL",
             meta_toneladas_total: 0,
-            tipo_producao: 'MANUAL', // Define o tipo para agrupamento correto
-            frentes_metas: [] // Mantém estrutura similar
+            tipo_producao: 'MANUAL',
+            frentes_metas: []
         };
         let encontrouAgroUnioneManual = false;
 
@@ -98,35 +105,24 @@ export class BoletimProducaoView {
             const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas;
             const meta_toneladas = metaInfo ? metaInfo.meta_toneladas : 0;
 
-            // Verifica se o nome da frente no DB começa com "AGRO UNIONE - MANUAL"
             if (frente.nome.toUpperCase().startsWith('AGRO UNIONE - MANUAL')) {
                 agroUnioneManualAgregada.meta_toneladas_total += meta_toneladas;
-                encontrouAgroUnioneManual = true; // Marca que encontrou pelo menos uma
+                encontrouAgroUnioneManual = true;
             } else {
-                // Se não for, apenas passa a frente original adiante
                 frentesAgregadas.push(frente);
             }
         });
 
-        // Adiciona a frente agregada (se ela tiver meta e foi encontrada)
         if (encontrouAgroUnioneManual && agroUnioneManualAgregada.meta_toneladas_total > 0) {
-            // Recria a estrutura do objeto
             frentesAgregadas.push({
                 nome: agroUnioneManualAgregada.nome,
                 tipo_producao: agroUnioneManualAgregada.tipo_producao,
                 frentes_metas: [{ meta_toneladas: agroUnioneManualAgregada.meta_toneladas_total }]
             });
         }
-        // --- FIM DA LÓGICA DE AGREGAÇÃO ---
-
+        // --- FIM DA AGREGAÇÃO ---
 
         // 3. Processamento dos dados (agora usa frentesAgregadas)
-        const gruposProcessados = {
-            "MANUAL": { titulo: "CANA MANUAL", frentes: [] },
-            "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [] }
-        };
-
-        // Agora iteramos sobre a lista agregada
         frentesAgregadas.forEach(frente => {
             const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas;
             const meta24h = metaInfo.meta_toneladas;
@@ -136,20 +132,21 @@ export class BoletimProducaoView {
             const cumprimento = meta24h > 0 ? (metaMomento / meta24h) * 100 : 0;
 
             const frenteProcessada = {
-                nome: frente.nome, // Usa o nome já agregado/original
+                nome: frente.nome,
                 meta24h: meta24h,
                 metaHora: metaHora,
-                metaMomento: metaMomento,
+                metaMomento: metaMomento, // <-- Valor que vamos somar
                 cumprimento: cumprimento
             };
 
-            // Lógica de agrupamento dinâmica baseada no campo 'tipo_producao'
-            if (frente.tipo_producao === 'MANUAL') {
+            // Agrupamento dinâmico
+            if (frente.tipo_producao === 'MANUAL' && gruposProcessados["MANUAL"]) {
                 gruposProcessados["MANUAL"].frentes.push(frenteProcessada);
-            } else if (frente.tipo_producao === 'MECANIZADA') {
+                gruposProcessados["MANUAL"].totalMetaMomento += metaMomento; // <-- SOMA AQUI
+            } else if (frente.tipo_producao === 'MECANIZADA' && gruposProcessados["MECANIZADA"]) {
                 gruposProcessados["MECANIZADA"].frentes.push(frenteProcessada);
+                gruposProcessados["MECANIZADA"].totalMetaMomento += metaMomento; // <-- SOMA AQUI
             }
-            // Frentes sem grupo são ignoradas
         });
 
         // Ordena as frentes dentro de cada grupo
@@ -158,15 +155,14 @@ export class BoletimProducaoView {
 
         // Converte o objeto em array (apenas os grupos que têm frentes)
         this.processedData = Object.values(gruposProcessados).filter(g => g.frentes.length > 0);
+        // --- FIM DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
     }
 
     getHTML(showError = false) { // Recebe flag de erro
-        // Só calcula strings de data se houver ciclo (não houve erro)
         const cycleStartStr = this.cycleInfo ? this.cycleInfo.start.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
         const cycleEndStr = this.cycleInfo ? this.cycleInfo.end.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
         const hoursPassedStr = this.cycleInfo ? this.cycleInfo.hoursPassed.toFixed(2).replace('.', ',') : 'N/A';
 
-        // Mensagem de erro ou container normal
         const dashboardContent = showError || this.allFrentes.length === 0 ? `
             <div class="empty-state" style="padding: 40px; text-align: center;">
                 <i class="ph-fill ph-warning" style="font-size: 3rem; color: var(--accent-danger);"></i>
@@ -205,15 +201,12 @@ export class BoletimProducaoView {
 
     renderDashboard() {
         const container = document.getElementById('producao-dashboard-container');
-        // Se o container não existe (porque mostrou erro no getHTML), sai
-        if (!container) return; 
+        if (!container) return;
 
         container.innerHTML = ''; // Limpa antes de renderizar
 
-        // Itera sobre os GRUPOS processados
         this.processedData.forEach(grupo => {
             
-            // Não renderiza o grupo se não houver frentes nele
             if (grupo.frentes.length === 0) return;
 
             const cardsHTML = grupo.frentes.map(frente => {
@@ -248,12 +241,20 @@ export class BoletimProducaoView {
                 `;
             }).join('');
 
+            // --- MODIFICAÇÃO AQUI: Adiciona o total ao lado do título ---
             container.innerHTML += `
-                <h2 class="producao-group-title">${grupo.titulo}</h2>
+                <div class="producao-group-header">
+                    <h2 class="producao-group-title">${grupo.titulo}</h2>
+                    <span class="producao-group-total">
+                        Meta p/ Momento (Total): 
+                        <strong>${grupo.totalMetaMomento.toFixed(2)} t</strong>
+                    </span>
+                </div>
                 <div class="producao-grid">
                     ${cardsHTML}
                 </div>
             `;
+            // --- FIM DA MODIFICAÇÃO ---
         });
     }
 
@@ -261,7 +262,6 @@ export class BoletimProducaoView {
         // Listener para o botão de recalcular
         this.container.addEventListener('click', (e) => {
             if (e.target.closest('#refresh-boletim')) {
-                // Chama o 'show' de novo para carregar dados, recalcular e re-renderizar
                 this.show(); 
                 showToast('Metas recalculadas para a hora atual!', 'success');
             }

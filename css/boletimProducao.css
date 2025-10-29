@@ -7,13 +7,12 @@
 .producao-cycle-info {
     background-color: var(--bg-light);
     border: 1px solid var(--border-color);
-    /* --- MUDANÇA AQUI: Borda neutra --- */
     border-left: 4px solid var(--border-color); 
     padding: 16px;
     border-radius: 8px;
     margin-bottom: 24px;
     font-size: 1rem;
-    color: var(--text-primary); /* Texto do ciclo (branco) */
+    color: var(--text-primary); 
     display: flex;
     align-items: center;
     gap: 12px;
@@ -21,7 +20,6 @@
 
 .producao-cycle-info i {
     font-size: 1.5rem;
-    /* --- MUDANÇA AQUI: Ícone do ciclo (branco) --- */
     color: var(--text-primary); 
 }
 
@@ -30,20 +28,45 @@
     font-weight: 600;
 }
 
+/* --- NOVO: Container para Título e Total do Grupo --- */
+.producao-group-header {
+    display: flex;
+    justify-content: space-between; /* Coloca Título na esquerda, Total na direita */
+    align-items: baseline; /* Alinha pela base do texto */
+    margin-top: 30px; 
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent-edit); /* Usa a cor de edição para destacar */
+}
+
 /* Título do Bloco (CANA MANUAL / CANA MECANIZADA) */
 .producao-group-title {
     font-size: 1.6rem;
     font-weight: 700;
     color: var(--text-primary);
-    margin-top: 30px; /* Espaçamento entre os grupos */
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    /* --- MUDANÇA AQUI: Borda neutra --- */
-    border-bottom: 2px solid var(--border-color);
+    margin: 0; /* Remove margens padrão */
+    padding: 0; /* Remove paddings padrão */
+    border: none; /* Remove borda inferior padrão */
 }
 
+/* --- NOVO: Estilo para o Total do Grupo --- */
+.producao-group-total {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary); /* Branco */
+}
+
+.producao-group-total strong {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--accent-primary); /* Verde para o valor total */
+    margin-left: 5px;
+}
+/* --- FIM DAS NOVAS REGRAS --- */
+
+
 /* Título do primeiro grupo não precisa de margem no topo */
-#producao-dashboard-container > .producao-group-title:first-of-type {
+#producao-dashboard-container > .producao-group-header:first-of-type {
     margin-top: 0;
 }
 
@@ -69,7 +92,6 @@
 .producao-frente-nome {
     font-size: 1.3rem;
     font-weight: 700;
-    /* --- MUDANÇA AQUI: Nome da frente (branco) --- */
     color: var(--text-primary); 
     margin: 0;
     text-align: center;
@@ -136,11 +158,9 @@
     opacity: 0.8; /* Leve diferenciação para a Cota */
 }
 .stat-item .stat-value.hora {
-    /* --- MUDANÇA AQUI: Meta/Hora (branco) --- */
     color: var(--text-primary); 
 }
 .stat-item .stat-value.momento {
-    /* --- MUDANÇA AQUI: Meta p/ Momento (branco) --- */
     color: var(--text-primary);
     font-weight: 800; /* Dando um leve destaque já que não tem cor */
 }
