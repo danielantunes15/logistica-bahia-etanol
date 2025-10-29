@@ -1,6 +1,7 @@
 // js/views/boletimProducao.js
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
-import { formatDateTime } from '../timeUtils.js';
+// ADICIONADO: getCurrentShift para calcular a meta do turno
+import { formatDateTime, getCurrentShift } from '../timeUtils.js';
 import { dataCache } from '../dataCache.js';
 
 export class BoletimProducaoView {
@@ -8,16 +9,26 @@ export class BoletimProducaoView {
         this.container = null;
         this.cycleInfo = null;
         this.processedData = [];
-        this.allFrentes = []; // Para armazenar os dados do cache
+        this.allFrentes = [];
+        // NOVOS ATRIBUTOS PARA KPIs GLOBAIS
+        this.globalMetrics = {
+            totalMeta24h: 0,
+            totalMetaMomento: 0,
+            metaTurnoAtual: 0,
+            mediaMetaHora: 0,
+            progressoCicloPercent: 0,
+            turnoAtualInfo: {}
+        };
     }
 
     async show() {
         await this.loadData();
         // Só calcula e renderiza se tiver dados carregados
         if (this.allFrentes.length > 0) {
-            this.calculateCycleData();
-            await this.loadHTML();
-            this.renderDashboard();
+            this.calculateCycleData(); // Calcula dados globais e por frente
+            await this.loadHTML(); // Carrega o HTML (que agora inclui o placeholder do top dashboard)
+            this.renderTopDashboard(); // Renderiza o dashboard superior com os KPIs globais
+            this.renderFrentesDashboard(); // Renderiza os cards das frentes (corrigido)
             this.addEventListeners();
         } else {
              // Mostra uma mensagem se não houver frentes com metas e tipo definidos
@@ -35,8 +46,8 @@ export class BoletimProducaoView {
             // Armazena as frentes que têm meta E tipo de produção definido
             this.allFrentes = (masterData.frentes_servico || []).filter(f => { //
                 const metaInfo = Array.isArray(f.frentes_metas) ? f.frentes_metas[0] : f.frentes_metas; //
-                // Garante que tenha meta > 0 E que o tipo_producao NÃO seja nulo ou vazio
-                return metaInfo && metaInfo.meta_toneladas > 0 && f.tipo_producao; //
+                // Garante que tenha meta > 0 E que o tipo_producao NÃO seja nulo ou vazio e seja MANUAL ou MECANIZADA
+                return metaInfo && metaInfo.meta_toneladas > 0 && f.tipo_producao && ['MANUAL', 'MECANIZADA'].includes(f.tipo_producao); //
             });
 
         } catch (error) {
@@ -55,8 +66,7 @@ export class BoletimProducaoView {
     }
 
     /**
-     * Calcula o ciclo de 24h (07:00 às 06:59) e
-     * processa os dados VINDOS DO CACHE com base no tempo passado.
+     * Calcula dados do ciclo, KPIs globais e processa frentes.
      */
     calculateCycleData() {
         // 1. Cálculo do Ciclo (Horas Passadas)
@@ -84,21 +94,24 @@ export class BoletimProducaoView {
             hoursPassed: hoursPassed
         };
 
-        // --- INÍCIO DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
+        // --- INÍCIO CÁLCULO KPIs GLOBAIS E PROCESSAMENTO FRENTES ---
+        let totalMeta24hGlobal = 0;
+        let totalMetaMomentoGlobal = 0;
 
-        // Inicializa os grupos com os totais
+        // Resetar dados processados e grupos
+        this.processedData = [];
         const gruposProcessados = {
-            "MANUAL": { titulo: "CANA MANUAL", frentes: [], totalMetaMomento: 0, totalMeta24h: 0 }, // <-- Adiciona total 24h
-            "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [], totalMetaMomento: 0, totalMeta24h: 0 } // <-- Adiciona total 24h
+            "MANUAL": { titulo: "CANA MANUAL", frentes: [], totalMetaMomento: 0, totalMeta24h: 0 },
+            "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [], totalMetaMomento: 0, totalMeta24h: 0 }
         };
 
-        // --- LÓGICA DE AGREGAÇÃO PARA "AGRO UNIONE - MANUAL" ---
+        // Lógica de Agregação (Agro Unione Manual)
         const frentesAgregadas = [];
         let agroUnioneManualAgregada = {
             nome: "AGRO UNIONE - MANUAL",
             meta_toneladas_total: 0,
             tipo_producao: 'MANUAL',
-            frentes_metas: []
+            frentes_metas: [] // Garante que frentes_metas exista
         };
         let encontrouAgroUnioneManual = false;
 
@@ -122,7 +135,7 @@ export class BoletimProducaoView {
             frentesAgregadas.push({
                 nome: agroUnioneManualAgregada.nome,
                 tipo_producao: agroUnioneManualAgregada.tipo_producao, //
-                frentes_metas: [{ meta_toneladas: agroUnioneManualAgregada.meta_toneladas_total }] //
+                frentes_metas: [{ meta_toneladas: agroUnioneManualAgregada.meta_toneladas_total }] // Adiciona a meta agregada na estrutura esperada
             });
         }
         // --- FIM DA AGREGAÇÃO ---
@@ -131,10 +144,14 @@ export class BoletimProducaoView {
         // 3. Processamento dos dados (agora usa frentesAgregadas)
         frentesAgregadas.forEach(frente => {
             const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas; //
-            const meta24h = metaInfo.meta_toneladas; //
+            const meta24h = metaInfo ? metaInfo.meta_toneladas : 0; // Garante que meta24h seja numérico
+
+            totalMeta24hGlobal += meta24h; // Acumula meta global
 
             const metaHora = meta24h / 24;
             const metaMomento = metaHora * hoursPassed;
+            totalMetaMomentoGlobal += metaMomento; // Acumula meta momento global
+
             const cumprimento = meta24h > 0 ? (metaMomento / meta24h) * 100 : 0;
 
             const frenteProcessada = {
@@ -163,10 +180,38 @@ export class BoletimProducaoView {
 
         // Converte o objeto em array (apenas os grupos que têm frentes)
         this.processedData = Object.values(gruposProcessados).filter(g => g.frentes.length > 0);
-        // --- FIM DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
+
+        // --- CÁLCULO DA META DO TURNO ATUAL ---
+        const turnoAtualInfo = getCurrentShift(); // Pega info do turno atual (A, B, C)
+        let metaTurnoAtual = 0;
+        const mediaMetaHoraGlobal = totalMeta24hGlobal > 0 ? totalMeta24hGlobal / 24 : 0; // Evita divisão por zero
+
+        // Duração de cada turno em horas (aproximado)
+        const duracaoTurnoA = 8 + (5 / 60);  // 7:00 as 15:05 -> ~8.08h
+        const duracaoTurnoB = 8 + (35 / 60); // 15:05 as 23:40 -> ~8.58h
+        const duracaoTurnoC = 7 + (20 / 60); // 23:40 as 7:00  -> ~7.33h (Total ~24h)
+
+        if (turnoAtualInfo.turno === 'A') {
+            metaTurnoAtual = mediaMetaHoraGlobal * duracaoTurnoA;
+        } else if (turnoAtualInfo.turno === 'B') {
+            metaTurnoAtual = mediaMetaHoraGlobal * duracaoTurnoB;
+        } else { // Turno C
+            metaTurnoAtual = mediaMetaHoraGlobal * duracaoTurnoC;
+        }
+
+        // Armazena os KPIs globais
+        this.globalMetrics = {
+            totalMeta24h: totalMeta24hGlobal,
+            totalMetaMomento: totalMetaMomentoGlobal,
+            metaTurnoAtual: metaTurnoAtual,
+            mediaMetaHora: mediaMetaHoraGlobal,
+            progressoCicloPercent: totalMeta24hGlobal > 0 ? (totalMetaMomentoGlobal / totalMeta24hGlobal) * 100 : 0, // Usa meta momento / meta total 24h
+            turnoAtualInfo: turnoAtualInfo // Guarda A, B ou C e horários
+        };
+        // --- FIM CÁLCULO KPIs GLOBAIS ---
     }
 
-    getHTML(showError = false) { // Recebe flag de erro
+    getHTML(showError = false) {
         // Mensagem de erro ou container normal
         const dashboardContent = showError || this.allFrentes.length === 0 ? `
             <div class="empty-state" style="padding: 40px; text-align: center;">
@@ -175,7 +220,9 @@ export class BoletimProducaoView {
                 <p style="color: var(--text-secondary);">Verifique se as frentes possuem metas definidas e estão atribuídas a um Grupo de Produção (Manual/Mecanizada) no cadastro.</p>
             </div>
         ` : `
-            <div id="producao-dashboard-container">
+             <div id="producao-top-dashboard" class="producao-top-dashboard">
+                </div>
+            <div id="producao-frentes-container">
                 </div>
         `;
 
@@ -188,66 +235,156 @@ export class BoletimProducaoView {
                         Recalcular
                     </button>
                 </div>
-                
-                ${dashboardContent} 
+                ${dashboardContent}
             </div>
         `;
     }
 
-    renderDashboard() {
-        const container = document.getElementById('producao-dashboard-container');
-        if (!container) return;
+     /**
+     * NOVO: Renderiza o dashboard superior com KPIs globais.
+     */
+    renderTopDashboard() {
+        const topContainer = document.getElementById('producao-top-dashboard');
+        if (!topContainer) return;
 
+        const metrics = this.globalMetrics;
+        const turnoBadgeClass = `turno-${metrics.turnoAtualInfo.turno.toLowerCase()}`;
+
+        // Formatação dos números
+        const totalMeta24hF = metrics.totalMeta24h.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+        const totalMetaMomentoF = metrics.totalMetaMomento.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+        const metaTurnoAtualF = metrics.metaTurnoAtual.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+        const mediaMetaHoraF = metrics.mediaMetaHora.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+        const progressoCicloF = metrics.progressoCicloPercent.toFixed(1);
+
+        topContainer.innerHTML = `
+            <div class="stats-panel-producao">
+                 <div class="panel-header-producao">
+                    <h3>Projeção Geral do Ciclo (24h)</h3>
+                    <div class="turno-info-producao">
+                        Turno Atual: <span class="turno-badge ${turnoBadgeClass}">${metrics.turnoAtualInfo.nome}</span>
+                         (${metrics.turnoAtualInfo.inicio} - ${metrics.turnoAtualInfo.fim})
+                    </div>
+                </div>
+
+                <div class="stats-grid-producao">
+                    <div class="stat-card-producao">
+                        <div class="stat-icon-producao"><i class="ph-fill ph-target"></i></div>
+                        <div class="stat-content-producao">
+                            <span class="stat-value-producao">${totalMeta24hF} t</span>
+                            <span class="stat-label-producao">Meta Total (24h)</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card-producao">
+                        <div class="stat-icon-producao" style="background-color: var(--accent-primary);"><i class="ph-fill ph-chart-line-up"></i></div>
+                        <div class="stat-content-producao">
+                            <span class="stat-value-producao">${totalMetaMomentoF} t</span>
+                            <span class="stat-label-producao">Projeção p/ Momento</span>
+                        </div>
+                        <div class="stat-progress-producao">
+                             <div class="progress-bar-bg-producao">
+                                 <div class="progress-bar-fill-producao" style="width: ${progressoCicloF}%;"></div>
+                             </div>
+                             <span>${progressoCicloF}% da Meta</span> </div>
+                    </div>
+
+                    <div class="stat-card-producao">
+                         <div class="stat-icon-producao ${turnoBadgeClass}"><i class="ph-fill ph-clock"></i></div>
+                        <div class="stat-content-producao">
+                            <span class="stat-value-producao">${metaTurnoAtualF} t</span>
+                            <span class="stat-label-producao">Projeção p/ ${metrics.turnoAtualInfo.nome}</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card-producao">
+                        <div class="stat-icon-producao" style="background-color: var(--accent-edit);"><i class="ph-fill ph-gauge"></i></div>
+                        <div class="stat-content-producao">
+                            <span class="stat-value-producao">${mediaMetaHoraF} t/h</span>
+                            <span class="stat-label-producao">Média Projetada / Hora</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * CORRIGIDO: Renderiza os cards das frentes (lógica anterior, renomeada).
+     */
+    renderFrentesDashboard() {
+        const container = document.getElementById('producao-frentes-container'); // Container específico para as frentes
+        if (!container) return;
         container.innerHTML = ''; // Limpa antes de renderizar
 
         this.processedData.forEach(grupo => {
-            
             if (grupo.frentes.length === 0) return;
 
+            // *** INÍCIO DA CORREÇÃO ***
+            // Verifica se os dados da frente estão corretos antes de gerar o HTML
             const cardsHTML = grupo.frentes.map(frente => {
-                let cumprimentoClass = 'low';
-                if (frente.cumprimento >= 90) cumprimentoClass = 'high';
-                else if (frente.cumprimento >= 60) cumprimentoClass = 'medium';
+                // Validação básica dos dados esperados
+                if (!frente || typeof frente.nome === 'undefined' || typeof frente.cumprimento === 'undefined' || typeof frente.meta24h === 'undefined' || typeof frente.metaHora === 'undefined' || typeof frente.metaMomento === 'undefined') {
+                    console.error("Dados inválidos para a frente:", frente);
+                    return '<div class="producao-card error">Erro ao renderizar card da frente.</div>'; // Card de erro
+                }
 
+                let cumprimentoClass = 'low';
+                // Garante que cumprimento seja um número antes de comparar
+                const cumprimentoNum = Number(frente.cumprimento);
+                if (!isNaN(cumprimentoNum)) {
+                    if (cumprimentoNum >= 90) cumprimentoClass = 'high';
+                    else if (cumprimentoNum >= 60) cumprimentoClass = 'medium';
+                } else {
+                     console.warn(`Valor de cumprimento inválido para ${frente.nome}: ${frente.cumprimento}`);
+                }
+
+                // Garante que valores numéricos sejam formatados corretamente
+                const meta24hF = Number(frente.meta24h).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+                const metaHoraF = Number(frente.metaHora).toFixed(2);
+                const metaMomentoF = Number(frente.metaMomento).toFixed(2);
+                const cumprimentoF = !isNaN(cumprimentoNum) ? cumprimentoNum.toFixed(1) : 'N/A';
+                const cumprimentoWidth = !isNaN(cumprimentoNum) ? cumprimentoNum.toFixed(2) : '0'; // Usa 2 decimais para a barra
+
+                // Estrutura HTML completa do card
                 return `
                     <div class="producao-card">
                         <h3 class="producao-frente-nome">${frente.nome}</h3>
-                        
                         <div class="producao-progress-bar-container">
-                            <div class="producao-progress-bar-fill ${cumprimentoClass}" style="width: ${frente.cumprimento.toFixed(2)}%;"></div>
-                            <span class="producao-progress-label">Projeção: ${frente.cumprimento.toFixed(1)}%</span>
+                            <div class="producao-progress-bar-fill ${cumprimentoClass}" style="width: ${cumprimentoWidth}%;"></div>
+                            <span class="producao-progress-label">Projeção: ${cumprimentoF}%</span>
                         </div>
-                        
                         <div class="producao-stats-grid">
                             <div class="stat-item">
                                 <span class="stat-label">Cota 24h (Meta)</span>
-                                <span class="stat-value cota">${frente.meta24h.toLocaleString('pt-BR')} t</span>
+                                <span class="stat-value cota">${meta24hF} t</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">Meta / Hora</span>
-                                <span class="stat-value hora">${frente.metaHora.toFixed(2)} t</span>
+                                <span class="stat-value hora">${metaHoraF} t</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">Meta p/ Momento</span>
-                                <span class="stat-value momento">${frente.metaMomento.toFixed(2)} t</span>
+                                <span class="stat-value momento">${metaMomentoF} t</span>
                             </div>
                         </div>
                     </div>
                 `;
             }).join('');
+            // *** FIM DA CORREÇÃO ***
 
             // Adiciona o cabeçalho do grupo e os cards
             container.innerHTML += `
                 <div class="producao-group-header">
                     <h2 class="producao-group-title">${grupo.titulo}</h2>
-                    <div class="producao-group-totals"> 
+                    <div class="producao-group-totals">
                         <span class="producao-group-total">
-                            Meta 24h: 
-                            <strong>${grupo.totalMeta24h.toLocaleString('pt-BR')} t</strong>
+                            Meta 24h:
+                            <strong>${Number(grupo.totalMeta24h).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} t</strong>
                         </span>
                         <span class="producao-group-total">
-                            Meta p/ Momento: 
-                            <strong>${grupo.totalMetaMomento.toFixed(2)} t</strong>
+                            Meta p/ Momento:
+                            <strong>${Number(grupo.totalMetaMomento).toFixed(2)} t</strong>
                         </span>
                     </div>
                 </div>
@@ -258,11 +395,12 @@ export class BoletimProducaoView {
         });
     }
 
+
     addEventListeners() {
         // Listener para o botão de recalcular
         this.container.addEventListener('click', (e) => {
             if (e.target.closest('#refresh-boletim')) {
-                this.show(); 
+                this.show();
                 showToast('Metas recalculadas para a hora atual!', 'success'); //
             }
         });

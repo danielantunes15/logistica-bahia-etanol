@@ -4,29 +4,169 @@
     padding: 24px;
 }
 
-.producao-cycle-info {
-    background-color: var(--bg-light); /* */
-    border: 1px solid var(--border-color); /* */
-    border-left: 4px solid var(--border-color); /* */
-    padding: 16px;
-    border-radius: 8px;
-    margin-bottom: 24px;
-    font-size: 1rem;
-    color: var(--text-primary); /* Texto do ciclo (branco) */ /* */
+/* Removido .producao-cycle-info pois não é mais exibido */
+
+/* --- NOVOS ESTILOS PARA O TOP DASHBOARD --- */
+
+.producao-top-dashboard {
+    margin-bottom: 32px; /* Espaço entre o top dashboard e os cards das frentes */
+}
+
+/* Baseado no .stats-panel de dashboard.css */
+.stats-panel-producao {
+    background: rgba(45, 55, 72, 0.9); /* Fundo semi-transparente */
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 20px 24px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* Baseado no .panel-header de dashboard.css */
+.panel-header-producao {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(74, 85, 104, 0.5);
+}
+
+.panel-header-producao h3 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.turno-info-producao {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
-.producao-cycle-info i {
-    font-size: 1.5rem;
-    color: var(--text-primary); /* Ícone do ciclo (branco) */ /* */
-}
-
-.producao-cycle-info strong {
-    color: var(--text-primary); /* */
+.turno-info-producao .turno-badge {
+    font-size: 0.8rem; /* Menor que o do header da escala */
     font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 12px;
+    color: white;
 }
+/* Cores do badge de turno (definidas em escala.css e reutilizadas) */
+.turno-badge.turno-a { background-color: #38A169; }
+.turno-badge.turno-b { background-color: #2B6CB0; }
+.turno-badge.turno-c { background-color: #805AD5; }
+
+/* Baseado no .stats-grid de dashboard.css */
+.stats-grid-producao {
+    display: grid;
+    /* Ajustado para 4 colunas ou auto-fit */
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+/* Baseado no .stat-card de dashboard.css */
+.stat-card-producao {
+    background: linear-gradient(145deg, var(--bg-light), #262f40); /* Leve gradiente */
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center; /* Alinha ícone e conteúdo lado a lado */
+    gap: 16px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    /* NOVO: Adiciona um espaço abaixo e contém a barra de progresso */
+    flex-direction: column;
+    align-items: flex-start; /* Alinha o conteúdo interno (ícone+texto e barra) à esquerda */
+}
+.stat-card-producao:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* NOVO: Container para ícone e texto principal */
+.stat-main-content-producao {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%; /* Ocupa toda a largura do card */
+}
+
+
+/* Ícone dentro do card */
+.stat-icon-producao {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%; /* Círculo */
+    background: var(--accent-edit); /* Cor padrão */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+/* Cores específicas para ícones (se necessário, sobrescrever aqui) */
+.stat-icon-producao.turno-a { background-color: #38A169; }
+.stat-icon-producao.turno-b { background-color: #2B6CB0; }
+.stat-icon-producao.turno-c { background-color: #805AD5; }
+
+.stat-icon-producao i {
+    font-size: 24px;
+    color: white;
+}
+
+/* Conteúdo (Valor e Rótulo) */
+.stat-content-producao {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Alinha à esquerda */
+    flex-grow: 1;
+}
+
+.stat-value-producao {
+    font-size: 1.8rem; /* Tamanho destacado */
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+    margin-bottom: 2px;
+}
+
+.stat-label-producao {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+/* Estilo para a barra de progresso no KPI de Projeção Momento */
+.stat-progress-producao {
+    margin-top: 8px; /* Espaço acima da barra */
+    width: 100%; /* Ocupa toda a largura do card */
+}
+.stat-progress-producao span {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-align: right; /* Alinha percentual à direita */
+    margin-top: 2px;
+}
+.progress-bar-bg-producao {
+    height: 6px;
+    background-color: var(--bg-dark);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.progress-bar-fill-producao {
+    height: 100%;
+    background-color: var(--accent-primary); /* Verde */
+    border-radius: 3px;
+    transition: width 0.5s ease-out;
+}
+
+
+/* --- FIM NOVOS ESTILOS TOP DASHBOARD --- */
+
 
 /* Cabeçalho do Grupo */
 .producao-group-header {
@@ -36,14 +176,14 @@
     margin-top: 30px;
     margin-bottom: 16px;
     padding-bottom: 10px;
-    border-bottom: 2px solid var(--accent-edit); /* */
+    border-bottom: 2px solid var(--accent-edit); /* Azul */
 }
 
 /* Título do Bloco */
 .producao-group-title {
     font-size: 1.6rem;
     font-weight: 700;
-    color: var(--text-primary); /* */
+    color: var(--text-primary); /* Branco */
     margin: 0;
     padding: 0;
     border: none;
@@ -61,21 +201,20 @@
 .producao-group-total {
     font-size: 0.9rem; /* Tamanho um pouco menor */
     font-weight: 500;
-    color: var(--text-primary); /* Branco */ /* */
+    color: var(--text-primary); /* Branco */
     white-space: nowrap; /* Evita quebra de linha */
 }
 
 .producao-group-total strong {
     font-weight: 700;
     font-size: 1.0rem; /* Tamanho do valor */
-    /* --- MUDANÇA AQUI: Total do grupo (branco) --- */
-    color: var(--text-primary); /* Era verde */ /* */
+    color: var(--text-primary); /* Branco */
     margin-left: 5px;
 }
 
 
 /* Título do primeiro grupo não precisa de margem no topo */
-#producao-dashboard-container > .producao-group-header:first-of-type {
+#producao-frentes-container > .producao-group-header:first-of-type { /* Aponta para o container correto */
     margin-top: 0;
 }
 
@@ -88,8 +227,8 @@
 }
 
 .producao-card {
-    background-color: var(--bg-light); /* */
-    border: 1px solid var(--border-color); /* */
+    background-color: var(--bg-light); /* Fundo card frente */
+    border: 1px solid var(--border-color); /* Borda card frente */
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -98,20 +237,28 @@
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
+/* NOVO: Estilo para card com erro */
+.producao-card.error {
+    border-color: var(--accent-danger);
+    color: var(--accent-danger);
+    text-align: center;
+    font-weight: 500;
+}
+
 .producao-frente-nome {
     font-size: 1.3rem;
     font-weight: 700;
-    color: var(--text-primary); /* Nome da frente (branco) */ /* */
+    color: var(--text-primary); /* Nome da frente (branco) */
     margin: 0;
     text-align: center;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-color); /* */
+    border-bottom: 1px solid var(--border-color); /* Linha divisória */
 }
 
 .producao-progress-bar-container {
     width: 100%;
     height: 20px; /* Mais alto para caber o texto */
-    background-color: var(--bg-dark); /* */
+    background-color: var(--bg-dark); /* Fundo barra */
     border-radius: 6px;
     overflow: hidden;
     position: relative; /* Para posicionar o texto */
@@ -123,10 +270,10 @@
     transition: width 0.5s ease-out;
 }
 
-/* Cores da barra de progresso (MANTIDAS) */
-.producao-progress-bar-fill.low { background-color: var(--accent-danger); } /* */
+/* Cores da barra de progresso */
+.producao-progress-bar-fill.low { background-color: var(--accent-danger); } /* Vermelho */
 .producao-progress-bar-fill.medium { background-color: #D69E2E; } /* Amarelo */
-.producao-progress-bar-fill.high { background-color: var(--accent-primary); } /* */
+.producao-progress-bar-fill.high { background-color: var(--accent-primary); } /* Verde */
 
 /* Texto dentro da barra de progresso */
 .producao-progress-label {
@@ -149,7 +296,7 @@
 
 .stat-item .stat-label {
     font-size: 0.8rem;
-    color: var(--text-primary); /* Rótulos (branco) */ /* */
+    color: var(--text-secondary); /* Cinza claro para rótulos */
     text-transform: uppercase;
     display: block;
     margin-bottom: 4px;
@@ -158,28 +305,22 @@
 .stat-item .stat-value {
     font-size: 1.4rem;
     font-weight: 700;
-    /* --- MUDANÇA AQUI: Cor padrão dos valores é branca --- */
-    color: var(--text-primary); /* */
+    color: var(--text-primary); /* Branco para valores */
 }
 
-/* --- REMOVIDO: Cores específicas para cota, hora, momento --- */
-/* .stat-item .stat-value.cota { ... } */
-/* .stat-item .stat-value.hora { ... } */
-/* .stat-item .stat-value.momento { ... } */
-
-/* --- ADICIONADO: Estilo leve para diferenciar cota --- */
+/* Estilo leve para diferenciar cota (opacidade reduzida) */
 .stat-item .stat-value.cota {
-    opacity: 0.8; /* Leve diferenciação para a Cota */
+    opacity: 0.8;
 }
 
 
-/* Remove o rodapé "Faltam X" e a seção de log */
+/* Remove o rodapé "Faltam X" e a seção de log (se existirem) */
 .producao-falta-stat,
 .producao-log-section {
     display: none;
 }
 
-/* Ajuste Responsivo para o Header do Grupo */
+/* Ajuste Responsivo para o Header do Grupo de Frentes */
 @media (max-width: 600px) {
     .producao-group-header {
         flex-direction: column; /* Coloca Título e Totais em coluna */
@@ -194,5 +335,69 @@
     }
     .producao-group-total strong {
         font-size: 0.95rem;
+    }
+
+    .producao-grid {
+        /* Garante 1 coluna em telas muito pequenas */
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Responsividade para o Top Dashboard (Adicionada na iteração anterior) */
+@media (max-width: 1200px) {
+    .stats-grid-producao {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Ajuste para telas médias */
+    }
+    .stat-value-producao {
+        font-size: 1.6rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .stats-panel-producao {
+        padding: 16px;
+    }
+    .panel-header-producao {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+    .panel-header-producao h3 {
+        font-size: 1.2rem;
+    }
+    .stats-grid-producao {
+        grid-template-columns: 1fr 1fr; /* 2 colunas em mobile */
+    }
+    .stat-card-producao {
+        padding: 12px;
+        gap: 12px;
+        flex-direction: row; /* Volta para linha em mobile se preferir */
+    }
+     .stat-main-content-producao { /* Ajuste se voltar para linha */
+        flex-direction: row;
+        gap: 12px;
+    }
+    .stat-icon-producao {
+        width: 40px;
+        height: 40px;
+    }
+    .stat-icon-producao i {
+        font-size: 20px;
+    }
+    .stat-value-producao {
+        font-size: 1.4rem;
+    }
+    .stat-progress-producao { /* Esconde barra em telas menores se ficar muito apertado */
+       /* display: none; */
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid-producao {
+        grid-template-columns: 1fr; /* 1 coluna em telas muito pequenas */
+    }
+    .stat-card-producao {
+        flex-direction: row; /* Garante layout em linha */
     }
 }
