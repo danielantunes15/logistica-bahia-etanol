@@ -7,13 +7,13 @@
 .producao-cycle-info {
     background-color: var(--bg-light);
     border: 1px solid var(--border-color);
-    border-left: 4px solid var(--accent-edit);
+    /* --- MUDANÇA AQUI: Borda neutra --- */
+    border-left: 4px solid var(--border-color); 
     padding: 16px;
     border-radius: 8px;
     margin-bottom: 24px;
     font-size: 1rem;
-    /* --- MUDANÇA AQUI --- */
-    color: var(--text-primary); /* Era --text-secondary, agora é branco */
+    color: var(--text-primary); /* Texto do ciclo (branco) */
     display: flex;
     align-items: center;
     gap: 12px;
@@ -21,7 +21,8 @@
 
 .producao-cycle-info i {
     font-size: 1.5rem;
-    color: var(--accent-edit);
+    /* --- MUDANÇA AQUI: Ícone do ciclo (branco) --- */
+    color: var(--text-primary); 
 }
 
 .producao-cycle-info strong {
@@ -37,7 +38,8 @@
     margin-top: 30px; /* Espaçamento entre os grupos */
     margin-bottom: 16px;
     padding-bottom: 10px;
-    border-bottom: 2px solid var(--accent-edit);
+    /* --- MUDANÇA AQUI: Borda neutra --- */
+    border-bottom: 2px solid var(--border-color);
 }
 
 /* Título do primeiro grupo não precisa de margem no topo */
@@ -67,7 +69,8 @@
 .producao-frente-nome {
     font-size: 1.3rem;
     font-weight: 700;
-    color: var(--accent-primary);
+    /* --- MUDANÇA AQUI: Nome da frente (branco) --- */
+    color: var(--text-primary); 
     margin: 0;
     text-align: center;
     padding-bottom: 12px;
@@ -89,7 +92,7 @@
     transition: width 0.5s ease-out;
 }
 
-/* Cores da barra de progresso */
+/* Cores da barra de progresso (MANTIDAS) */
 .producao-progress-bar-fill.low { background-color: var(--accent-danger); }
 .producao-progress-bar-fill.medium { background-color: #D69E2E; } /* Amarelo */
 .producao-progress-bar-fill.high { background-color: var(--accent-primary); }
@@ -115,8 +118,7 @@
 
 .stat-item .stat-label {
     font-size: 0.8rem;
-    /* --- MUDANÇA AQUI --- */
-    color: var(--text-primary); /* Era --text-secondary, agora é branco */
+    color: var(--text-primary); /* Rótulos (branco) */
     text-transform: uppercase;
     display: block;
     margin-bottom: 4px;
@@ -130,12 +132,18 @@
 
 /* Cores específicas para as novas métricas */
 .stat-item .stat-value.cota {
-    /* --- MUDANÇA AQUI --- */
-    color: var(--text-primary); /* Era --text-secondary, agora é branco */
+    color: var(--text-primary); 
     opacity: 0.8; /* Leve diferenciação para a Cota */
 }
-.stat-item .stat-value.hora { color: var(--accent-edit); }
-.stat-item .stat-value.momento { color: var(--accent-primary); }
+.stat-item .stat-value.hora {
+    /* --- MUDANÇA AQUI: Meta/Hora (branco) --- */
+    color: var(--text-primary); 
+}
+.stat-item .stat-value.momento {
+    /* --- MUDANÇA AQUI: Meta p/ Momento (branco) --- */
+    color: var(--text-primary);
+    font-weight: 800; /* Dando um leve destaque já que não tem cor */
+}
 
 /* Remove o rodapé "Faltam X" e a seção de log */
 .producao-falta-stat,
