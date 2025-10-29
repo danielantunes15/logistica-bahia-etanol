@@ -5,14 +5,14 @@
 }
 
 .producao-cycle-info {
-    background-color: var(--bg-light);
-    border: 1px solid var(--border-color);
-    border-left: 4px solid var(--border-color); 
+    background-color: var(--bg-light); /* */
+    border: 1px solid var(--border-color); /* */
+    border-left: 4px solid var(--border-color); /* */
     padding: 16px;
     border-radius: 8px;
     margin-bottom: 24px;
     font-size: 1rem;
-    color: var(--text-primary); 
+    color: var(--text-primary); /* Texto do ciclo (branco) */ /* */
     display: flex;
     align-items: center;
     gap: 12px;
@@ -20,49 +20,58 @@
 
 .producao-cycle-info i {
     font-size: 1.5rem;
-    color: var(--text-primary); 
+    color: var(--text-primary); /* Ícone do ciclo (branco) */ /* */
 }
 
 .producao-cycle-info strong {
-    color: var(--text-primary);
+    color: var(--text-primary); /* */
     font-weight: 600;
 }
 
-/* --- NOVO: Container para Título e Total do Grupo --- */
+/* Cabeçalho do Grupo */
 .producao-group-header {
-    display: flex;
-    justify-content: space-between; /* Coloca Título na esquerda, Total na direita */
+    display: flex; /* Para alinhar título e totais */
+    justify-content: space-between; /* Título na esquerda, totais na direita */
     align-items: baseline; /* Alinha pela base do texto */
-    margin-top: 30px; 
+    margin-top: 30px;
     margin-bottom: 16px;
     padding-bottom: 10px;
-    border-bottom: 2px solid var(--accent-edit); /* Usa a cor de edição para destacar */
+    border-bottom: 2px solid var(--accent-edit); /* */
 }
 
-/* Título do Bloco (CANA MANUAL / CANA MECANIZADA) */
+/* Título do Bloco */
 .producao-group-title {
     font-size: 1.6rem;
     font-weight: 700;
-    color: var(--text-primary);
-    margin: 0; /* Remove margens padrão */
-    padding: 0; /* Remove paddings padrão */
-    border: none; /* Remove borda inferior padrão */
+    color: var(--text-primary); /* */
+    margin: 0;
+    padding: 0;
+    border: none;
 }
 
-/* --- NOVO: Estilo para o Total do Grupo --- */
+/* Container para os Totais */
+.producao-group-totals {
+    display: flex;
+    flex-direction: column; /* Coloca os totais um abaixo do outro */
+    align-items: flex-end; /* Alinha os totais à direita */
+    gap: 5px; /* Espaço entre os totais */
+}
+
+/* Estilo para cada linha de Total */
 .producao-group-total {
-    font-size: 1rem;
+    font-size: 0.9rem; /* Tamanho um pouco menor */
     font-weight: 500;
-    color: var(--text-primary); /* Branco */
+    color: var(--text-primary); /* Branco */ /* */
+    white-space: nowrap; /* Evita quebra de linha */
 }
 
 .producao-group-total strong {
     font-weight: 700;
-    font-size: 1.1rem;
-    color: var(--accent-primary); /* Verde para o valor total */
+    font-size: 1.0rem; /* Tamanho do valor */
+    /* --- MUDANÇA AQUI: Total do grupo (branco) --- */
+    color: var(--text-primary); /* Era verde */ /* */
     margin-left: 5px;
 }
-/* --- FIM DAS NOVAS REGRAS --- */
 
 
 /* Título do primeiro grupo não precisa de margem no topo */
@@ -79,8 +88,8 @@
 }
 
 .producao-card {
-    background-color: var(--bg-light);
-    border: 1px solid var(--border-color);
+    background-color: var(--bg-light); /* */
+    border: 1px solid var(--border-color); /* */
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -92,17 +101,17 @@
 .producao-frente-nome {
     font-size: 1.3rem;
     font-weight: 700;
-    color: var(--text-primary); 
+    color: var(--text-primary); /* Nome da frente (branco) */ /* */
     margin: 0;
     text-align: center;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color); /* */
 }
 
 .producao-progress-bar-container {
     width: 100%;
     height: 20px; /* Mais alto para caber o texto */
-    background-color: var(--bg-dark);
+    background-color: var(--bg-dark); /* */
     border-radius: 6px;
     overflow: hidden;
     position: relative; /* Para posicionar o texto */
@@ -115,9 +124,9 @@
 }
 
 /* Cores da barra de progresso (MANTIDAS) */
-.producao-progress-bar-fill.low { background-color: var(--accent-danger); }
+.producao-progress-bar-fill.low { background-color: var(--accent-danger); } /* */
 .producao-progress-bar-fill.medium { background-color: #D69E2E; } /* Amarelo */
-.producao-progress-bar-fill.high { background-color: var(--accent-primary); }
+.producao-progress-bar-fill.high { background-color: var(--accent-primary); } /* */
 
 /* Texto dentro da barra de progresso */
 .producao-progress-label {
@@ -140,7 +149,7 @@
 
 .stat-item .stat-label {
     font-size: 0.8rem;
-    color: var(--text-primary); /* Rótulos (branco) */
+    color: var(--text-primary); /* Rótulos (branco) */ /* */
     text-transform: uppercase;
     display: block;
     margin-bottom: 4px;
@@ -149,24 +158,41 @@
 .stat-item .stat-value {
     font-size: 1.4rem;
     font-weight: 700;
-    color: var(--text-primary);
+    /* --- MUDANÇA AQUI: Cor padrão dos valores é branca --- */
+    color: var(--text-primary); /* */
 }
 
-/* Cores específicas para as novas métricas */
+/* --- REMOVIDO: Cores específicas para cota, hora, momento --- */
+/* .stat-item .stat-value.cota { ... } */
+/* .stat-item .stat-value.hora { ... } */
+/* .stat-item .stat-value.momento { ... } */
+
+/* --- ADICIONADO: Estilo leve para diferenciar cota --- */
 .stat-item .stat-value.cota {
-    color: var(--text-primary); 
     opacity: 0.8; /* Leve diferenciação para a Cota */
 }
-.stat-item .stat-value.hora {
-    color: var(--text-primary); 
-}
-.stat-item .stat-value.momento {
-    color: var(--text-primary);
-    font-weight: 800; /* Dando um leve destaque já que não tem cor */
-}
+
 
 /* Remove o rodapé "Faltam X" e a seção de log */
 .producao-falta-stat,
 .producao-log-section {
     display: none;
+}
+
+/* Ajuste Responsivo para o Header do Grupo */
+@media (max-width: 600px) {
+    .producao-group-header {
+        flex-direction: column; /* Coloca Título e Totais em coluna */
+        align-items: flex-start; /* Alinha tudo à esquerda */
+        gap: 8px; /* Espaço entre título e totais */
+    }
+    .producao-group-totals {
+        align-items: flex-start; /* Alinha totais à esquerda */
+    }
+    .producao-group-total {
+        font-size: 0.85rem; /* Reduz um pouco em telas pequenas */
+    }
+    .producao-group-total strong {
+        font-size: 0.95rem;
+    }
 }

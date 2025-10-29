@@ -30,21 +30,21 @@ export class BoletimProducaoView {
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            const masterData = await dataCache.fetchMasterDataOnly(forceRefresh);
+            const masterData = await dataCache.fetchMasterDataOnly(forceRefresh); //
 
             // Armazena as frentes que têm meta E tipo de produção definido
-            this.allFrentes = (masterData.frentes_servico || []).filter(f => {
-                const metaInfo = Array.isArray(f.frentes_metas) ? f.frentes_metas[0] : f.frentes_metas;
+            this.allFrentes = (masterData.frentes_servico || []).filter(f => { //
+                const metaInfo = Array.isArray(f.frentes_metas) ? f.frentes_metas[0] : f.frentes_metas; //
                 // Garante que tenha meta > 0 E que o tipo_producao NÃO seja nulo ou vazio
-                return metaInfo && metaInfo.meta_toneladas > 0 && f.tipo_producao;
+                return metaInfo && metaInfo.meta_toneladas > 0 && f.tipo_producao; //
             });
 
         } catch (error) {
             console.error('Erro ao carregar dados do boletim:', error);
-            handleOperation(error, "Erro ao carregar frentes e metas.");
+            handleOperation(error, "Erro ao carregar frentes e metas."); //
             this.allFrentes = []; // Limpa em caso de erro
         } finally {
-            hideLoading();
+            hideLoading(); //
         }
     }
 
@@ -85,10 +85,10 @@ export class BoletimProducaoView {
 
         // --- INÍCIO DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
 
-        // Inicializa os grupos
+        // Inicializa os grupos com os totais
         const gruposProcessados = {
-            "MANUAL": { titulo: "CANA MANUAL", frentes: [], totalMetaMomento: 0 }, // <-- Adiciona total
-            "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [], totalMetaMomento: 0 } // <-- Adiciona total
+            "MANUAL": { titulo: "CANA MANUAL", frentes: [], totalMetaMomento: 0, totalMeta24h: 0 }, // <-- Adiciona total 24h
+            "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [], totalMetaMomento: 0, totalMeta24h: 0 } // <-- Adiciona total 24h
         };
 
         // --- LÓGICA DE AGREGAÇÃO PARA "AGRO UNIONE - MANUAL" ---
@@ -102,37 +102,42 @@ export class BoletimProducaoView {
         let encontrouAgroUnioneManual = false;
 
         this.allFrentes.forEach(frente => {
-            const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas;
-            const meta_toneladas = metaInfo ? metaInfo.meta_toneladas : 0;
+            const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas; //
+            const meta_toneladas = metaInfo ? metaInfo.meta_toneladas : 0; //
 
-            if (frente.nome.toUpperCase().startsWith('AGRO UNIONE - MANUAL')) {
+            // Verifica se o nome da frente no DB começa com "AGRO UNIONE - MANUAL"
+            if (frente.nome.toUpperCase().startsWith('AGRO UNIONE - MANUAL')) { //
                 agroUnioneManualAgregada.meta_toneladas_total += meta_toneladas;
-                encontrouAgroUnioneManual = true;
+                encontrouAgroUnioneManual = true; // Marca que encontrou pelo menos uma
             } else {
+                // Se não for, apenas passa a frente original adiante
                 frentesAgregadas.push(frente);
             }
         });
 
+        // Adiciona a frente agregada (se ela tiver meta e foi encontrada)
         if (encontrouAgroUnioneManual && agroUnioneManualAgregada.meta_toneladas_total > 0) {
+            // Recria a estrutura do objeto
             frentesAgregadas.push({
                 nome: agroUnioneManualAgregada.nome,
-                tipo_producao: agroUnioneManualAgregada.tipo_producao,
-                frentes_metas: [{ meta_toneladas: agroUnioneManualAgregada.meta_toneladas_total }]
+                tipo_producao: agroUnioneManualAgregada.tipo_producao, //
+                frentes_metas: [{ meta_toneladas: agroUnioneManualAgregada.meta_toneladas_total }] //
             });
         }
         // --- FIM DA AGREGAÇÃO ---
 
+
         // 3. Processamento dos dados (agora usa frentesAgregadas)
         frentesAgregadas.forEach(frente => {
-            const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas;
-            const meta24h = metaInfo.meta_toneladas;
+            const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas; //
+            const meta24h = metaInfo.meta_toneladas; //
 
             const metaHora = meta24h / 24;
             const metaMomento = metaHora * hoursPassed;
             const cumprimento = meta24h > 0 ? (metaMomento / meta24h) * 100 : 0;
 
             const frenteProcessada = {
-                nome: frente.nome,
+                nome: frente.nome, //
                 meta24h: meta24h,
                 metaHora: metaHora,
                 metaMomento: metaMomento, // <-- Valor que vamos somar
@@ -140,12 +145,14 @@ export class BoletimProducaoView {
             };
 
             // Agrupamento dinâmico
-            if (frente.tipo_producao === 'MANUAL' && gruposProcessados["MANUAL"]) {
+            if (frente.tipo_producao === 'MANUAL' && gruposProcessados["MANUAL"]) { //
                 gruposProcessados["MANUAL"].frentes.push(frenteProcessada);
-                gruposProcessados["MANUAL"].totalMetaMomento += metaMomento; // <-- SOMA AQUI
-            } else if (frente.tipo_producao === 'MECANIZADA' && gruposProcessados["MECANIZADA"]) {
+                gruposProcessados["MANUAL"].totalMetaMomento += metaMomento; // <-- SOMA MOMENTO
+                gruposProcessados["MANUAL"].totalMeta24h += meta24h; // <-- SOMA 24H
+            } else if (frente.tipo_producao === 'MECANIZADA' && gruposProcessados["MECANIZADA"]) { //
                 gruposProcessados["MECANIZADA"].frentes.push(frenteProcessada);
-                gruposProcessados["MECANIZADA"].totalMetaMomento += metaMomento; // <-- SOMA AQUI
+                gruposProcessados["MECANIZADA"].totalMetaMomento += metaMomento; // <-- SOMA MOMENTO
+                gruposProcessados["MECANIZADA"].totalMeta24h += meta24h; // <-- SOMA 24H
             }
         });
 
@@ -167,7 +174,7 @@ export class BoletimProducaoView {
             <div class="empty-state" style="padding: 40px; text-align: center;">
                 <i class="ph-fill ph-warning" style="font-size: 3rem; color: var(--accent-danger);"></i>
                 <p style="color: var(--text-primary); font-size: 1.1rem;">Não foi possível carregar o boletim.</p>
-                <p style="color: var(--text-secondary);">Verifique se as frentes possuem metas definidas e estão atribuídas a um Grupo de Produção (Manual/Mecanizada) no cadastro.</p>
+                <p style="color: var(--text-primary);">Verifique se as frentes possuem metas definidas e estão atribuídas a um Grupo de Produção (Manual/Mecanizada) no cadastro.</p>
             </div>
         ` : `
             <div id="producao-dashboard-container">
@@ -241,14 +248,20 @@ export class BoletimProducaoView {
                 `;
             }).join('');
 
-            // --- MODIFICAÇÃO AQUI: Adiciona o total ao lado do título ---
+            // --- MODIFICAÇÃO AQUI: Adiciona o total 24h ao lado do total do momento ---
             container.innerHTML += `
                 <div class="producao-group-header">
                     <h2 class="producao-group-title">${grupo.titulo}</h2>
-                    <span class="producao-group-total">
-                        Meta p/ Momento (Total): 
-                        <strong>${grupo.totalMetaMomento.toFixed(2)} t</strong>
-                    </span>
+                    <div class="producao-group-totals"> 
+                        <span class="producao-group-total">
+                            Meta 24h: 
+                            <strong>${grupo.totalMeta24h.toLocaleString('pt-BR')} t</strong>
+                        </span>
+                        <span class="producao-group-total">
+                            Meta p/ Momento: 
+                            <strong>${grupo.totalMetaMomento.toFixed(2)} t</strong>
+                        </span>
+                    </div>
                 </div>
                 <div class="producao-grid">
                     ${cardsHTML}
@@ -263,7 +276,7 @@ export class BoletimProducaoView {
         this.container.addEventListener('click', (e) => {
             if (e.target.closest('#refresh-boletim')) {
                 this.show(); 
-                showToast('Metas recalculadas para a hora atual!', 'success');
+                showToast('Metas recalculadas para a hora atual!', 'success'); //
             }
         });
     }
