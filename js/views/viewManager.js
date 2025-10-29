@@ -15,6 +15,8 @@ import { BoletimDiarioView } from './boletimDiario.js';
 import { OcorrenciasView } from './ocorrencias.js'; 
 // NOVO: Importa TempoView
 import { TempoView } from './tempo.js'; 
+// NOVO: Importa BoletimProducaoView (ADICIONADO)
+import { BoletimProducaoView } from './boletimProducao.js';
 
 export class ViewManager {
     constructor(appManager) { // Recebe o App Manager
@@ -50,6 +52,9 @@ export class ViewManager {
         
         // NOVO: Registra a view de Tempo
         this.views.set('tempo', new TempoView());
+        
+        // NOVO: Registra a view de Boletim de Produção (ADICIONADO)
+        this.views.set('boletim-producao', new BoletimProducaoView());
 
         this.views.set('cadastro-fazendas', new CadastrosView('fazendas'));
         this.views.set('cadastro-caminhoes', new CadastrosView('caminhoes'));

@@ -1,0 +1,144 @@
+/* css/boletimProducao.css */
+
+.producao-view {
+    padding: 24px;
+}
+
+.producao-cycle-info {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--accent-edit);
+    padding: 16px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-size: 1rem;
+    /* --- MUDANÇA AQUI --- */
+    color: var(--text-primary); /* Era --text-secondary, agora é branco */
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.producao-cycle-info i {
+    font-size: 1.5rem;
+    color: var(--accent-edit);
+}
+
+.producao-cycle-info strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Título do Bloco (CANA MANUAL / CANA MECANIZADA) */
+.producao-group-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-top: 30px; /* Espaçamento entre os grupos */
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent-edit);
+}
+
+/* Título do primeiro grupo não precisa de margem no topo */
+#producao-dashboard-container > .producao-group-title:first-of-type {
+    margin-top: 0;
+}
+
+
+.producao-grid {
+    display: grid;
+    /* Ajustado minmax para 350px para caber as 3 colunas de stats */
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+.producao-card {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.producao-frente-nome {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    margin: 0;
+    text-align: center;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.producao-progress-bar-container {
+    width: 100%;
+    height: 20px; /* Mais alto para caber o texto */
+    background-color: var(--bg-dark);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative; /* Para posicionar o texto */
+}
+
+.producao-progress-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.5s ease-out;
+}
+
+/* Cores da barra de progresso */
+.producao-progress-bar-fill.low { background-color: var(--accent-danger); }
+.producao-progress-bar-fill.medium { background-color: #D69E2E; } /* Amarelo */
+.producao-progress-bar-fill.high { background-color: var(--accent-primary); }
+
+/* Texto dentro da barra de progresso */
+.producao-progress-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+}
+
+.producao-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    text-align: center;
+}
+
+.stat-item .stat-label {
+    font-size: 0.8rem;
+    /* --- MUDANÇA AQUI --- */
+    color: var(--text-primary); /* Era --text-secondary, agora é branco */
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.stat-item .stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Cores específicas para as novas métricas */
+.stat-item .stat-value.cota {
+    /* --- MUDANÇA AQUI --- */
+    color: var(--text-primary); /* Era --text-secondary, agora é branco */
+    opacity: 0.8; /* Leve diferenciação para a Cota */
+}
+.stat-item .stat-value.hora { color: var(--accent-edit); }
+.stat-item .stat-value.momento { color: var(--accent-primary); }
+
+/* Remove o rodapé "Faltam X" e a seção de log */
+.producao-falta-stat,
+.producao-log-section {
+    display: none;
+}
