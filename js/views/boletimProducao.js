@@ -28,7 +28,7 @@ export class BoletimProducaoView {
     async hide() {}
 
     async loadData(forceRefresh = false) {
-        showLoading();
+        showLoading(); //
         try {
             const masterData = await dataCache.fetchMasterDataOnly(forceRefresh); //
 
@@ -77,6 +77,7 @@ export class BoletimProducaoView {
         if (hoursPassed > 24) hoursPassed = 24;
         if (hoursPassed < 0) hoursPassed = 0;
 
+        // Mantém o cálculo interno, mas não será exibido
         this.cycleInfo = {
             start: cycleStart,
             end: cycleEnd,
@@ -166,15 +167,12 @@ export class BoletimProducaoView {
     }
 
     getHTML(showError = false) { // Recebe flag de erro
-        const cycleStartStr = this.cycleInfo ? this.cycleInfo.start.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
-        const cycleEndStr = this.cycleInfo ? this.cycleInfo.end.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
-        const hoursPassedStr = this.cycleInfo ? this.cycleInfo.hoursPassed.toFixed(2).replace('.', ',') : 'N/A';
-
+        // Mensagem de erro ou container normal
         const dashboardContent = showError || this.allFrentes.length === 0 ? `
             <div class="empty-state" style="padding: 40px; text-align: center;">
                 <i class="ph-fill ph-warning" style="font-size: 3rem; color: var(--accent-danger);"></i>
                 <p style="color: var(--text-primary); font-size: 1.1rem;">Não foi possível carregar o boletim.</p>
-                <p style="color: var(--text-primary);">Verifique se as frentes possuem metas definidas e estão atribuídas a um Grupo de Produção (Manual/Mecanizada) no cadastro.</p>
+                <p style="color: var(--text-secondary);">Verifique se as frentes possuem metas definidas e estão atribuídas a um Grupo de Produção (Manual/Mecanizada) no cadastro.</p>
             </div>
         ` : `
             <div id="producao-dashboard-container">
@@ -191,16 +189,6 @@ export class BoletimProducaoView {
                     </button>
                 </div>
                 
-                <div class="producao-cycle-info">
-                    <i class="ph-fill ph-calendar-check"></i>
-                    Ciclo: <strong>${cycleStartStr}</strong> até <strong>${cycleEndStr}</strong>
-                </div>
-                
-                <div class="producao-cycle-info" style="border-left-color: var(--border-color);">
-                    <i class="ph-fill ph-clock" style="color: var(--text-primary);"></i>
-                    Horas decorridas no ciclo: <strong>${hoursPassedStr} horas</strong>
-                </div>
-
                 ${dashboardContent} 
             </div>
         `;
@@ -248,7 +236,7 @@ export class BoletimProducaoView {
                 `;
             }).join('');
 
-            // --- MODIFICAÇÃO AQUI: Adiciona o total 24h ao lado do total do momento ---
+            // Adiciona o cabeçalho do grupo e os cards
             container.innerHTML += `
                 <div class="producao-group-header">
                     <h2 class="producao-group-title">${grupo.titulo}</h2>
@@ -267,7 +255,6 @@ export class BoletimProducaoView {
                     ${cardsHTML}
                 </div>
             `;
-            // --- FIM DA MODIFICAÇÃO ---
         });
     }
 
