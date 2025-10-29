@@ -1,7 +1,7 @@
 // js/views/boletimProducao.js
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 // Importa getCurrentShift e adiciona getBrtIsoString (necessário para cálculo de tempo no turno)
-import { formatDateTime, getCurrentShift, getBrtIsoString } from '../timeUtils.js';
+import { formatDateTime, getCurrentShift, getBrtIsoString, calculateTimeDifference, formatMillisecondsToHoursMinutes } from '../timeUtils.js'; // Adiciona calculateTimeDifference e formatMillisecondsToHoursMinutes
 import { dataCache } from '../dataCache.js';
 
 // Importar Chart.js explicitamente se o plugin datalabels for usado separadamente
@@ -18,8 +18,8 @@ export class BoletimProducaoView {
         this.globalMetrics = {
             totalMeta24h: 0,
             totalMetaMomento: 0,
-            // NOVO: KPI Refinado - Projeção ACUMULADA DENTRO do turno atual
-            kpiMetaAcumuladaTurno: 0,
+            // NOVO: KPI Refinado - Projeção TOTAL para o turno atual
+            kpiMetaTotalTurno: 0,
             mediaMetaHora: 0,
             progressoCicloPercent: 0,
             turnoAtualInfo: {}
@@ -145,23 +145,31 @@ export class BoletimProducaoView {
         gruposProcessados["MECANIZADA"].frentes.sort((a, b) => a.nome.localeCompare(b.nome));
         this.processedData = Object.values(gruposProcessados).filter(g => g.frentes.length > 0);
 
+        // --- Calcula a meta total projetada para o turno completo ---
         const turnoAtualInfo = getCurrentShift();
         const mediaMetaHoraGlobal = totalMeta24hGlobal > 0 ? totalMeta24hGlobal / 24 : 0;
-        const shiftStartTime = new Date(now);
-        const [startHour, startMinute] = turnoAtualInfo.inicio.split(':').map(Number);
-        shiftStartTime.setHours(startHour, startMinute, 0, 0);
-        if (turnoAtualInfo.turno === 'C' && now.getHours() < 7) {
-            shiftStartTime.setDate(shiftStartTime.getDate() - 1);
-        }
-        const msPassedInShift = now.getTime() - shiftStartTime.getTime();
-        let hoursPassedInShift = msPassedInShift / (1000 * 60 * 60);
-        if (hoursPassedInShift < 0) hoursPassedInShift = 0;
-        const kpiMetaAcumuladaTurno = mediaMetaHoraGlobal * hoursPassedInShift;
 
+        const [startHour, startMinute] = turnoAtualInfo.inicio.split(':').map(Number);
+        const [endHour, endMinute] = turnoAtualInfo.fim.split(':').map(Number);
+        const shiftStartDate = new Date();
+        shiftStartDate.setHours(startHour, startMinute, 0, 0);
+        const shiftEndDate = new Date();
+        shiftEndDate.setHours(endHour, endMinute, 0, 0);
+
+        if (endHour < startHour) {
+             shiftEndDate.setDate(shiftEndDate.getDate() + 1);
+        }
+
+        const shiftDurationMillis = shiftEndDate.getTime() - shiftStartDate.getTime();
+        const shiftDurationHours = shiftDurationMillis / (1000 * 60 * 60);
+        const kpiMetaTotalTurno = mediaMetaHoraGlobal * shiftDurationHours;
+        // --- Fim do cálculo ---
+
+        // Atualiza as métricas globais
         this.globalMetrics = {
             totalMeta24h: totalMeta24hGlobal,
             totalMetaMomento: totalMetaMomentoGlobal,
-            kpiMetaAcumuladaTurno: kpiMetaAcumuladaTurno,
+            kpiMetaTotalTurno: kpiMetaTotalTurno,
             mediaMetaHora: mediaMetaHoraGlobal,
             progressoCicloPercent: totalMeta24hGlobal > 0 ? (totalMetaMomentoGlobal / totalMeta24hGlobal) * 100 : 0,
             turnoAtualInfo: turnoAtualInfo
@@ -204,7 +212,7 @@ export class BoletimProducaoView {
         const turnoBadgeClass = `turno-${metrics.turnoAtualInfo.turno.toLowerCase()}`;
         const totalMeta24hF = metrics.totalMeta24h.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
         const totalMetaMomentoF = metrics.totalMetaMomento.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
-        const kpiMetaAcumuladaTurnoF = metrics.kpiMetaAcumuladaTurno.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+        const kpiMetaTotalTurnoF = metrics.kpiMetaTotalTurno.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
         const mediaMetaHoraF = metrics.mediaMetaHora.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
         const progressoCicloF = metrics.progressoCicloPercent.toFixed(1);
 
@@ -251,8 +259,9 @@ export class BoletimProducaoView {
                                 <div class="stat-main-content-producao">
                                     <div class="stat-icon-producao ${turnoBadgeClass}"><i class="ph-fill ph-clock-afternoon"></i></div>
                                     <div class="stat-content-producao">
-                                        <span class="stat-value-producao">${kpiMetaAcumuladaTurnoF} t</span>
-                                        <span class="stat-label-producao">Proj. Acumulada no ${metrics.turnoAtualInfo.nome}</span>
+                                        {/* --- CORREÇÃO APLICADA AQUI: Comentários removidos --- */}
+                                        <span class="stat-value-producao">${kpiMetaTotalTurnoF} t</span>
+                                        <span class="stat-label-producao">Meta Projetada para ${metrics.turnoAtualInfo.nome}</span>
                                     </div>
                                 </div>
                             </div>
@@ -311,9 +320,7 @@ export class BoletimProducaoView {
                     datasets: [{
                         data: [percentComplete, percentRemaining > 0 ? percentRemaining : 0],
                         backgroundColor: ['#38A169', '#4A5568'], // Verde, Cinza
-                        // *** BORDA REMOVIDA ***
                         borderWidth: 0,
-                        // *** FIM DA REMOÇÃO ***
                         circumference: 180,
                         rotation: -90
                     }]
