@@ -3,9 +3,6 @@ import { showToast, handleOperation, showLoading, hideLoading } from '../helpers
 import { formatDateTime } from '../timeUtils.js';
 import { dataCache } from '../dataCache.js';
 
-// --- REMOVIDO A LISTA FIXA ---
-// const GRUPOS_CONFIG = { ... };
-
 export class BoletimProducaoView {
     constructor() {
         this.container = null;
@@ -86,16 +83,51 @@ export class BoletimProducaoView {
             hoursPassed: hoursPassed
         };
 
-        // --- INÍCIO DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
+        // --- INÍCIO DA LÓGICA DE AGREGAÇÃO PARA "AGRO UNIONE - MANUAL" ---
 
-        // Inicializa os grupos que queremos exibir
+        const frentesAgregadas = [];
+        let agroUnioneManualAgregada = {
+            nome: "AGRO UNIONE - MANUAL", // Nome de exibição final
+            meta_toneladas_total: 0,
+            tipo_producao: 'MANUAL', // Define o tipo para agrupamento correto
+            frentes_metas: [] // Mantém estrutura similar
+        };
+        let encontrouAgroUnioneManual = false;
+
+        this.allFrentes.forEach(frente => {
+            const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas;
+            const meta_toneladas = metaInfo ? metaInfo.meta_toneladas : 0;
+
+            // Verifica se o nome da frente no DB começa com "AGRO UNIONE - MANUAL"
+            if (frente.nome.toUpperCase().startsWith('AGRO UNIONE - MANUAL')) {
+                agroUnioneManualAgregada.meta_toneladas_total += meta_toneladas;
+                encontrouAgroUnioneManual = true; // Marca que encontrou pelo menos uma
+            } else {
+                // Se não for, apenas passa a frente original adiante
+                frentesAgregadas.push(frente);
+            }
+        });
+
+        // Adiciona a frente agregada (se ela tiver meta e foi encontrada)
+        if (encontrouAgroUnioneManual && agroUnioneManualAgregada.meta_toneladas_total > 0) {
+            // Recria a estrutura do objeto
+            frentesAgregadas.push({
+                nome: agroUnioneManualAgregada.nome,
+                tipo_producao: agroUnioneManualAgregada.tipo_producao,
+                frentes_metas: [{ meta_toneladas: agroUnioneManualAgregada.meta_toneladas_total }]
+            });
+        }
+        // --- FIM DA LÓGICA DE AGREGAÇÃO ---
+
+
+        // 3. Processamento dos dados (agora usa frentesAgregadas)
         const gruposProcessados = {
             "MANUAL": { titulo: "CANA MANUAL", frentes: [] },
             "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [] }
         };
 
-        // Itera sobre as frentes carregadas do DataCache
-        this.allFrentes.forEach(frente => {
+        // Agora iteramos sobre a lista agregada
+        frentesAgregadas.forEach(frente => {
             const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas;
             const meta24h = metaInfo.meta_toneladas;
 
@@ -104,20 +136,20 @@ export class BoletimProducaoView {
             const cumprimento = meta24h > 0 ? (metaMomento / meta24h) * 100 : 0;
 
             const frenteProcessada = {
-                nome: frente.nome,
+                nome: frente.nome, // Usa o nome já agregado/original
                 meta24h: meta24h,
                 metaHora: metaHora,
                 metaMomento: metaMomento,
                 cumprimento: cumprimento
             };
 
-            // Lógica de agrupamento dinâmica baseada no campo 'tipo_producao' do DB
+            // Lógica de agrupamento dinâmica baseada no campo 'tipo_producao'
             if (frente.tipo_producao === 'MANUAL') {
                 gruposProcessados["MANUAL"].frentes.push(frenteProcessada);
             } else if (frente.tipo_producao === 'MECANIZADA') {
                 gruposProcessados["MECANIZADA"].frentes.push(frenteProcessada);
             }
-            // Frentes com 'tipo_producao' nulo ou diferente são ignoradas
+            // Frentes sem grupo são ignoradas
         });
 
         // Ordena as frentes dentro de cada grupo
@@ -126,7 +158,6 @@ export class BoletimProducaoView {
 
         // Converte o objeto em array (apenas os grupos que têm frentes)
         this.processedData = Object.values(gruposProcessados).filter(g => g.frentes.length > 0);
-        // --- FIM DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
     }
 
     getHTML(showError = false) { // Recebe flag de erro
@@ -182,7 +213,7 @@ export class BoletimProducaoView {
         // Itera sobre os GRUPOS processados
         this.processedData.forEach(grupo => {
             
-            // Só renderiza se o grupo tiver frentes
+            // Não renderiza o grupo se não houver frentes nele
             if (grupo.frentes.length === 0) return;
 
             const cardsHTML = grupo.frentes.map(frente => {
