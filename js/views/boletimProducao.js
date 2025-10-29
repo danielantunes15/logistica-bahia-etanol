@@ -259,7 +259,6 @@ export class BoletimProducaoView {
                                 <div class="stat-main-content-producao">
                                     <div class="stat-icon-producao ${turnoBadgeClass}"><i class="ph-fill ph-clock-afternoon"></i></div>
                                     <div class="stat-content-producao">
-                                        {/* --- CORREÇÃO APLICADA AQUI: Comentários removidos --- */}
                                         <span class="stat-value-producao">${kpiMetaTotalTurnoF} t</span>
                                         <span class="stat-label-producao">Meta Projetada para ${metrics.turnoAtualInfo.nome}</span>
                                     </div>
