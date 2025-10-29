@@ -1,8 +1,21 @@
 // js/views/gerencial.js
-import { registerAppUser, fetchAppUsers, deleteAppUser, updateAppUser, fetchEscalaFuncionarios, fetchEscalaTurnos, saveEscalaTurnos, insertItem, deleteItem, updateItem } from '../api.js';
+import { 
+    registerAppUser, 
+    fetchAppUsers, 
+    deleteAppUser, 
+    updateAppUser, 
+    fetchEscalaFuncionarios, 
+    fetchEscalaTurnos, 
+    saveEscalaTurnos, 
+    insertItem, 
+    deleteItem, 
+    updateItem,
+    saveFrenteMeta // <-- NOVA IMPORTAÇÃO
+} from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { formatDateTime, getCurrentShift } from '../timeUtils.js';
 import { openModal, closeModal } from '../components/modal.js';
+import { dataCache } from '../dataCache.js'; // <-- NOVA IMPORTAÇÃO
 
 export class GerencialView {
     constructor() {
@@ -11,15 +24,16 @@ export class GerencialView {
         this.users = [];
         // Estado para a aba de Escala
         this.funcionarios = [];
-        this.escalaData = {}; // Objeto para mapear { funcionarioId: { 'YYYY-MM-DD': 'A' } }
-        this.startDate = new Date();
-        this.scheduleChanged = false; // Flag para rastrear mudanças
+        this.escalaData = {}; 
+        this.scheduleChanged = false;
         this.funcoes = [
             'Líder de Produção Agrícola',
             'Balanceiro',
             'Motorista de Pipa',
             'Auxiliar de Serviços Gerais'
         ];
+        // Estado para a aba de Metas
+        this.frentes = []; // <-- NOVO
     }
 
     async show() {
@@ -44,6 +58,9 @@ export class GerencialView {
                     </button>
                     <button class="btn-secondary internal-menu-btn ${this.activeTab === 'usuarios' ? 'active' : ''}" data-tab="usuarios">
                         <i class="ph-fill ph-users-three"></i> Gerenciar Usuários
+                    </button>
+                    <button class="btn-secondary internal-menu-btn ${this.activeTab === 'metas' ? 'active' : ''}" data-tab="metas">
+                        <i class="ph-fill ph-chart-line"></i> Gerenciar Metas
                     </button>
                 </div>
 
@@ -92,6 +109,16 @@ export class GerencialView {
             // Ações da aba Escala
             if (target.closest('#btn-manage-funcionarios')) this.showManageFuncionariosModal();
             if (target.closest('#btn-save-escala')) this.handleSaveEscala();
+
+            // --- AÇÕES DA ABA METAS (NOVO) ---
+            if (e.target.closest('.btn-save-meta')) {
+                const button = e.target.closest('.btn-save-meta');
+                const frenteId = button.dataset.frenteId;
+                const input = document.getElementById(`meta-input-${frenteId}`);
+                if (frenteId && input) {
+                    this.handleSaveMeta(frenteId, input.value, button);
+                }
+            }
         });
     }
     
@@ -122,6 +149,9 @@ export class GerencialView {
             } else if (this.activeTab === 'usuarios') {
                 await this.loadUserData(); 
                 contentContainer.innerHTML = this.renderUsersTab();
+            } else if (this.activeTab === 'metas') { // --- NOVA CONDIÇÃO ---
+                await this.loadMetasData();
+                contentContainer.innerHTML = this.renderMetasTab();
             }
         } catch (error) {
             handleOperation(error);
@@ -828,6 +858,125 @@ export class GerencialView {
             showToast(`Erro ao excluir usuário: ${error.message || 'Erro desconhecido'}`, 'error');
         } finally {
             hideLoading();
+        }
+    }
+    
+    // --- NOVOS MÉTODOS DA ABA DE METAS ---
+    
+    async loadMetasData() {
+        try {
+            // Busca frentes com suas metas associadas
+            const masterData = await dataCache.fetchMasterDataOnly(true); // Força refresh
+            // Filtra apenas frentes "reais" (remove "Nenhuma", "Disponível", etc.)
+            this.frentes = (masterData.frentes_servico || [])
+                .filter(f => f.nome.toLowerCase() !== 'nenhuma' && f.nome.toLowerCase() !== 'disponível')
+                .sort((a, b) => a.nome.localeCompare(b.nome));
+        } catch (error) {
+            handleOperation(error);
+            this.frentes = [];
+        }
+    }
+    
+    renderMetasTab() {
+        if (this.frentes.length === 0) {
+            return `<div class="empty-state"><i class="ph-fill ph-list-checks"></i><p>Nenhuma frente de serviço cadastrada para definir metas.</p></div>`;
+        }
+
+        const rowsHTML = this.frentes.map(frente => {
+            // A meta vem de frentes_metas(meta_toneladas)
+            // O Supabase retorna isso como um array, pegamos o primeiro (ou único)
+            const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas; 
+            const metaValue = metaInfo ? metaInfo.meta_toneladas : 0;
+            
+            return `
+                <tr>
+                    <td class="funcionario-info">
+                        <span class="funcionario-nome">${frente.nome}</span>
+                        <span class="funcionario-funcao">${frente.cod_equipamento || 'Sem Cód.'}</span>
+                    </td>
+                    <td>
+                        <div class="form-group" style="margin: 0;">
+                            <input 
+                                type="number" 
+                                class="form-input" 
+                                id="meta-input-${frente.id}" 
+                                value="${metaValue}" 
+                                placeholder="0"
+                                step="1"
+                                style="max-width: 200px;"
+                            >
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <button class="btn-primary btn-save-meta" data-frente-id="${frente.id}">
+                            <i class="ph-fill ph-floppy-disk"></i> Salvar
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <div class="gerenciar-metas-container">
+                <h2 style="font-size: 1.5rem; margin-bottom: 20px;">Gerenciamento de Metas de Produção (Cotas)</h2>
+                <p class="form-help" style="margin-bottom: 20px;">
+                    Defina a meta de produção (Cota) em toneladas para o ciclo de 24 horas de cada frente.
+                </p>
+                <div class="escala-table-wrapper">
+                    <table class="escala-table">
+                        <thead>
+                            <tr>
+                                <th class="funcionario-header">Frente de Serviço</th>
+                                <th>Meta (Toneladas)</th>
+                                <th style="width: 150px; text-align: center;">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHTML}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    async handleSaveMeta(frenteId, metaValue, buttonElement) {
+        const meta = parseFloat(metaValue);
+        if (isNaN(meta) || meta < 0) {
+            showToast('Por favor, insira um valor de meta válido (número positivo).', 'error');
+            return;
+        }
+
+        // Feedback visual no botão
+        const originalText = buttonElement.innerHTML;
+        buttonElement.innerHTML = `<i class="ph-fill ph-circle-notch ph-spin"></i> Salvando...`;
+        buttonElement.disabled = true;
+
+        try {
+            await saveFrenteMeta(frenteId, meta);
+            dataCache.invalidateAllData(); // Invalida o cache
+            
+            // Atualiza this.frentes localmente para refletir a mudança
+            const frente = this.frentes.find(f => f.id === frenteId);
+            if (frente) {
+                // Lógica ajustada para lidar com array ou objeto
+                if (Array.isArray(frente.frentes_metas) && frente.frentes_metas.length > 0) {
+                    frente.frentes_metas[0].meta_toneladas = meta;
+                } else if (frente.frentes_metas && !Array.isArray(frente.frentes_metas)) {
+                     frente.frentes_metas.meta_toneladas = meta;
+                } else {
+                    frente.frentes_metas = [{ meta_toneladas: meta }];
+                }
+            }
+            
+            showToast(`Meta para "${frente?.nome || 'Frente'}" salva com sucesso!`, 'success');
+            
+        } catch (error) {
+            handleOperation(error);
+        } finally {
+            // Restaura o botão
+            buttonElement.innerHTML = originalText;
+            buttonElement.disabled = false;
         }
     }
 }

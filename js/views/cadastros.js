@@ -110,7 +110,6 @@ export class CadastrosView {
                 { name: 'latitude', label: 'Latitude', type: 'text', required: false },
                 { name: 'longitude', label: 'Longitude', type: 'text', required: false }
             ],
-            // --- CORREÇÃO AQUI ---
             caminhoes: [
                 { name: 'cod_equipamento', label: 'Código do Caminhão', type: 'text', required: true },
                 { name: 'descricao', label: 'Descrição do Caminhão', type: 'text', required: true },
@@ -126,9 +125,20 @@ export class CadastrosView {
                 { name: 'finalidade', label: 'Finalidade', type: 'select', options: ['Carregadeira', 'Trator Reboque', 'Colhedora', 'Trator Transbordo'], required: true },
                 { name: 'frente_id', label: 'Frente de Serviço', type: 'select', source: 'frentes_servico', displayField: 'nome', required: true }
             ],
+            // --- MODIFICAÇÃO AQUI ---
             frentes_servico: [
                 { name: 'cod_equipamento', label: 'Código da Frente', type: 'text', required: true },
-                { name: 'nome', label: 'Nome da Frente', type: 'text', required: true }
+                { name: 'nome', label: 'Nome da Frente', type: 'text', required: true },
+                // --- CAMPO ADICIONADO ---
+                { 
+                    name: 'tipo_producao', 
+                    label: 'Grupo de Produção (Boletim)', 
+                    type: 'select', 
+                    // Usamos 'NA' para representar o valor 'null' (Não Atribuído)
+                    options: ['NA', 'MANUAL', 'MECANIZADA'], 
+                    required: false 
+                }
+                // --- FIM DA ADIÇÃO ---
             ],
             fornecedores: [
                 { name: 'cod_equipamento', label: 'Código do Fornecedor', type: 'text', required: true },
@@ -145,7 +155,6 @@ export class CadastrosView {
             terceiros: [
                 { name: 'nome', label: 'Nome', type: 'text', required: true },
                 { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, // ADD VALIDAÇÃO
-                // NOVO: Campo Atividade como Select com opções fixas
                 { 
                     name: 'descricao_atividade', 
                     label: 'Atividade', 
@@ -183,7 +192,17 @@ export class CadastrosView {
         const isEdit = item !== null;
         const inputsHTML = this.formFields.map(field => {
             const requiredAttr = field.required ? 'required' : '';
-            const value = isEdit ? (item[field.name] || (field.type === 'select-multiple' ? [] : '')) : '';
+            // --- MODIFICAÇÃO AQUI: Garante que 'null' vire 'NA' para o select
+            let value = '';
+            if (isEdit) {
+                if (field.name === 'tipo_producao') {
+                    value = item[field.name] || 'NA'; // Se for null ou undefined, usa 'NA'
+                } else {
+                    value = item[field.name] || (field.type === 'select-multiple' ? [] : '');
+                }
+            }
+            // --- FIM DA MODIFICAÇÃO ---
+            
             const id = isEdit ? `edit-${field.name}` : field.name;
     
             let inputHTML = `<div class="form-group"><label for="${id}">${field.label}</label>`;
@@ -195,26 +214,25 @@ export class CadastrosView {
                 
                 if (field.source && this.data[field.source]) {
                     this.data[field.source].forEach(optionItem => {
-                        // Correção para lidar com arrays de IDs no modo de edição (caminhao_terceiros/equipamento_terceiros)
                         const isSelected = isEdit && (
                             value == optionItem.id || 
-                            (Array.isArray(item[field.name]) && item[field.name].includes(optionItem.id)) // Verifica o array de IDs
+                            (Array.isArray(item[field.name]) && item[field.name].includes(optionItem.id))
                         );
                         inputHTML += `<option value="${optionItem.id}" ${isSelected ? 'selected' : ''}>${optionItem[field.displayField]}</option>`;
                     });
                 } else if (field.options) {
                     field.options.forEach(option => {
+                        // --- MODIFICAÇÃO AQUI: Compara o 'value' (ex: 'NA' ou 'MANUAL')
                         const isSelected = isEdit && value === option;
                         inputHTML += `<option value="${option}" ${isSelected ? 'selected' : ''}>${this.formatOption(option)}</option>`;
                     });
                 }
                 inputHTML += `</select>`;
-                // REMOVIDO: A dica de CTRL/CMD para simular a preparação para um componente customizado
-                // if (field.type === 'select-multiple') inputHTML += `<div class="select-multiple-hint"><i class="ph-fill ph-info"></i> Mantenha Ctrl pressionado</div>`;
             } else {
-                inputHTML += `<input type="${field.type}" name="${field.name}" id="${id}" class="form-input" value="${value}" ${requiredAttr} data-validation="${field.validation || ''}">`; // ADD data-validation
+                // --- MODIFICAÇÃO: O 'value' para inputs de texto já está correto
+                const textValue = isEdit ? (item[field.name] || '') : '';
+                inputHTML += `<input type="${field.type}" name="${field.name}" id="${id}" class="form-input" value="${textValue}" ${requiredAttr} data-validation="${field.validation || ''}">`; // ADD data-validation
             }
-            // NOVO: Placeholder para mensagem de erro de validação
             if (field.validation) {
                  inputHTML += `<div class="validation-message" id="error-${id}" style="display: none;"></div>`;
             }
@@ -226,8 +244,14 @@ export class CadastrosView {
         return `<form id="${isEdit ? 'form-edit-' + this.tipo : 'form-' + this.tipo}" class="form-modern">${inputsHTML}<button type="submit" class="form-submit"><i class="ph-fill ph-floppy-disk"></i> ${submitText}</button></form>`;
     }
 
-    // --- CORREÇÃO APLICADA AQUI ---
+    // --- MODIFICAÇÃO APLICADA AQUI ---
     formatOption(option) {
+        // --- NOVO: Adiciona casos especiais para 'tipo_producao' ---
+        if (option === 'NA') return 'Não Atribuído';
+        if (option === 'MANUAL') return 'CANA MANUAL';
+        if (option === 'MECANIZADA') return 'CANA MECANIZADA';
+        // --- FIM DA ADIÇÃO ---
+
         if (!option || typeof option !== 'string') {
             return 'N/A';
         }
@@ -242,7 +266,6 @@ export class CadastrosView {
         form.querySelectorAll('[data-validation]').forEach(input => {
             const validationType = input.dataset.validation;
             if (validationType) {
-                // Adiciona listener para input e blur para validação em tempo real
                 ['input', 'blur'].forEach(eventType => {
                     input.addEventListener(eventType, () => this.validateField(input, validationType));
                 });
@@ -257,7 +280,6 @@ export class CadastrosView {
         let isValid = true;
         let errorMessage = '';
 
-        // Se o campo não é obrigatório e está vazio, considera válido para validação on-input/blur
         if (!input.hasAttribute('required') && !value) {
             input.classList.remove('is-invalid');
             if (errorMessageElement) errorMessageElement.style.display = 'none';
@@ -307,9 +329,10 @@ export class CadastrosView {
     getTableHeaders() {
         const headersConfig = {
             'fazendas': ['Código', 'Nome', 'Fornecedor', 'Coordenadas', 'Ações'],
-            'caminhoes': ['Código', 'Descrição', 'Proprietário', 'Situação', 'Ações'], // Situação adicionada
+            'caminhoes': ['Código', 'Descrição', 'Proprietário', 'Situação', 'Ações'],
             'equipamentos': ['Código', 'Descrição', 'Proprietário', 'Finalidade', 'Frente', 'Ações'],
-            'frentes_servico': ['Código', 'Nome', 'Ações'],
+            // --- MODIFICAÇÃO AQUI ---
+            'frentes_servico': ['Código', 'Nome', 'Grupo de Produção', 'Ações'],
             'fornecedores': ['Código', 'Nome', 'CPF/CNPJ', 'Telefone', 'Ações'],
             'proprietarios': ['Código', 'Nome', 'CPF/CNPJ', 'Telefone', 'Ações'],
             'terceiros': ['Nome', 'CPF/CNPJ', 'Atividade', 'Empresa', 'Ações']
@@ -327,7 +350,8 @@ export class CadastrosView {
             'fazendas': [item.cod_equipamento, item.nome, item.fornecedores?.nome || 'N/A', item.latitude && item.longitude ? `${parseFloat(item.latitude).toFixed(4)}, ${parseFloat(item.longitude).toFixed(4)}` : 'N/A'],
             'caminhoes': [item.cod_equipamento, item.descricao || 'N/A', item.proprietarios?.nome || 'N/A', this.formatOption(item.situacao)],
             'equipamentos': [item.cod_equipamento, item.descricao || 'N/A', item.proprietarios?.nome || 'N/A', item.finalidade || 'N/A', item.frentes_servico?.nome || 'N/A'],
-            'frentes_servico': [item.cod_equipamento, item.nome],
+            // --- MODIFICAÇÃO AQUI ---
+            'frentes_servico': [item.cod_equipamento, item.nome, this.formatOption(item.tipo_producao)], // Usa formatOption para 'NA', 'MANUAL', etc.
             'fornecedores': [item.cod_equipamento, item.nome, item.cpf_cnpj || 'N/A', item.telefone || 'N/A'],
             'proprietarios': [item.cod_equipamento, item.nome, item.cpf_cnpj || 'N/A', item.telefone || 'N/A'],
             'terceiros': [item.nome, item.cpf_cnpj || 'N/A', item.descricao_atividade || 'N/A', item.empresa_id?.nome || 'N/A']
@@ -337,7 +361,7 @@ export class CadastrosView {
 
     addEventListeners() {
         const form = document.getElementById(`form-${this.tipo}`);
-        if (form) form.addEventListener('submit', (e) => this.handleFormSubmit(e, false)); // ADD 'false' para isEdit
+        if (form) form.addEventListener('submit', (e) => this.handleFormSubmit(e, false));
 
         this.container.addEventListener('click', (e) => {
             const editBtn = e.target.closest('.edit-btn-modern');
@@ -354,10 +378,9 @@ export class CadastrosView {
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
         
-        // 1. Validação de campos específicos (CPF/CNPJ e Telefone) - AGORA USANDO A FUNÇÃO validateField
+        // 1. Validação de campos específicos (CPF/CNPJ e Telefone)
         let formIsValid = true;
         form.querySelectorAll('[data-validation]').forEach(input => {
-            // A validação final também verifica se o campo obrigatório está vazio
             if (input.hasAttribute('required') && !input.value) {
                 formIsValid = false;
             }
@@ -371,18 +394,21 @@ export class CadastrosView {
              return;
         }
 
+        // --- MODIFICAÇÃO AQUI: Converte 'NA' de volta para 'null' ao salvar ---
+        if (this.tipo === 'frentes_servico' && data.tipo_producao === 'NA') {
+            data.tipo_producao = null;
+        }
+        // --- FIM DA MODIFICAÇÃO ---
+
         // 2. Tratamento de campos de múltiplas opções
         if (this.tipo === 'caminhoes') {
             data.motoristas = formData.getAll('motoristas');
-            // Mapeia o array de IDs para o formato esperado pelo updateCaminhao (array de IDs)
             if (isEdit) {
-                // A API espera o array de IDs
                 data.motoristas = data.motoristas.map(id => parseInt(id)); 
             }
         }
         if (this.tipo === 'equipamentos') {
             data.operadores = formData.getAll('operadores');
-            // Mapeia o array de IDs para o formato esperado pelo updateEquipment (array de IDs)
             if (isEdit) {
                  data.operadores = data.operadores.map(id => parseInt(id));
             }
@@ -403,7 +429,6 @@ export class CadastrosView {
                 if (!error) form.reset();
             }
             
-            // Invalida o Cache (NOVO)
             dataCache.invalidateAllData();
 
             if (!error) {
@@ -426,7 +451,7 @@ export class CadastrosView {
     
         if (error) return handleOperation(error);
         
-        // Mapeia os dados da tabela de junção para o formato de array de IDs (para o select-multiple)
+        // Mapeia os dados da tabela de junção
         if (this.tipo === 'caminhoes' && item.caminhao_terceiros) {
             item.motoristas = item.caminhao_terceiros.map(ct => ct.terceiro_id);
         }
@@ -438,9 +463,7 @@ export class CadastrosView {
         openModal(`Editar ${this.getTipoDisplayName().slice(0, -1)}`, formHTML);
         
         const editForm = document.getElementById(`form-edit-${this.tipo}`);
-        // Configura listeners de validação para o formulário do modal
         this.setupValidationListeners(editForm);
-        // USANDO NOVA FUNÇÃO: isEdit=true, id=id
         if (editForm) editForm.addEventListener('submit', (e) => this.handleFormSubmit(e, true, id)); 
     }
 
@@ -458,8 +481,6 @@ export class CadastrosView {
             if (error && error.message.includes('foreign key constraint')) {
                 showToast('Não é possível excluir. Este item está em uso por outro registro.', 'error');
             } else {
-                
-                // Invalida o Cache (NOVO)
                 dataCache.invalidateAllData();
                 
                 handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} excluído!`);

@@ -1,78 +1,84 @@
 // js/views/boletimProducao.js
-import { showToast } from '../helpers.js';
+import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 import { formatDateTime } from '../timeUtils.js';
+import { dataCache } from '../dataCache.js';
 
-// DADOS ESTÁTICOS (HARD-CODED) - AGORA DIVIDIDOS EM GRUPOS
-const GRUPOS_DE_PRODUCAO = [
-    {
-        titulo: "CANA MANUAL",
-        frentes: [
-            { nome: 'Agrounione Manual', cota: 1700 },
-            { nome: 'GM/Castro', cota: 800 },
-            { nome: 'RG Transporte', cota: 700 }
-        ]
-    },
-    {
-        titulo: "CANA MECANIZADA",
-        frentes: [
-            { nome: 'Agrounione Mecanizada', cota: 800 },
-            { nome: 'E dos Santos', cota: 400 },
-            { nome: 'Pedro Epson', cota: 400 },
-            { nome: 'AGROTERRA', cota: 1800 },
-            { nome: 'Vale do Araguaia', cota: 400 }
-        ]
-    }
-];
+// --- REMOVIDO A LISTA FIXA ---
+// const GRUPOS_CONFIG = { ... };
 
 export class BoletimProducaoView {
     constructor() {
         this.container = null;
-        this.cycleInfo = null;      // Informações do ciclo (início, fim, horas passadas)
-        this.processedData = [];  // Dados processados (agora contém os grupos)
+        this.cycleInfo = null;
+        this.processedData = [];
+        this.allFrentes = []; // Para armazenar os dados do cache
     }
 
     async show() {
-        // Recalcula o ciclo e os dados toda vez que a view é mostrada
-        this.calculateCycleData(); 
-        await this.loadHTML();
-        this.renderDashboard(); // Renderiza com os dados calculados
-        this.addEventListeners();
+        await this.loadData();
+        // Só calcula e renderiza se tiver dados carregados
+        if (this.allFrentes.length > 0) {
+            this.calculateCycleData();
+            await this.loadHTML();
+            this.renderDashboard();
+            this.addEventListeners();
+        } else {
+             // Mostra uma mensagem se não houver frentes com metas e tipo definidos
+             await this.loadHTML(true); // Passa true para mostrar erro
+        }
     }
 
     async hide() {}
 
-    async loadHTML() {
+    async loadData(forceRefresh = false) {
+        showLoading();
+        try {
+            const masterData = await dataCache.fetchMasterDataOnly(forceRefresh);
+
+            // Armazena as frentes que têm meta E tipo de produção definido
+            this.allFrentes = (masterData.frentes_servico || []).filter(f => {
+                const metaInfo = Array.isArray(f.frentes_metas) ? f.frentes_metas[0] : f.frentes_metas;
+                // Garante que tenha meta > 0 E que o tipo_producao NÃO seja nulo ou vazio
+                return metaInfo && metaInfo.meta_toneladas > 0 && f.tipo_producao;
+            });
+
+        } catch (error) {
+            console.error('Erro ao carregar dados do boletim:', error);
+            handleOperation(error, "Erro ao carregar frentes e metas.");
+            this.allFrentes = []; // Limpa em caso de erro
+        } finally {
+            hideLoading();
+        }
+    }
+
+    async loadHTML(showError = false) {
         const container = document.getElementById('views-container');
-        container.innerHTML = this.getHTML();
+        container.innerHTML = this.getHTML(showError); // Passa o flag de erro
         this.container = container.querySelector('#boletim-producao-view');
     }
 
     /**
      * Calcula o ciclo de 24h (07:00 às 06:59) e
-     * processa os dados estáticos com base no tempo passado.
+     * processa os dados VINDOS DO CACHE com base no tempo passado.
      */
     calculateCycleData() {
-        const now = new Date(); // Hora atual
+        // 1. Cálculo do Ciclo (Horas Passadas) - SEM ALTERAÇÕES
+        const now = new Date();
         const cycleStart = new Date();
-
-        // Se for antes das 7h, o ciclo começou ontem
         if (now.getHours() < 7) {
             cycleStart.setDate(now.getDate() - 1);
         }
-        cycleStart.setHours(7, 0, 0, 0); // Define início do ciclo para 07:00
+        cycleStart.setHours(7, 0, 0, 0);
 
-        // O ciclo termina 24h depois (às 06:59:59 do dia seguinte)
         const cycleEnd = new Date(cycleStart);
         cycleEnd.setDate(cycleStart.getDate() + 1);
         cycleEnd.setHours(6, 59, 59, 999);
 
-        // Calcula quantas horas (decimais) se passaram desde o início do ciclo
         const msPassed = now.getTime() - cycleStart.getTime();
-        let hoursPassed = msPassed / (1000 * 60 * 60); // ex: 2.5 (para 09:30)
+        let hoursPassed = msPassed / (1000 * 60 * 60);
 
-        // Trava o cálculo em 24h (fim do ciclo) ou 0h (início do ciclo)
-        if (hoursPassed > 24) hoursPassed = 24; 
-        if (hoursPassed < 0) hoursPassed = 0; // Segurança para o início do ciclo
+        if (hoursPassed > 24) hoursPassed = 24;
+        if (hoursPassed < 0) hoursPassed = 0;
 
         this.cycleInfo = {
             start: cycleStart,
@@ -80,35 +86,66 @@ export class BoletimProducaoView {
             hoursPassed: hoursPassed
         };
 
-        // Processa os dados estáticos DENTRO DOS GRUPOS
-        this.processedData = GRUPOS_DE_PRODUCAO.map(grupo => {
-            
-            const frentesProcessadas = grupo.frentes.map(frente => {
-                const meta24h = frente.cota;
-                const metaHora = meta24h / 24;
-                const metaMomento = metaHora * hoursPassed;
-                const cumprimento = meta24h > 0 ? (metaMomento / meta24h) * 100 : 0;
+        // --- INÍCIO DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
 
-                return {
-                    nome: frente.nome,
-                    meta24h: meta24h,
-                    metaHora: metaHora,
-                    metaMomento: metaMomento,
-                    cumprimento: cumprimento
-                };
-            }).sort((a, b) => a.nome.localeCompare(b.nome)); // Ordena frentes dentro do grupo
+        // Inicializa os grupos que queremos exibir
+        const gruposProcessados = {
+            "MANUAL": { titulo: "CANA MANUAL", frentes: [] },
+            "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [] }
+        };
 
-            return {
-                titulo: grupo.titulo,
-                frentes: frentesProcessadas
+        // Itera sobre as frentes carregadas do DataCache
+        this.allFrentes.forEach(frente => {
+            const metaInfo = Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas;
+            const meta24h = metaInfo.meta_toneladas;
+
+            const metaHora = meta24h / 24;
+            const metaMomento = metaHora * hoursPassed;
+            const cumprimento = meta24h > 0 ? (metaMomento / meta24h) * 100 : 0;
+
+            const frenteProcessada = {
+                nome: frente.nome,
+                meta24h: meta24h,
+                metaHora: metaHora,
+                metaMomento: metaMomento,
+                cumprimento: cumprimento
             };
+
+            // Lógica de agrupamento dinâmica baseada no campo 'tipo_producao' do DB
+            if (frente.tipo_producao === 'MANUAL') {
+                gruposProcessados["MANUAL"].frentes.push(frenteProcessada);
+            } else if (frente.tipo_producao === 'MECANIZADA') {
+                gruposProcessados["MECANIZADA"].frentes.push(frenteProcessada);
+            }
+            // Frentes com 'tipo_producao' nulo ou diferente são ignoradas
         });
+
+        // Ordena as frentes dentro de cada grupo
+        gruposProcessados["MANUAL"].frentes.sort((a, b) => a.nome.localeCompare(b.nome));
+        gruposProcessados["MECANIZADA"].frentes.sort((a, b) => a.nome.localeCompare(b.nome));
+
+        // Converte o objeto em array (apenas os grupos que têm frentes)
+        this.processedData = Object.values(gruposProcessados).filter(g => g.frentes.length > 0);
+        // --- FIM DA LÓGICA DE AGRUPAMENTO DINÂMICO ---
     }
 
-    getHTML() {
-        const cycleStartStr = this.cycleInfo.start.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        const cycleEndStr = this.cycleInfo.end.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        const hoursPassedStr = this.cycleInfo.hoursPassed.toFixed(2).replace('.', ',');
+    getHTML(showError = false) { // Recebe flag de erro
+        // Só calcula strings de data se houver ciclo (não houve erro)
+        const cycleStartStr = this.cycleInfo ? this.cycleInfo.start.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
+        const cycleEndStr = this.cycleInfo ? this.cycleInfo.end.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A';
+        const hoursPassedStr = this.cycleInfo ? this.cycleInfo.hoursPassed.toFixed(2).replace('.', ',') : 'N/A';
+
+        // Mensagem de erro ou container normal
+        const dashboardContent = showError || this.allFrentes.length === 0 ? `
+            <div class="empty-state" style="padding: 40px; text-align: center;">
+                <i class="ph-fill ph-warning" style="font-size: 3rem; color: var(--accent-danger);"></i>
+                <p style="color: var(--text-primary); font-size: 1.1rem;">Não foi possível carregar o boletim.</p>
+                <p style="color: var(--text-secondary);">Verifique se as frentes possuem metas definidas e estão atribuídas a um Grupo de Produção (Manual/Mecanizada) no cadastro.</p>
+            </div>
+        ` : `
+            <div id="producao-dashboard-container">
+                </div>
+        `;
 
         return `
             <div id="boletim-producao-view" class="view active-view producao-view">
@@ -125,28 +162,29 @@ export class BoletimProducaoView {
                     Ciclo: <strong>${cycleStartStr}</strong> até <strong>${cycleEndStr}</strong>
                 </div>
                 
-                <div class="producao-cycle-info" style="border-left-color: var(--accent-primary);">
-                    <i class="ph-fill ph-clock" style="color: var(--accent-primary);"></i>
+                <div class="producao-cycle-info" style="border-left-color: var(--border-color);">
+                    <i class="ph-fill ph-clock" style="color: var(--text-primary);"></i>
                     Horas decorridas no ciclo: <strong>${hoursPassedStr} horas</strong>
                 </div>
 
-                <div id="producao-dashboard-container">
-                    </div>
+                ${dashboardContent} 
             </div>
         `;
     }
 
     renderDashboard() {
         const container = document.getElementById('producao-dashboard-container');
-        if (!container) return;
+        // Se o container não existe (porque mostrou erro no getHTML), sai
+        if (!container) return; 
 
-        // Limpa o container antes de renderizar
-        container.innerHTML = '';
+        container.innerHTML = ''; // Limpa antes de renderizar
 
-        // Itera sobre os GRUPOS processados (Ex: "CANA MANUAL", "CANA MECANIZADA")
+        // Itera sobre os GRUPOS processados
         this.processedData.forEach(grupo => {
             
-            // 1. Gera os CARDS para as frentes DENTRO deste grupo
+            // Só renderiza se o grupo tiver frentes
+            if (grupo.frentes.length === 0) return;
+
             const cardsHTML = grupo.frentes.map(frente => {
                 let cumprimentoClass = 'low';
                 if (frente.cumprimento >= 90) cumprimentoClass = 'high';
@@ -179,7 +217,6 @@ export class BoletimProducaoView {
                 `;
             }).join('');
 
-            // 2. Adiciona o TÍTULO do grupo + o GRID de cards ao container
             container.innerHTML += `
                 <h2 class="producao-group-title">${grupo.titulo}</h2>
                 <div class="producao-grid">
@@ -193,7 +230,7 @@ export class BoletimProducaoView {
         // Listener para o botão de recalcular
         this.container.addEventListener('click', (e) => {
             if (e.target.closest('#refresh-boletim')) {
-                // Simplesmente chama o 'show' de novo para recalcular tudo
+                // Chama o 'show' de novo para carregar dados, recalcular e re-renderizar
                 this.show(); 
                 showToast('Metas recalculadas para a hora atual!', 'success');
             }

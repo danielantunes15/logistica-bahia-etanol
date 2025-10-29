@@ -152,7 +152,8 @@ export async function fetchMasterData() {
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
             fetchTable('caminhoes', '*, proprietarios(id, nome)'),
             fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome)'),
-            fetchTable('frentes_servico', '*, fazendas(cod_equipamento, nome)'),
+            // --- MODIFICAÇÃO AQUI: Inclui as metas na busca ---
+            fetchTable('frentes_servico', '*, fazendas(cod_equipamento, nome), frentes_metas(meta_toneladas)'),
             fetchTable('fornecedores'),
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
@@ -175,7 +176,8 @@ export async function fetchMetadata() {
         const [caminhoes, equipamentos, frentes_servico, fazendas, ocorrencias] = await Promise.all([
             fetchTable('caminhoes', 'id, status, frente_id'), // Apenas o essencial para contadores
             fetchTable('equipamentos', 'id, status, frente_id, finalidade'),
-            fetchTable('frentes_servico', 'id, nome, status, fazenda_id, fazendas(nome)'), // <--- MODIFICAÇÃO AQUI
+            // --- MODIFICAÇÃO AQUI: Inclui as metas na busca (embora o dashboard não use, mantém consistência) ---
+            fetchTable('frentes_servico', 'id, nome, status, fazenda_id, fazendas(nome), frentes_metas(meta_toneladas)'), 
             fetchTable('fazendas', 'id, latitude, longitude, nome'), // Adicionado 'nome' aqui também para consistência, caso necessário em outros locais
             fetchTable('ocorrencias', 'id, status'), // Apenas o essencial para contadores
         ]);
@@ -244,7 +246,8 @@ export async function fetchAllData(daysBack = 90, startDateISO = null, endDateIS
             fetchTable('fazendas', '*, fornecedores(id, nome)'),
             fetchTable('caminhoes', '*, proprietarios(id, nome)'),
             fetchTable('equipamentos', '*, proprietarios(id, nome), frentes_servico(id, nome)'),
-            fetchTable('frentes_servico', '*, fazendas(cod_equipamento, nome)'),
+            // --- MODIFICAÇÃO AQUI: Inclui as metas na busca ---
+            fetchTable('frentes_servico', '*, fazendas(cod_equipamento, nome), frentes_metas(meta_toneladas)'),
             fetchTable('fornecedores'),
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
@@ -881,6 +884,28 @@ export async function saveEscalaTurnos(turnosData) {
     return { data };
 }
 // --- FIM DAS FUNÇÕES DE ESCALA ---
+
+// --- NOVA FUNÇÃO PARA GERENCIAR METAS ---
+/**
+ * Insere ou atualiza a meta de uma frente de serviço.
+ * @param {string} frenteId - O UUID da frente de serviço.
+ * @param {number} meta - O valor da meta (cota) em toneladas.
+ */
+export async function saveFrenteMeta(frenteId, meta) {
+    const { data, error } = await supabase
+        .from('frentes_metas')
+        .upsert(
+            { frente_id: frenteId, meta_toneladas: meta },
+            { onConflict: 'frente_id' } // Garante que ele atualize se o frente_id já existir
+        )
+        .select()
+        .single();
+        
+    if (error) throw error;
+    return { data };
+}
+// --- FIM DA NOVA FUNÇÃO ---
+
 
 export async function insertItem(tableName, dataToInsert) {
     if (tableName === 'equipamentos') return await insertEquipment(dataToInsert);
