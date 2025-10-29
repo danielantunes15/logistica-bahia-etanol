@@ -59,7 +59,7 @@
     display: grid;
     grid-template-columns: 2fr 1fr; /* Coluna KPIs mais larga (66% / 33%) */
     gap: 24px;
-    align-items: center; /* Alinha verticalmente os conteúdos das colunas */
+    align-items: center;
 }
 
 .kpi-column-producao .stats-grid-producao { /* Grid interno só para KPIs */
@@ -78,7 +78,7 @@
     align-items: flex-start;
     gap: 8px;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
-    min-height: 110px; /* Altura mínima consistente */
+    min-height: 110px;
 }
 .stat-card-producao:hover {
     transform: translateY(-3px);
@@ -134,7 +134,7 @@
 }
 
 .stat-progress-producao {
-    margin-top: auto; /* Empurra para baixo */
+    margin-top: auto;
     width: 100%;
 }
 .stat-progress-producao span {
@@ -159,19 +159,57 @@
 
 /* Coluna e Container do Gráfico */
 .chart-column-producao {
-    height: 180px; /* Altura definida */
-    max-width: 250px; /* Largura máxima para o gráfico */
-    margin: 0 auto; /* Centraliza a coluna do gráfico */
+    height: 180px;
+    max-width: 250px;
+    margin: 0 auto;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative; /* Para posicionamento de texto se necessário */
+    position: relative; /* Necessário para posicionar o texto sobreposto */
 }
 
 #producao-progresso-geral-chart-container {
     height: 100%;
     width: 100%;
+    position: relative; /* Container também precisa ser relativo */
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
+
+#producao-progresso-geral-chart {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+
+/* Estilo para o texto sobreposto no centro do gráfico */
+.chart-center-text-overlay {
+    position: absolute;
+    top: 65%; /* Ajuste fino da posição vertical */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    pointer-events: none;
+    color: var(--text-primary);
+    line-height: 1.1;
+    width: 100px;
+}
+
+.chart-percentage {
+    font-size: 2rem;
+    font-weight: 700;
+    display: block;
+}
+
+.chart-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    margin-top: 0px;
+    display: block;
+}
+
 
 /* --- FIM ESTILOS TOP DASHBOARD --- */
 
@@ -214,7 +252,6 @@
     color: inherit;
 }
 
-/* Estilo para diferenciar Meta 24h Total */
 .producao-group-total.total-meta-24h {
     color: var(--text-secondary);
     font-size: 0.85rem;
@@ -244,7 +281,7 @@
     flex-direction: column;
     gap: 16px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    position: relative; /* Para posicionar o indicador */
+    position: relative;
     overflow: hidden;
 }
 
@@ -254,26 +291,25 @@
     text-align: center; font-weight: 500;
 }
 
-/* Estilo para Indicador de Performance no Card */
 .performance-indicator {
     position: absolute;
     top: 10px;
     right: 15px;
-    font-size: 1.6rem; /* Aumentado um pouco */
+    font-size: 1.6rem;
     opacity: 0.9;
-    padding: 4px; /* Pequeno padding */
-    border-radius: 50%; /* Fundo circular */
-    line-height: 1; /* Alinha o ícone verticalmente */
-    width: 28px; /* Largura fixa */
-    height: 28px; /* Altura fixa */
+    padding: 4px;
+    border-radius: 50%;
+    line-height: 1;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-.performance-indicator.icon-below { color: #FFF; background-color: rgba(197, 48, 48, 0.7); } /* Vermelho com fundo */
-.performance-indicator.icon-on-track { color: var(--text-secondary); background-color: rgba(74, 85, 104, 0.5);} /* Cinza com fundo */
-.performance-indicator.icon-above { color: #FFF; background-color: rgba(56, 161, 105, 0.7); } /* Verde com fundo */
-.performance-indicator.icon-unknown { color: var(--text-secondary); background-color: rgba(74, 85, 104, 0.3);} /* Caso de erro */
+.performance-indicator.icon-below { color: #FFF; background-color: rgba(197, 48, 48, 0.7); }
+.performance-indicator.icon-on-track { color: var(--text-secondary); background-color: rgba(74, 85, 104, 0.5);}
+.performance-indicator.icon-above { color: #FFF; background-color: rgba(56, 161, 105, 0.7); }
+.performance-indicator.icon-unknown { color: var(--text-secondary); background-color: rgba(74, 85, 104, 0.3);}
 
 
 .producao-frente-nome {
@@ -322,64 +358,51 @@
 
 /* Responsividade */
 @media (max-width: 1200px) {
-    .stats-grid-producao-com-grafico {
-        grid-template-columns: 1.5fr 1fr;
-    }
-    .kpi-column-producao .stats-grid-producao {
-         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    }
+    .stats-grid-producao-com-grafico { grid-template-columns: 1.5fr 1fr; }
+    .kpi-column-producao .stats-grid-producao { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
     .stat-value-producao { font-size: 1.6rem; }
+    .chart-percentage { font-size: 1.8rem; }
+    .chart-label { font-size: 0.75rem; }
 }
 
 @media (max-width: 992px) {
-    .stats-grid-producao-com-grafico {
-        grid-template-columns: 1fr; /* Gráfico abaixo dos KPIs */
-        gap: 20px;
-    }
-     .kpi-column-producao .stats-grid-producao {
-        grid-template-columns: repeat(2, 1fr); /* Mantém 2 colunas para KPIs */
-    }
-    .chart-column-producao {
-        height: 150px;
-        margin-top: 10px;
-        max-width: 200px; /* Reduz largura máx do gráfico */
-    }
+    .stats-grid-producao-com-grafico { grid-template-columns: 1fr; gap: 30px; }
+    .kpi-column-producao .stats-grid-producao { grid-template-columns: repeat(2, 1fr); }
+    .chart-column-producao { height: 160px; max-width: 220px; }
+    .chart-percentage { font-size: 1.7rem; }
+    .chart-label { font-size: 0.7rem; }
+    .chart-center-text-overlay { top: 62%; }
 }
 
 @media (max-width: 768px) {
     .stats-panel-producao { padding: 16px; }
-    .panel-header-producao {
-        flex-direction: column; align-items: flex-start;
-        gap: 8px; margin-bottom: 16px;
-    }
+    .panel-header-producao { flex-direction: column; align-items: flex-start; gap: 8px; margin-bottom: 16px; }
     .panel-header-producao h3 { font-size: 1.2rem; }
-
-    .kpi-column-producao .stats-grid-producao {
-         grid-template-columns: 1fr 1fr;
-    }
-    .stat-card-producao {
-        padding: 12px; gap: 6px; min-height: 100px;
-    }
-     .stat-main-content-producao { gap: 10px; }
+    .kpi-column-producao .stats-grid-producao { grid-template-columns: 1fr 1fr; }
+    .stat-card-producao { padding: 12px; gap: 6px; min-height: 100px; }
+    .stat-main-content-producao { gap: 10px; }
     .stat-icon-producao { width: 40px; height: 40px; }
     .stat-icon-producao i { font-size: 20px; }
     .stat-value-producao { font-size: 1.4rem; }
     .stat-label-producao { font-size: 0.7rem; }
-    .stat-progress-producao { /* display: none; */ } /* Pode ocultar se quiser */
-
-     .producao-group-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .stat-progress-producao { display: none; } /* Oculta barra no mobile */
+    .producao-group-header { flex-direction: column; align-items: flex-start; gap: 8px; }
     .producao-group-totals { align-items: flex-start; }
     .producao-group-total { font-size: 0.85rem; }
     .producao-group-total strong { font-size: 0.95rem; }
-
     .producao-grid { grid-template-columns: 1fr; }
+    .chart-column-producao { height: 140px; max-width: 200px; }
+    .chart-percentage { font-size: 1.6rem; }
+    .chart-label { font-size: 0.65rem; }
+    .chart-center-text-overlay { top: 60%; }
 }
 
 @media (max-width: 480px) {
-     .kpi-column-producao .stats-grid-producao {
-        grid-template-columns: 1fr; /* 1 coluna KPIs */
-    }
-     .stat-card-producao { flex-direction: row; align-items: center; } /* Volta pra linha */
+     .kpi-column-producao .stats-grid-producao { grid-template-columns: 1fr; }
+     .stat-card-producao { flex-direction: row; align-items: center; }
      .stat-main-content-producao { flex-direction: row; }
-     .chart-column-producao { height: 120px; max-width: 180px; } /* Menor ainda */
+     .chart-column-producao { height: 120px; max-width: 180px; }
+     .chart-percentage { font-size: 1.4rem; }
+     .chart-label { font-size: 0.6rem; }
+     .chart-center-text-overlay { top: 58%; }
 }

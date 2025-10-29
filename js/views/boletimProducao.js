@@ -1,5 +1,6 @@
 // js/views/boletimProducao.js
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
+// Importa getCurrentShift e adiciona getBrtIsoString (necessário para cálculo de tempo no turno)
 import { formatDateTime, getCurrentShift, getBrtIsoString } from '../timeUtils.js';
 import { dataCache } from '../dataCache.js';
 
@@ -12,10 +13,12 @@ export class BoletimProducaoView {
         this.cycleInfo = null;
         this.processedData = [];
         this.allFrentes = [];
+        // Guarda a instância do gráfico para destruí-la depois
         this.overallProgressChartInstance = null;
         this.globalMetrics = {
             totalMeta24h: 0,
             totalMetaMomento: 0,
+            // NOVO: KPI Refinado - Projeção ACUMULADA DENTRO do turno atual
             kpiMetaAcumuladaTurno: 0,
             mediaMetaHora: 0,
             progressoCicloPercent: 0,
@@ -43,6 +46,7 @@ export class BoletimProducaoView {
     }
 
     async hide() {
+        // Destruir o gráfico ao sair da view para liberar memória
         if (this.overallProgressChartInstance) {
             this.overallProgressChartInstance.destroy();
             this.overallProgressChartInstance = null;
@@ -99,7 +103,6 @@ export class BoletimProducaoView {
             "MECANIZADA": { titulo: "CANA MECANIZADA", frentes: [], totalMetaMomento: 0, totalMeta24h: 0 }
         };
 
-        // Lógica de Agregação (Agro Unione Manual)
         const frentesAgregadas = [];
         let agroUnioneManualAgregada = { nome: "AGRO UNIONE - MANUAL", meta_toneladas_total: 0, tipo_producao: 'MANUAL', frentes_metas: [] };
         let encontrouAgroUnioneManual = false;
@@ -117,7 +120,6 @@ export class BoletimProducaoView {
             frentesAgregadas.push({ nome: agroUnioneManualAgregada.nome, tipo_producao: agroUnioneManualAgregada.tipo_producao, frentes_metas: [{ meta_toneladas: agroUnioneManualAgregada.meta_toneladas_total }] });
         }
 
-        // Processa as frentes
         frentesAgregadas.forEach(frente => {
             const metaInfo = frente.frentes_metas ? (Array.isArray(frente.frentes_metas) ? frente.frentes_metas[0] : frente.frentes_metas) : null;
             const meta24h = metaInfo ? metaInfo.meta_toneladas : 0;
@@ -143,7 +145,6 @@ export class BoletimProducaoView {
         gruposProcessados["MECANIZADA"].frentes.sort((a, b) => a.nome.localeCompare(b.nome));
         this.processedData = Object.values(gruposProcessados).filter(g => g.frentes.length > 0);
 
-        // Cálculo Refinado da Projeção Acumulada no Turno
         const turnoAtualInfo = getCurrentShift();
         const mediaMetaHoraGlobal = totalMeta24hGlobal > 0 ? totalMeta24hGlobal / 24 : 0;
         const shiftStartTime = new Date(now);
@@ -176,9 +177,9 @@ export class BoletimProducaoView {
             </div>
         ` : `
             <div id="producao-top-dashboard" class="producao-top-dashboard">
-                </div>
+            </div>
             <div id="producao-frentes-container">
-                </div>
+            </div>
         `;
 
         return `
@@ -270,7 +271,7 @@ export class BoletimProducaoView {
 
                     <div class="chart-column-producao" id="producao-progresso-geral-chart-container">
                         <canvas id="producao-progresso-geral-chart"></canvas>
-                    </div>
+                        </div>
                 </div>
             </div>
         `;
@@ -278,13 +279,13 @@ export class BoletimProducaoView {
 
     renderOverallProgressChart() {
         const canvas = document.getElementById('producao-progresso-geral-chart');
-         // Verifica se o elemento canvas existe e se Chart está carregado
+        const container = document.getElementById('producao-progresso-geral-chart-container');
         if (!canvas || typeof Chart === 'undefined') {
             console.error("Canvas para gráfico não encontrado ou Chart.js não carregado.");
+            if (container) { container.innerHTML = `<p style="color: var(--text-secondary); text-align: center; font-size: 0.9rem; padding: 20px;">Gráfico indisponível.</p>`; }
             return;
         }
-        const container = document.getElementById('producao-progresso-geral-chart-container');
-        if (!container) return; // Container também precisa existir
+        if (!container) return;
 
         if (this.overallProgressChartInstance) {
             this.overallProgressChartInstance.destroy();
@@ -293,25 +294,26 @@ export class BoletimProducaoView {
         const percentComplete = this.globalMetrics.progressoCicloPercent;
         const percentRemaining = 100 - percentComplete;
 
-        // Tenta obter o contexto 2D
         const ctx = canvas.getContext('2d');
         if (!ctx) {
             console.error("Não foi possível obter o contexto 2D do canvas.");
+            container.innerHTML = `<p style="color: var(--accent-danger); text-align: center; font-size: 0.8rem;">Erro ao obter contexto do gráfico.</p>`;
             return;
         }
 
+        container.innerHTML = '';
+        container.appendChild(canvas);
 
-        // Usar try-catch para isolar erros da Chart.js
         try {
-            this.overallProgressChartInstance = new Chart(ctx, { // Passa o contexto
+            this.overallProgressChartInstance = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
                     datasets: [{
-                        label: 'Progresso do Ciclo',
                         data: [percentComplete, percentRemaining > 0 ? percentRemaining : 0],
-                        backgroundColor: ['#38A169', '#4A5568'],
-                        borderColor: ['#38A169', '#4A5568'],
-                        borderWidth: 1,
+                        backgroundColor: ['#38A169', '#4A5568'], // Verde, Cinza
+                        // *** BORDA REMOVIDA ***
+                        borderWidth: 0,
+                        // *** FIM DA REMOÇÃO ***
                         circumference: 180,
                         rotation: -90
                     }]
@@ -321,47 +323,30 @@ export class BoletimProducaoView {
                     maintainAspectRatio: false,
                     cutout: '70%',
                     plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: false },
-                        // Adiciona configuração para exibir o texto no centro (requer Chart.js >= 3.x)
-                        // ou o plugin chartjs-plugin-datalabels
-                        // Tentativa 1: Opção nativa (Chart.js 3.x+) - Pode não existir em versões mais antigas
-                        // Se não funcionar, remover este bloco 'annotation' ou 'centerText'
-                        centerText: { // Exemplo de nome de plugin, pode variar
-                             display: true,
-                             text: `${percentComplete.toFixed(1)}%`,
-                             color: '#F7FAFC',
-                             font: { size: 20, weight: 'bold' }
-                        },
-                         // Tentativa 2: Usando Datalabels (se importado e registrado)
-                         datalabels: { // Configuração para chartjs-plugin-datalabels
-                             formatter: (value, context) => {
-                                 if (context.dataIndex === 0) { // Mostra só o primeiro valor
-                                     return value.toFixed(1) + '%';
-                                 }
-                                 return null;
-                             },
-                             color: '#F7FAFC',
-                             font: { size: 18, weight: 'bold' }, // Ajuste o tamanho conforme necessário
-                             anchor: 'center',
-                             align: 'center',
-                             display: 'auto' // Tenta exibir automaticamente
-                         }
+                         legend: { display: false },
+                         tooltip: { enabled: false }
                     },
-                    // Garante que eventos de mouse não interfiram
                     events: []
-                },
-                 // Se estiver usando chartjs-plugin-datalabels, registrar aqui:
-                 // plugins: [ChartDataLabels]
+                }
             });
+
+            // Adiciona o texto central via HTML sobreposto
+            let centerText = container.querySelector('.chart-center-text-overlay');
+            if (!centerText) {
+                centerText = document.createElement('div');
+                centerText.className = 'chart-center-text-overlay';
+                container.appendChild(centerText);
+            }
+             centerText.innerHTML = `
+                 <div class="chart-percentage">${percentComplete.toFixed(1)}%</div>
+                 <div class="chart-label">Progresso</div>
+             `;
+
         } catch (error) {
              console.error("Erro ao criar o gráfico Chart.js:", error);
-             // Limpa o canvas em caso de erro para não mostrar um gráfico quebrado
-             ctx.clearRect(0, 0, canvas.width, canvas.height);
              container.innerHTML = `<p style="color: var(--accent-danger); text-align: center; font-size: 0.8rem;">Erro ao renderizar gráfico.</p>`;
         }
     }
-
 
     renderFrentesDashboard() {
         const container = document.getElementById('producao-frentes-container');
@@ -374,7 +359,7 @@ export class BoletimProducaoView {
             if (grupo.frentes.length === 0) return;
 
             const cardsHTML = grupo.frentes.map(frente => {
-                if (!frente || typeof frente.nome === 'undefined' || typeof frente.cumprimento === 'undefined' || typeof frente.meta24h === 'undefined' || typeof frente.metaHora === 'undefined' || typeof frente.metaMomento === 'undefined') {
+                 if (!frente || typeof frente.nome === 'undefined' || typeof frente.cumprimento === 'undefined' || typeof frente.meta24h === 'undefined' || typeof frente.metaHora === 'undefined' || typeof frente.metaMomento === 'undefined') {
                     console.error("Dados inválidos para a frente:", frente);
                     return '<div class="producao-card error">Erro ao renderizar card da frente.</div>';
                 }
@@ -390,24 +375,22 @@ export class BoletimProducaoView {
                     else if (cumprimentoNum >= 60) cumprimentoClass = 'medium';
 
                     const performanceDiff = cumprimentoNum - tempoPercorridoPercent;
-                    if (performanceDiff < -10) { // Ajustado limiar para -10%
-                        performanceIcon = '<i class="ph-fill ph-trend-down"></i>'; // Classe Phosphor correta
+                    if (performanceDiff < -10) {
+                        performanceIcon = '<i class="ph-fill ph-trend-down"></i>';
                         performanceClass = 'icon-below';
                         performanceTitle = 'Projeção abaixo do esperado p/ hora';
-                    } else if (performanceDiff > 10) { // Ajustado limiar para +10%
-                        performanceIcon = '<i class="ph-fill ph-trend-up"></i>'; // Classe Phosphor correta
+                    } else if (performanceDiff > 10) {
+                        performanceIcon = '<i class="ph-fill ph-trend-up"></i>';
                         performanceClass = 'icon-above';
                         performanceTitle = 'Projeção acima do esperado p/ hora';
                     } else {
-                        performanceIcon = '<i class="ph-fill ph-pause-circle"></i>'; // Usando pause-circle para clareza
+                        performanceIcon = '<i class="ph-fill ph-pause-circle"></i>';
                         performanceClass = 'icon-on-track';
                         performanceTitle = 'Projeção dentro do esperado p/ hora';
                     }
-
                 } else {
-                     console.warn(`Valor de cumprimento inválido para ${frente.nome}: ${frente.cumprimento}`);
                      performanceTitle = 'Dados de projeção indisponíveis';
-                     performanceIcon = '<i class="ph-fill ph-question"></i>'; // Ícone de interrogação
+                     performanceIcon = '<i class="ph-fill ph-question"></i>';
                      performanceClass = 'icon-unknown';
                 }
 
@@ -415,8 +398,7 @@ export class BoletimProducaoView {
                 const metaHoraF = Number(frente.metaHora).toFixed(2);
                 const metaMomentoF = Number(frente.metaMomento).toFixed(2);
                 const cumprimentoF = !isNaN(cumprimentoNum) ? cumprimentoNum.toFixed(1) : 'N/A';
-                const cumprimentoWidth = !isNaN(cumprimentoNum) ? Math.min(cumprimentoNum, 100).toFixed(2) : '0'; // Limita a barra em 100%
-
+                const cumprimentoWidth = !isNaN(cumprimentoNum) ? Math.min(cumprimentoNum, 100).toFixed(2) : '0';
 
                 return `
                     <div class="producao-card">
@@ -469,11 +451,14 @@ export class BoletimProducaoView {
     }
 
     addEventListeners() {
-        this.container.addEventListener('click', (e) => {
-            if (e.target.closest('#refresh-boletim')) {
-                this.show();
-                showToast('Metas recalculadas para a hora atual!', 'success');
-            }
-        });
+        // Verifica se this.container existe antes de adicionar o listener
+        if (this.container) {
+            this.container.addEventListener('click', (e) => {
+                if (e.target.closest('#refresh-boletim')) {
+                    this.show();
+                    showToast('Metas recalculadas para a hora atual!', 'success');
+                }
+            });
+        }
     }
 }
