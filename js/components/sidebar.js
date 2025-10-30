@@ -137,6 +137,12 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
             <button class="nav-button" data-view="fila-estacionamento"> <i class="ph-fill ph-hourglass-simple"></i>
                 <span>Estacionamento</span>
             </button>
+            
+            <button class="nav-button" data-view="fila-patio-carregado"> 
+                <i class="ph-fill ph-warehouse"></i>
+                <span>Pátio Carregado</span>
+            </button>
+            
             <button class="nav-button" data-view="fila-descarga"> <i class="ph-fill ph-factory"></i>
                 <span>Fila de Descarga</span>
                 ${descargaCount > 0 ? `<span class="badge warning">${descargaCount}</span>` : ''}

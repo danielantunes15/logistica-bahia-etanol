@@ -17,6 +17,8 @@ import { OcorrenciasView } from './ocorrencias.js';
 import { TempoView } from './tempo.js'; 
 // NOVO: Importa BoletimProducaoView (ADICIONADO)
 import { BoletimProducaoView } from './boletimProducao.js';
+// NOVO: Importa PatioCarregadoView
+import { PatioCarregadoView } from './patioCarregado.js'; // <<-- LINHA ADICIONADA
 
 export class ViewManager {
     constructor(appManager) { // Recebe o App Manager
@@ -44,6 +46,8 @@ export class ViewManager {
         this.views.set('equipamentos', new EquipamentosView()); 
         this.views.set('fila-estacionamento', new FilaEstacionamentoView()); 
         this.views.set('fila-descarga', new DescargaView()); 
+        // NOVO: Registra a view Pátio Carregado
+        this.views.set('fila-patio-carregado', new PatioCarregadoView()); // <<-- LINHA ADICIONADA
         this.views.set('relatorios', new RelatoriosView());
         this.views.set('gerencial', new GerencialView()); // NOVO: Registra Gerencial
         
