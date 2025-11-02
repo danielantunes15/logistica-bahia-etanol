@@ -98,8 +98,6 @@ export class ControleView {
 
                 ${this.renderDashboardSummary()}
                 
-                ${this.renderParadosPanel()} 
-
                 <div class="controle-grid" id="main-grid">
                     ${this.renderFrentes()}
                 </div>
@@ -148,77 +146,7 @@ export class ControleView {
         `;
     }
 
-    // MODIFICADO: Painel de Caminhões Parados / Quebrados (Com Data/Hora e Duração)
-    renderParadosPanel() {
-        const { caminhoes = [], caminhao_historico = [] } = this.data;
-        const downtimeStatus = ['parado', 'quebrado'];
-        const paradosQuebrados = caminhoes.filter(c => downtimeStatus.includes(c.status));
-        
-        // CORREÇÃO DA LÓGICA: Usa a função de utilidade para obter SESSÕES de inatividade.
-        const allDowntimeSessions = groupDowntimeSessions(caminhao_historico, 'caminhao_id', downtimeStatus);
-        
-        // Filtra apenas as sessões ATIVAS (end_time === null)
-        const openDowntimeSessions = allDowntimeSessions.filter(s => s.end_time === null);
-        
-        // Mapeia as sessões abertas pelo ID do caminhão para fácil lookup
-        const downtimeInfoMap = new Map();
-        openDowntimeSessions.forEach(session => {
-            // Usa os dados do log de início para o motivo e hora de início
-            downtimeInfoMap.set(session.startLog.caminhao_id, {
-                startTime: session.startTime, 
-                motivo: session.startLog.motivo_parada || 'Não informado',
-                currentStatus: session.startStatus 
-            });
-        });
-
-        // Re-processa apenas os caminhões atualmente parados
-        const rows = paradosQuebrados.map(c => {
-            // Tenta encontrar a sessão aberta no mapa
-            const info = downtimeInfoMap.get(c.id) || { startTime: c.created_at, motivo: 'N/A', currentStatus: c.status };
-            
-            // Calcula a duração da parada atual
-            const duration = calculateDowntimeDuration(info.startTime, null); 
-            
-            return `
-                <tr>
-                    <td><strong>${c.cod_equipamento}</strong></td>
-                    <td><span class="caminhao-status-badge status-${c.status}">${this.statusLabels[c.status]}</span></td>
-                    <td>${info.motivo}</td>
-                    <td>${formatDateTime(info.startTime)}</td>
-                    <td><span style="font-weight: 600;">${duration}</span></td>
-                    <td>
-                        <button class="btn-secondary btn-finalize-downtime" style="font-size: 0.8rem; padding: 6px 10px;" data-caminhao-id="${c.id}" data-start-time="${info.startTime}">
-                            Finalizar
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-        return `
-            <div class="historico-container" style="margin-bottom: 32px;">
-                <div class="historico-header">
-                    <h2>Caminhões Parados / Quebrados</h2> </div>
-                <div class="table-wrapper">
-                    <table class="data-table-modern" id="parados-caminhoes-table">
-                        <thead>
-                            <tr>
-                                <th>Cód. Caminhão</th>
-                                <th>Status</th>
-                                <th>Motivo da Parada / Quebra</th>
-                                <th>Início da Parada</th>
-                                <th>Duração (H/M)</th>
-                                <th style="width: 1%;">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${rows.length > 0 ? rows : '<tr><td colspan="6">Nenhum caminhão atualmente parado ou quebrado.</td></tr>'}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        `;
-    }
+    // renderParadosPanel() FOI MOVIDO PARA frota.js
 
     renderFrentes() {
         const { frentes_servico = [], caminhoes = [] } = this.data;
@@ -403,10 +331,7 @@ export class ControleView {
                 this.showStatusUpdateModal(btn.dataset.caminhaoId);
             }
             
-            // NOVO: Listener para finalizar inatividade
-            if (btn.classList.contains('btn-finalize-downtime')) {
-                this.showFinalizeDowntimeModal(btn.dataset.caminhaoId, btn.dataset.startTime);
-            }
+            // REMOVIDO: Listener para finalizar inatividade (movido para frota.js)
         });
     }
 
@@ -529,104 +454,7 @@ export class ControleView {
         });
     }
 
-    // NOVO: Modal para finalizar inatividade com edição de data/hora
-    showFinalizeDowntimeModal(caminhaoId, startTime) {
-        const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
-        if (!caminhao) return;
-
-        // CORREÇÃO: Usa a função getBrtNowString
-        const nowString = getBrtNowString();
-        
-        // Calcula a duração inicial (para o display)
-        const initialDiffMillis = calculateTimeDifference(startTime, nowString);
-        const initialDuration = formatMillisecondsToHoursMinutes(initialDiffMillis);
-        
-        // Define a cor de alerta se a duração inicial for negativa (o que não deveria ocorrer com nowString, mas é uma proteção)
-        const durationColor = initialDiffMillis < 0 ? 'var(--accent-danger)' : 'var(--accent-primary)';
-
-
-        const modalContent = `
-            <p>Finalizando inatividade para: <strong>${caminhao.cod_equipamento}</strong></p>
-            <p style="font-size: 0.9rem; color: var(--text-secondary);">Início da Inatividade: ${formatDateTime(startTime)}</p>
-            
-            <form id="finalize-downtime-form" class="action-modal-form">
-                <div class="form-group">
-                    <label>Hora de Retorno (Fim da Inatividade)</label>
-                    <input type="datetime-local" name="hora_fim" id="hora_fim_input" class="form-input" value="${nowString}" required>
-                    <p class="form-help">Edite se a hora de retorno for diferente da hora atual.</p>
-                </div>
-                
-                <p style="text-align: center; font-size: 1.1rem; margin-top: 15px;">
-                    Duração Total: <strong id="downtime-duration-display" style="color: ${durationColor};">${initialDuration}</strong>
-                </p>
-                
-                <button type="submit" class="btn-primary">Finalizar (Tornar Disponível)</button>
-            </form>
-            
-            <script>
-                const startTimeIso = '${startTime}';
-                const horaFimInput = document.getElementById('hora_fim_input');
-                const durationDisplay = document.getElementById('downtime-duration-display');
-
-                // Mapeia as funções de utilidade de tempo para o script inline (Corrigido para Concatenação)
-                window.timeUtils = {
-                    calculateTimeDifference: (start, end) => {
-                         const startMs = new Date(start).getTime();
-                         const endMs = new Date(end).getTime();
-                         return endMs - startMs;
-                    },
-                    formatMillisecondsToHoursMinutes: (ms) => {
-                         if (ms < 0) ms = 0;
-                         const diffHours = Math.floor(ms / (1000 * 60 * 60));
-                         const diffMinutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-                         if (diffHours > 0) {
-                             return diffHours + 'h ' + diffMinutes + 'm'; 
-                         } else {
-                             return diffMinutes + 'm'; 
-                         }
-                    }
-                };
-
-                function updateDuration() {
-                    const endTime = horaFimInput.value;
-                    if (!endTime) return;
-
-                    const diffMillis = window.timeUtils.calculateTimeDifference(startTimeIso, endTime);
-                    const durationText = window.timeUtils.formatMillisecondsToHoursMinutes(Math.abs(diffMillis));
-                    
-                    durationDisplay.textContent = durationText;
-
-                    if (diffMillis < 0) {
-                        durationDisplay.style.color = 'var(--accent-danger)';
-                        durationDisplay.textContent += ' (Inválida)';
-                        horaFimInput.classList.add('is-invalid');
-                    } else {
-                        durationDisplay.style.color = 'var(--accent-primary)';
-                        horaFimInput.classList.remove('is-invalid');
-                    }
-                }
-                
-                horaFimInput.addEventListener('input', updateDuration);
-                updateDuration(); // Garante o estado inicial
-            </script>
-        `;
-        openModal('Finalizar Inatividade - ' + this.statusLabels[caminhao.status], modalContent);
-
-        document.getElementById('finalize-downtime-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const horaFim = e.target.hora_fim.value;
-            
-            // Validação final: o tempo de fim não pode ser anterior ao tempo de início.
-            if (calculateTimeDifference(startTime, horaFim) < 0) {
-                 showToast('A Hora de Retorno não pode ser anterior à Hora de Início.', 'error');
-                 document.getElementById('hora_fim_input').classList.add('is-invalid');
-                 return;
-            }
-            
-            // Passa a hora de fim (BRT) e o novo status 'disponivel'
-            this.handleStatusUpdate(caminhaoId, 'disponivel', null, 'Ciclo finalizado, caminhão disponível!', null, getBrtIsoString(horaFim));
-        });
-    }
+    // showFinalizeDowntimeModal() FOI MOVIDO PARA frota.js
 
     // MODIFICADO: showStatusUpdateModal agora chama o NOVO modal de finalizar ciclo
     showStatusUpdateModal(caminhaoId) {
@@ -682,21 +510,21 @@ export class ControleView {
                     <i class="ph-fill ph-check-circle"></i> Finalizar Inatividade
                 </button>
 
-                <script>
-                    document.getElementById('btn-finalizar-downtime').addEventListener('click', function() {
-                        closeModal(); // Fecha o modal atual
-                        // Chama o método da instância da view
-                        window.viewManager.views.get('controle').showFinalizeDowntimeModal('${caminhaoId}', '${startTime}'); 
-                    });
-                </script>
-             `;
+                `;
              openModal('Gerenciar Inatividade - ' + caminhao.cod_equipamento, downtimeForm);
              
              document.getElementById('status-update-form').addEventListener('submit', async (e) => {
                  e.preventDefault();
                  const novoStatus = e.target.status.value;
                  const motivo = e.target.motivo.value;
-                 this.handleStatusUpdate(caminhaoId, novoStatus, caminhao.frente_id, 'Status e motivo atualizados!', motivo);
+                 this.handleStatusUpdate(caminhao.id, novoStatus, caminhao.frente_id, 'Status e motivo atualizados!', motivo);
+             });
+             
+             // Este botão não funcionará mais aqui, pois a função foi movida.
+             // A lógica de finalização agora está em frota.js
+             document.getElementById('btn-finalizar-downtime').addEventListener('click', () => {
+                 showToast('Esta ação foi movida para a tela de Gerenciamento de Frota.', 'info');
+                 closeModal();
              });
              
              return;
