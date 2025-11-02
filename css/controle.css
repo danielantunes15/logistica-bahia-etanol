@@ -64,9 +64,10 @@
 
 .controle-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-    gap: 24px;
-    margin-bottom: 32px;
+    /* --- Mantém as 5 colunas --- */
+    grid-template-columns: repeat(5, 1fr);
+    gap: 16px; /* Diminuído o gap */
+    margin-bottom: 16px; /* Diminuído o margin-bottom */
 }
 
 .frente-card {
@@ -80,36 +81,39 @@
 
 .frente-header {
     background-color: #374151;
-    padding: 16px;
+    /* --- MODIFICAÇÃO: Padding diminuído --- */
+    padding: 12px;
     border-bottom: 1px solid var(--border-color);
 }
 
 .frente-header-main {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 10px; /* Diminuído o gap */
+    margin-bottom: 12px; /* Diminuído o margin-bottom */
 }
 
-.frente-header-main i { font-size: 24px; color: var(--accent-primary); }
-.frente-header-main h3 { font-size: 1.2rem; color: var(--text-primary); margin: 0; }
+.frente-header-main i { font-size: 20px; color: var(--accent-primary); } /* Diminuído o ícone */
+/* --- MODIFICAÇÃO: Fonte diminuída --- */
+.frente-header-main h3 { font-size: 1.0rem; color: var(--text-primary); margin: 0; }
 
-.frente-fazenda-info { display: flex; justify-content: space-between; align-items: center; background-color: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; }
-.fazenda-display { display: flex; align-items: center; gap: 10px; }
+.frente-fazenda-info { display: flex; justify-content: space-between; align-items: center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; }
+.fazenda-display { display: flex; align-items: center; gap: 8px; }
 .fazenda-display i { color: var(--text-secondary); }
-.fazenda-nome { font-weight: 500; }
-.fazenda-codigo { font-size: 0.8rem; color: var(--text-secondary); background-color: var(--bg-dark); padding: 2px 8px; border-radius: 6px; }
+.fazenda-nome { font-weight: 500; font-size: 0.85rem; } /* Diminuída a fonte */
+.fazenda-codigo { font-size: 0.75rem; color: var(--text-secondary); background-color: var(--bg-dark); padding: 2px 8px; border-radius: 6px; }
 .btn-alterar-fazenda { padding: 6px 12px; font-size: 0.8rem; background-color: var(--bg-light); }
 
 .frente-body {
-    padding: 16px;
+    /* --- MODIFICAÇÃO: Padding diminuído --- */
+    padding: 12px;
     flex-grow: 1;
 }
 
 .frente-body h4 {
-    font-size: 1rem;
+    font-size: 0.85rem; /* Diminuída a fonte */
     color: var(--text-secondary);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--border-color);
 }
@@ -120,15 +124,48 @@
 }
 
 .caminhoes-em-operacao-table th, .caminhoes-em-operacao-table td {
-    padding: 10px;
+    /* --- MODIFICAÇÃO: Padding diminuído e remoção do nowrap --- */
+    padding: 8px 5px;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
 }
 
 .caminhoes-em-operacao-table th {
-    font-size: 0.8rem;
+    font-size: 0.75rem; /* Diminuída a fonte */
     color: var(--text-secondary);
+    white-space: nowrap; /* Manter o cabeçalho sem quebra */
 }
+
+/* NOVO: Reduz fonte da célula da tabela */
+.caminhoes-em-operacao-table td {
+    font-size: 0.85rem;
+}
+
+/* --- NOVAS REGRAS DE LARGURA DE COLUNA --- */
+.caminhoes-em-operacao-table th:nth-child(1),
+.caminhoes-em-operacao-table td:nth-child(1) {
+    width: 30%; /* Cód. */
+}
+
+.caminhoes-em-operacao-table th:nth-child(2),
+.caminhoes-em-operacao-table td:nth-child(2) {
+    width: 40%; /* Status */
+    white-space: normal; /* Permite que o status quebre a linha */
+}
+
+.caminhoes-em-operacao-table th:nth-child(3),
+.caminhoes-em-operacao-table td:nth-child(3) {
+    width: 30%; /* Ações */
+    text-align: center; /* Centraliza o botão */
+}
+/* --- FIM NOVAS REGRAS --- */
+
+/* NOVO: Diminui o botão de Ações da tabela */
+.caminhoes-em-operacao-table .btn-primary {
+    font-size: 0.75rem !important;
+    padding: 5px 8px !important;
+}
+
 
 /* --- ESTILOS ADICIONAIS PARA FRENTE --- */
 .frente-status-badge {
@@ -157,6 +194,13 @@
     font-weight: 600;
     color: white;
 }
+
+/* NOVO: Diminui o badge de status DENTRO da tabela */
+.caminhoes-em-operacao-table .caminhao-status-badge {
+    font-size: 0.7rem;
+    padding: 3px 6px;
+}
+
 
 /* Cores dos status */
 .status-indo_carregar { background-color: #2B6CB0; }
@@ -324,6 +368,11 @@
         height: auto;
         min-height: 300px;
     }
+
+    /* NOVO: Ajusta a grade de frentes para 3 colunas em telas médias */
+    .controle-grid {
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
 }
 
 @media (max-width: 900px) {
@@ -346,6 +395,18 @@
         font-size: 1.5rem; 
         margin: 0;
         width: 100%; 
+    }
+
+    /* NOVO: Ajusta a grade de frentes para 2 colunas */
+    .controle-grid {
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+}
+
+/* NOVO: Ajusta a grade de frentes para 1 coluna em telas muito pequenas */
+@media (max-width: 600px) {
+    .controle-grid {
+        grid-template-columns: 1fr;
     }
 }
 
