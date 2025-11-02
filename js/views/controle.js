@@ -85,6 +85,17 @@ export class ControleView {
     }
     
     render() {
+        // --- MODIFICAÇÃO INICIA AQUI ---
+        const { frentes_servico = [] } = this.data;
+        
+        // Garante a ordenação alfabética
+        frentes_servico.sort((a, b) => a.nome.localeCompare(b.nome)); 
+        
+        // Divide as frentes em duas listas: 5 para cima, o restante para baixo
+        const frentesCima = frentes_servico.slice(0, 5);
+        const frentesBaixo = frentes_servico.slice(5);
+        // --- MODIFICAÇÃO TERMINA AQUI ---
+
         const container = document.getElementById('views-container');
         container.innerHTML = `
             <div id="controle-view" class="view controle-view active-view">
@@ -98,9 +109,15 @@ export class ControleView {
 
                 ${this.renderDashboardSummary()}
                 
-                <div class="controle-grid" id="main-grid">
-                    ${this.renderFrentes()}
+                <div class="controle-grid" id="main-grid-top">
+                    ${this.renderFrentes(frentesCima)}
                 </div>
+                
+                ${frentesBaixo.length > 0 ? `
+                <div class="controle-grid" id="main-grid-bottom">
+                    ${this.renderFrentes(frentesBaixo)}
+                </div>
+                ` : ''}
             </div>
         `;
         this.container = container.querySelector('#controle-view');
@@ -148,13 +165,12 @@ export class ControleView {
 
     // renderParadosPanel() FOI MOVIDO PARA frota.js
 
-    renderFrentes() {
-        const { frentes_servico = [], caminhoes = [] } = this.data;
+    // --- MODIFICAÇÃO AQUI: Aceita um array de frentes como argumento ---
+    renderFrentes(frentesArray) {
+        const { caminhoes = [] } = this.data;
         
-        // NOVO: Ordenar frentes por nome alfabeticamente
-        frentes_servico.sort((a, b) => a.nome.localeCompare(b.nome)); 
-        
-        return frentes_servico.map(frente => {
+        return frentesArray.map(frente => {
+        // --- FIM DA MODIFICAÇÃO ---
             const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel');
             const fazendaAtual = frente.fazendas;
             const frenteStatus = frente.status || 'inativa'; // Garante um status
