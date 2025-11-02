@@ -25,6 +25,9 @@ export class ControleView {
         if (window.viewManager) {
              window.viewManager.views.set('controle', this);
         }
+        
+        // ADICIONADO: Mapa para armazenar a hora da última movimentação
+        this.latestStatusTimeMap = new Map();
     }
 
     async show() {
@@ -64,6 +67,10 @@ export class ControleView {
 
         try {
             this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
+            
+            // ADICIONADO: Pré-calcula o mapa do último status de movimento para a visualização
+            this.latestStatusTimeMap = this.calculateLatestStatusTimes(this.data.caminhao_historico);
+            
             this.render();
             this.addEventListeners(); // CORREÇÃO: Rebind listeners após renderizar o HTML
             
@@ -84,6 +91,25 @@ export class ControleView {
         }
     }
     
+    // NOVO MÉTODO
+    calculateLatestStatusTimes(history = []) {
+        const latestStatusTimeMap = new Map();
+        
+        // Classifica o histórico do mais recente para o mais antigo (para garantir o primeiro é o mais recente)
+        const sortedHistory = history.sort((a, b) => 
+            new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca)
+        );
+        
+        sortedHistory.forEach(log => {
+            // Apenas registra o primeiro (mais recente) log para cada caminhão
+            if (!latestStatusTimeMap.has(log.caminhao_id)) {
+                latestStatusTimeMap.set(log.caminhao_id, log.timestamp_mudanca);
+            }
+        });
+        
+        return latestStatusTimeMap;
+    }
+
     render() {
         // --- MODIFICAÇÃO INICIA AQUI: Lógica de Agrupamento e Contagem ---
         const { frentes_servico = [], caminhoes = [] } = this.data;
@@ -267,13 +293,22 @@ export class ControleView {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${caminhoesEmOperacao.length > 0 ? caminhoesEmOperacao.map(c => `
+                                ${caminhoesEmOperacao.length > 0 ? caminhoesEmOperacao.map(c => {
+                                     // ALTERAÇÃO PRINCIPAL AQUI: Adiciona o tooltip com a hora da última movimentação
+                                     const latestTime = this.latestStatusTimeMap.get(c.id);
+                                     const formattedTime = latestTime ? formatDateTime(latestTime) : 'N/A';
+                                     const tooltip = `Última Movimentação: ${formattedTime}`;
+                                     
+                                     return `
                                     <tr>
-                                        <td><strong>${c.cod_equipamento}</strong></td>
+                                        <td>
+                                            <strong title="${tooltip}">${c.cod_equipamento}</strong>
+                                        </td>
                                         <td><span class="caminhao-status-badge status-${c.status}">${this.statusLabels[c.status]}</span></td>
                                         <td><button class="btn-primary" style="font-size: 0.8rem; padding: 6px 10px;" data-caminhao-id="${c.id}">Alterar Status</button></td>
                                     </tr>
-                                `).join('') : '<tr><td colspan="3">Nenhum caminhão em operação.</td></tr>'}
+                                    `
+                                }).join('') : '<tr><td colspan="3">Nenhum caminhão em operação.</td></tr>'}
                             </tbody>
                         </table>
                     </div>
