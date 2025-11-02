@@ -18,6 +18,9 @@ export class ControleView {
         
         this.frenteStatusLabels = FRENTE_STATUS_LABELS;
         
+        // NOVO: 1. Adiciona a referência para o handler
+        this._boundStatusUpdateHandler = this.handleStatusUpdate.bind(this);
+
         // NOVO: Expor a view no window para o script do modal funcionar
         if (window.viewManager) {
              window.viewManager.views.set('controle', this);
@@ -26,9 +29,27 @@ export class ControleView {
 
     async show() {
         await this.loadData();
+        // NOVO: 2. Adiciona o listener de Real-Time ao mostrar a view
+        window.addEventListener('statusUpdated', this._boundStatusUpdateHandler);
     }
 
-    async hide() {}
+    async hide() {
+        // NOVO: 3. Remove o listener ao esconder a view
+        window.removeEventListener('statusUpdated', this._boundStatusUpdateHandler);
+    }
+
+    // NOVO: 4. Handler para o evento global 'statusUpdated'
+    handleStatusUpdate(e) {
+        // Tabelas relevantes para esta view
+        const relevantTables = ['caminhoes', 'frentes_servico'];
+        
+        if (relevantTables.includes(e.detail.table)) {
+            console.log('Real-Time: ControleView detectou mudança, recarregando...');
+            // O dataCache.js já invalidou o cache.
+            // loadData(true) força a busca dos novos dados.
+            this.loadData(true); 
+        }
+    }
 
     async loadData(forceRefresh = false) {
         showLoading(); // Chamada inicial de loading para o show()
