@@ -259,6 +259,116 @@ export class ControleView {
         }).join('');
     }
 
+    // NOVO: Função dedicada para a lógica de atribuição (reutilizável)
+    async handleAssignTruck(caminhaoId, frenteId, status, hora) {
+        showLoading();
+        try {
+            // 1. Designa o caminhão e atualiza status no DB
+            await assignCaminhaoToFrente(caminhaoId, frenteId, status, getBrtIsoString(hora));
+            
+            // 2. Remove da fila de estacionamento persistida
+            await removeCaminhaoFromFila(caminhaoId); 
+            
+            // 3. Invalida o Cache
+            dataCache.invalidateAllData();
+
+            // *** MELHORIA: Mensagem de toast mais genérica ***
+            showToast('Caminhão realocado e novo ciclo iniciado!', 'success');
+            closeModal();
+            await this.loadData(true); 
+        } catch (error) {
+            handleOperation(error); 
+        } finally {
+            hideLoading(); 
+        }
+    }
+    
+    // MODIFICADO: Modal para o fluxo de Finalizar Ciclo (com seletor de status)
+    showFinalizeCycleModal(caminhaoId) {
+        const { caminhoes = [], frentes_servico = [] } = this.data;
+        const caminhao = caminhoes.find(c => c.id == caminhaoId);
+        if (!caminhao) return;
+
+        // Filtra para mostrar apenas frentes ATIVAS (ativa ou fazendo_cata) e com fazenda associada
+        const frentesAtivas = frentes_servico
+            .filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
+            .sort((a, b) => a.nome.localeCompare(b.nome));
+
+        // Usa a função getBrtNowString para o valor inicial do formulário
+        const nowString = getBrtNowString();
+        
+        // *** MELHORIA: Gera as opções de status do ciclo ***
+        const statusOptionsHTML = this.statusCiclo.map(s => 
+            `<option value="${s}">${this.statusLabels[s]}</option>`
+        ).join('');
+        
+        const modalContent = `
+            <p>Caminhão: <strong>${caminhao.cod_equipamento}</strong> - Ciclo Finalizado.</p>
+            <p class="form-help">Escolha a ação para o caminhão após o ciclo de retorno/descarga:</p>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+
+            <h4>Opção 1: Realocar para Nova Frente de Serviço</h4>
+            <form id="reallocate-cycle-form" class="action-modal-form" style="margin-bottom: 20px;">
+                <input type="hidden" name="caminhaoId" value="${caminhaoId}">
+                <div class="form-group">
+                    <label>Frente de Destino</label>
+                    <select name="frente" class="form-select" required>
+                        <option value="">Selecione a Frente (Obrigatório)</option>
+                        ${frentesAtivas.map(f => `<option value="${f.id}">${f.nome} (${this.frenteStatusLabels[f.status]})</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Etapa Inicial do Novo Ciclo</label>
+                    <select name="status" class="form-select" required>
+                        ${statusOptionsHTML}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Hora de Início da Etapa</label>
+                    <input type="datetime-local" name="hora" class="form-input" value="${nowString}" required>
+                </div>
+                <button type="submit" class="btn-primary">
+                    <i class="ph-fill ph-plus-circle"></i> Iniciar Novo Ciclo
+                </button>
+            </form>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+
+            <h4>Opção 2: Deixar no Pátio Vazio</h4>
+            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manualmente via "Fila Estacionamento" ou "Fazer Ação".</p>
+            <button id="btn-set-patio-vazio" class="btn-secondary" style="background-color: #805AD5;">
+                <i class="ph-fill ph-warehouse"></i> Marcar como Pátio Vazio
+            </button>
+        `;
+        openModal('Ação Pós-Ciclo - ' + caminhao.cod_equipamento, modalContent);
+
+        // Listener para Opção 1: Realocar
+        document.getElementById('reallocate-cycle-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = e.target;
+            const frenteId = formData.frente.value;
+            const status = formData.status.value; // *** MELHORIA: Lê o status selecionado ***
+            const hora = formData.hora.value;
+            
+            if (!frenteId) {
+                showToast('Selecione uma Frente de Destino.', 'error');
+                return;
+            }
+            
+            // *** MELHORIA: Passa o status selecionado ***
+            this.handleAssignTruck(caminhaoId, frenteId, status, hora); 
+        });
+
+        // Listener para Opção 2: Pátio Vazio
+        document.getElementById('btn-set-patio-vazio').addEventListener('click', () => {
+            // Usa 'patio_vazio' e o status atual para a frente (null, pois está finalizando o ciclo)
+            this.handleStatusUpdate(caminhaoId, 'patio_vazio', null, 'Caminhão movido para Pátio Vazio!');
+        });
+    }
+
     addEventListeners() {
         this.container.addEventListener('click', (e) => {
             const btn = e.target.closest('button');
@@ -393,25 +503,8 @@ export class ControleView {
                 return;
             }
 
-            showLoading();
-            try {
-                // 1. Designa o caminhão e atualiza status no DB
-                await assignCaminhaoToFrente(caminhaoId, frenteId, status, getBrtIsoString(hora));
-                
-                // 2. Remove da fila de estacionamento persistida
-                await removeCaminhaoFromFila(caminhaoId); 
-                
-                // 3. Invalida o Cache (NOVO)
-                dataCache.invalidateAllData();
-
-                showToast('Caminhão designado com sucesso!', 'success');
-                closeModal();
-                await this.loadData(true); // Força refresh após escrita
-            } catch (error) {
-                handleOperation(error);
-            } finally {
-                hideLoading();
-            }
+            // REUTILIZA A NOVA FUNÇÃO
+            this.handleAssignTruck(caminhaoId, frenteId, status, hora);
         });
     }
 
@@ -514,7 +607,7 @@ export class ControleView {
         });
     }
 
-    // MODIFICADO: showStatusUpdateModal agora chama showFinalizeDowntimeModal quando for o caso.
+    // MODIFICADO: showStatusUpdateModal agora chama o NOVO modal de finalizar ciclo
     showStatusUpdateModal(caminhaoId) {
         const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
         if (!caminhao) return;
@@ -608,7 +701,7 @@ export class ControleView {
                 </div>
                 
                 <button type="submit" class="btn-primary">Atualizar Status</button>
-                <button type="button" id="btn-finalizar-ciclo" class="btn-secondary">Finalizar Ciclo (Tornar Disponível)</button>
+                <button type="button" id="btn-finalizar-ciclo" class="btn-secondary">Finalizar Ciclo</button>
             </form>
             
             <script>
@@ -638,8 +731,10 @@ export class ControleView {
             this.handleStatusUpdate(caminhao.id, novoStatus, caminhao.frente_id, 'Status atualizado!', motivoParaAPI);
         });
 
+        // MODIFICAÇÃO CHAVE AQUI: Chama o novo modal de escolha
         document.getElementById('btn-finalizar-ciclo').addEventListener('click', () => {
-             this.handleStatusUpdate(caminhao.id, 'disponivel', null, 'Ciclo finalizado, caminhão disponível!');
+             closeModal();
+             this.showFinalizeCycleModal(caminhao.id);
         });
     }
     
