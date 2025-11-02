@@ -61,14 +61,62 @@
 .summary-disponivel { border-color: var(--accent-primary); } /* Cor para o novo card de Disponíveis */
 .summary-parado { border-color: #ED8936; } /* Cor para o card Parado (Laranja) */
 
+/* --- NOVOS ESTILOS PARA CABEÇALHO DO GRUPO --- */
+.frente-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 24px; /* Espaço acima do título */
+    margin-bottom: 12px; /* Espaço entre o título e a grade */
+    padding: 0 5px; /* Alinhamento leve com a grade */
+}
+
+.frente-group-header h2 {
+    font-size: 1.5rem;
+    color: var(--accent-primary);
+    margin: 0;
+}
+
+.frente-group-truck-count {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background-color: var(--bg-light);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.frente-group-truck-count i {
+    font-size: 1.3rem;
+}
+/* --- FIM NOVOS ESTILOS --- */
+
 
 .controle-grid {
     display: grid;
     /* --- Mantém as 5 colunas --- */
     grid-template-columns: repeat(5, 1fr);
     gap: 16px; /* Diminuído o gap */
-    margin-bottom: 16px; /* Diminuído o margin-bottom */
+    /* --- MODIFICAÇÃO: Ajuste de margem --- */
+    margin-bottom: 16px; 
+    margin-top: 0;
 }
+
+/* NOVO: Estilo para estado vazio da grade */
+.empty-state-frente-grid {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+    font-style: italic;
+    background: rgba(45, 55, 72, 0.3);
+    border-radius: 8px;
+}
+
 
 .frente-card {
     background-color: var(--bg-light);
