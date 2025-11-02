@@ -85,15 +85,46 @@ export class ControleView {
     }
     
     render() {
-        // --- MODIFICAÇÃO INICIA AQUI ---
-        const { frentes_servico = [] } = this.data;
+        // --- MODIFICAÇÃO INICIA AQUI: Lógica de Agrupamento e Contagem ---
+        const { frentes_servico = [], caminhoes = [] } = this.data;
         
-        // Garante a ordenação alfabética
-        frentes_servico.sort((a, b) => a.nome.localeCompare(b.nome)); 
+        // 1. Agrupar Frentes
+        const frentesCanaInteira = frentes_servico
+            .filter(f => f.tipo_producao === 'MANUAL')
+            .sort((a, b) => a.nome.localeCompare(b.nome));
+            
+        const frentesCanaMecanizada = frentes_servico
+            .filter(f => f.tipo_producao === 'MECANIZADA')
+            .sort((a, b) => a.nome.localeCompare(b.nome));
+            
+        const frentesOutras = frentes_servico
+            .filter(f => f.tipo_producao !== 'MANUAL' && f.tipo_producao !== 'MECANIZADA')
+            .sort((a, b) => a.nome.localeCompare(b.nome));
+
+        // 2. Obter IDs para contagem
+        const inteiraIDs = new Set(frentesCanaInteira.map(f => f.id));
+        const mecanizadaIDs = new Set(frentesCanaMecanizada.map(f => f.id));
+        const outrasIDs = new Set(frentesOutras.map(f => f.id));
+
+        // 3. Contar Caminhões 
+        let countInteira = 0;
+        let countMecanizada = 0;
+        let countOutras = 0;
+
+        // Contar apenas caminhões que estão em operação (não 'disponivel', 'parado', 'quebrado')
+        const operationalStatuses = ['indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando', 'patio_vazio'];
         
-        // Divide as frentes em duas listas: 5 para cima, o restante para baixo
-        const frentesCima = frentes_servico.slice(0, 5);
-        const frentesBaixo = frentes_servico.slice(5);
+        caminhoes.forEach(c => {
+            if (c.frente_id && operationalStatuses.includes(c.status)) {
+                if (inteiraIDs.has(c.frente_id)) {
+                    countInteira++;
+                } else if (mecanizadaIDs.has(c.frente_id)) {
+                    countMecanizada++;
+                } else if (outrasIDs.has(c.frente_id)) {
+                    countOutras++;
+                }
+            }
+        });
         // --- MODIFICAÇÃO TERMINA AQUI ---
 
         const container = document.getElementById('views-container');
@@ -109,13 +140,35 @@ export class ControleView {
 
                 ${this.renderDashboardSummary()}
                 
+                <div class="frente-group-header">
+                    <h2>Frentes de Cana Inteira</h2>
+                    <span class="frente-group-truck-count">
+                        <i class="ph-fill ph-truck"></i> ${countInteira} Caminhões 
+                    </span>
+                </div>
                 <div class="controle-grid" id="main-grid-top">
-                    ${this.renderFrentes(frentesCima)}
+                    ${this.renderFrentes(frentesCanaInteira)}
                 </div>
                 
-                ${frentesBaixo.length > 0 ? `
+                <div class="frente-group-header">
+                    <h2>Frentes de Cana Mecanizada</h2>
+                    <span class="frente-group-truck-count">
+                        <i class="ph-fill ph-truck"></i> ${countMecanizada} Caminhões 
+                    </span>
+                </div>
                 <div class="controle-grid" id="main-grid-bottom">
-                    ${this.renderFrentes(frentesBaixo)}
+                    ${this.renderFrentes(frentesCanaMecanizada)}
+                </div>
+                
+                ${frentesOutras.length > 0 ? `
+                <div class="frente-group-header">
+                    <h2>Outras Frentes (Sem Grupo / Agro Unione)</h2>
+                    <span class="frente-group-truck-count">
+                        <i class="ph-fill ph-truck"></i> ${countOutras} Caminhões 
+                    </span>
+                </div>
+                <div class="controle-grid" id="main-grid-outras">
+                    ${this.renderFrentes(frentesOutras)}
                 </div>
                 ` : ''}
             </div>
@@ -168,6 +221,11 @@ export class ControleView {
     // --- MODIFICAÇÃO AQUI: Aceita um array de frentes como argumento ---
     renderFrentes(frentesArray) {
         const { caminhoes = [] } = this.data;
+        
+        // Se o array estiver vazio, mostra uma mensagem
+        if (frentesArray.length === 0) {
+            return `<div class="empty-state-frente-grid">Nenhuma frente ativa neste grupo.</div>`;
+        }
         
         return frentesArray.map(frente => {
         // --- FIM DA MODIFICAÇÃO ---
