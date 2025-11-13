@@ -14,7 +14,7 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
     const { 
         downtimeCaminhoes = 0, 
         downtimeEquipamentos = 0, 
-        descargaCount = 0 
+        descargaCount = 0 // Este contador agora é órfão, mas o deixamos caso outra view o use
     } = counts;
 
     // Decide se o botão Gerencial deve ser visível (Apenas Admin)
@@ -143,11 +143,10 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
                 <span>Pátio Carregado</span>
             </button>
             
-            <button class="nav-button" data-view="fila-descarga"> <i class="ph-fill ph-factory"></i>
-                <span>Fila de Descarga</span>
-                ${descargaCount > 0 ? `<span class="badge warning">${descargaCount}</span>` : ''}
+            <button class="nav-button" data-view="fazendas"> 
+                <i class="ph-fill ph-tree-evergreen"></i>
+                <span>Fazendas</span>
             </button>
-            
             <button class="nav-button" data-view="ocorrencias"> 
                 <i class="ph-fill ph-siren"></i>
                 <span>Ocorrências</span>

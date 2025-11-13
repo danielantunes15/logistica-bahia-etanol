@@ -1,205 +1,278 @@
-// js/views/descarga.js
+// js/views/descarga.js (MODIFICADO PARA FAZENDAS VIEW)
+import { mapManager } from '../maps.js';
+import { dataCache } from '../dataCache.js';
+import { showLoading, hideLoading, handleOperation } from '../helpers.js';
+import { formatDateTime } from '../timeUtils.js';
 
-import { fetchAllData } from '../api.js';
-import { showToast } from '../helpers.js';
-import { formatDateTime } from '../timeUtils.js'; 
-import { dataCache } from '../dataCache.js'; // Importar dataCache
+// Importa coordenadas da usina (do maps.js, mas definido aqui para clareza se maps.js não exportar)
+const USINA_COORDS = [-17.642301, -40.181525];
 
-export class DescargaView {
+export class FazendasView {
     constructor() {
         this.container = null;
+        this.map = null;
         this.data = {};
-        this.statusToMonitor = 'descarregando';
-        this.autoRefreshInterval = null;
-        this._boundStatusUpdateHandler = this.handleStatusUpdate.bind(this); // Para o listener
+        this.allFazendasData = []; // Armazena todas as fazendas para filtrar
+        this.markersLayer = null; // Camada para os marcadores
+        
+        // Filtros da legenda (copiado do dashboard)
+        this.activeFilters = { 
+            usina: true, 
+            ativa: true, 
+            fazendo_cata: true, 
+            inativa: true 
+        };
+        
+        // Armazena referências dos listeners para remoção
+        this._boundSearchHandler = this.handleSearch.bind(this);
+        this._boundLegendClickHandler = this.handleLegendClick.bind(this);
     }
 
     async show() {
         await this.loadHTML();
+        await this.initializeMap();
         await this.loadData();
-        // REMOVIDO: this.startAutoRefresh();
         this.addEventListeners();
-        
-        // NOVO: Adiciona o listener de Real-Time
-        window.addEventListener('statusUpdated', this._boundStatusUpdateHandler); 
     }
 
     async hide() {
-        // REMOVIDO: this.stopAutoRefresh();
-        // NOVO: Remove o listener ao sair da view
-        window.removeEventListener('statusUpdated', this._boundStatusUpdateHandler);
-    }
-    
-    // NOVO: Handler para o evento global
-    handleStatusUpdate(e) {
-        // Apenas recarrega se o evento for na tabela de caminhões
-        if (e.detail.table === 'caminhoes') {
-             // Força o refresh para buscar a nova versão que invalidou o cache
-             this.loadData(true); 
+        // Remove listeners para evitar memory leaks
+        if (this.container) {
+            this.container.querySelector('#fazenda-search')?.removeEventListener('keyup', this._boundSearchHandler);
+            this.container.querySelector('#fornecedor-search')?.removeEventListener('keyup', this._boundSearchHandler);
+            this.container.querySelector('#map-legend')?.removeEventListener('click', this._boundLegendClickHandler);
         }
+        
+        if (this.map) {
+            this.map.remove();
+            this.map = null;
+        }
+        this.markersLayer = null;
+        this.allFazendasData = [];
     }
 
     async loadHTML() {
         const container = document.getElementById('views-container');
         container.innerHTML = this.getHTML();
-        this.container = container.querySelector('#descarga-view');
+        this.container = container.querySelector('#fazendas-view');
     }
 
     getHTML() {
+        // Re-usando classes de dashboard.css para consistência
         return `
-            <div id="descarga-view" class="view active-view controle-view">
-                <div class="controle-header">
-                    <h1>Caminhões em Descarga na Usina</h1>
-                    <button class="btn-primary" id="refresh-descarga">
-                        <i class="ph-fill ph-arrows-clockwise"></i>
-                        Atualizar
-                    </button>
+            <div id="fazendas-view" class="view active-view">
+                <div class="dashboard-header" style="flex-wrap: wrap; gap: 15px;">
+                    <h1>Mapa de Fazendas e Frentes</h1>
+                    <div class="fazendas-filters">
+                        <input type="text" id="fazenda-search" class="form-input" placeholder="Buscar Fazenda ou Frente..." style="width: 250px;">
+                        <input type="text" id="fornecedor-search" class="form-input" placeholder="Buscar por Fornecedor..." style="width: 250px;">
+                    </div>
                 </div>
-                <div id="descarga-grid" class="descarga-grid">
-                    <div class="empty-state-descarga" style="grid-column: 1 / -1;">
-                        <i class="ph-fill ph-info"></i>
-                        <p>Carregando dados...</p>
+                <div class="map-fullscreen">
+                    <div id="fazendas-map-container"></div>
+                    ${this.renderLegend()}
+                </div>
+            </div>
+        `;
+    }
+    
+    // Copiado do dashboard.js para manter consistência
+    renderLegend() {
+         return `
+            <div class="map-legend" id="map-legend"> <div class="legend-title">Legenda</div>
+                <div class="legend-items">
+                    <div class="legend-item ${this.activeFilters.usina ? '' : 'disabled'}" data-filter-key="usina"> <div class="legend-color usina"></div>
+                        <span>Usina</span>
+                    </div>
+                    <div class="legend-item ${this.activeFilters.ativa ? '' : 'disabled'}" data-filter-key="ativa">
+                        <div class="legend-color colhendo"></div>
+                        <span>Colhendo</span>
+                    </div>
+                    <div class="legend-item ${this.activeFilters.fazendo_cata ? '' : 'disabled'}" data-filter-key="fazendo_cata">
+                        <div class="legend-color fazendo_cata"></div>
+                        <span>Cata</span>
+                    </div>
+                    <div class="legend-item ${this.activeFilters.inativa ? '' : 'disabled'}" data-filter-key="inativa">
+                        <div class="legend-color atencao"></div>
+                        <span>Frentes com Atenção</span>
                     </div>
                 </div>
             </div>
         `;
     }
 
-    async loadData(forceRefresh = false) {
-        try {
-            // Usa fetchAllData pois precisa do caminhao_historico para a hora de entrada na descarga.
-            this.data = await dataCache.fetchAllData(forceRefresh); 
-            this.processAndRender();
-        } catch (error) {
-            showToast('Erro ao carregar dados de descarga', 'error');
-            console.error('Erro ao carregar dados de descarga:', error);
+    async initializeMap() {
+        this.map = mapManager.initMap('fazendas-map-container');
+        if (this.map) {
+            // Adiciona o marcador da Usina (lógica do maps.js/dashboard.js)
+            const usinaIcon = L.divIcon({
+                className: 'usina-marker',
+                html: `<div class="marker-pin usina"><i class="ph-fill ph-factory"></i></div><div class="marker-pulse usina"></div>`,
+                iconSize: [45, 45],
+                iconAnchor: [22, 45]
+            });
+            L.marker(USINA_COORDS, { icon: usinaIcon }).addTo(this.map)
+                .bindPopup('<b>Usina LOGISTICA BEL</b><br>Localização principal');
+            
+            // Inicializa a camada de marcadores
+            this.markersLayer = L.layerGroup().addTo(this.map);
         }
     }
 
-    processAndRender() {
-        const { caminhoes = [], frentes_servico = [], caminhao_historico = [] } = this.data;
-
-        // 1. Define Fixed Groups with initial empty data
-        const fixedGroups = [
-            {
-                columnName: 'AGRO UNIONE',
-                frentes: ['AGRO UNIONE - MANUAL 01', 'AGRO UNIONE - MANUAL 02', 'AGRO UNIONE - MECANIZADA'],
-                data: [], 
-            },
-            {
-                columnName: 'CANA INTEIRA BEL',
-                frentes: ['RG TRANSPORTE', 'CASTRO SERVIÇOS AGRI', 'GM AGRONEGÓCIO E SER'],
-                data: [],
-            },
-            {
-                columnName: 'CANA MECANIZADA BEL',
-                frentes: ['PEDRO EPSON', 'AGROTERRA MECANIZADA', 'VALE DO ARAGUAIA', 'E. DOS SANTOS'],
-                data: [],
-            }
-        ];
-
-        // 2. Filter trucks and find entry time
-        const caminhoesEmDescarga = caminhoes.filter(c => c.status === this.statusToMonitor && c.frente_id);
-        const sortedHistory = caminhao_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
-        const entradaDescargaMap = new Map();
-
-        caminhoesEmDescarga.forEach(caminhao => {
-            const latestLog = sortedHistory.find(log => log.caminhao_id === caminhao.id && log.status_novo === this.statusToMonitor);
-            
-            // Mantém como objeto Date, formatDateTime pode receber tanto string quanto Date object
-            entradaDescargaMap.set(caminhao.id, {
-                timestamp: new Date(latestLog ? latestLog.timestamp_mudanca : caminhao.created_at),
-                logId: latestLog ? latestLog.id : null
-            });
-        });
-        
-        // 3. Group trucks into fixed columns
-        const frentesMap = new Map(frentes_servico.map(f => [f.id, f]));
-
-        caminhoesEmDescarga.forEach(caminhao => {
-            const frente = frentesMap.get(caminhao.frente_id);
-            const frenteNome = frente ? frente.nome : null;
-            const entradaInfo = entradaDescargaMap.get(caminhao.id);
-
-            if (frenteNome && entradaInfo) {
-                const truckData = {
-                    cod_equipamento: caminhao.cod_equipamento,
-                    entrada: entradaInfo.timestamp,
-                    id: caminhao.id,
-                    frente_nome_origem: frenteNome, // NOVO CAMPO
-                };
-
-                // Find which fixed group this truck belongs to
-                for (const group of fixedGroups) {
-                    if (group.frentes.includes(frenteNome)) {
-                        group.data.push(truckData);
-                        break;
-                    }
-                }
-            }
-        });
-
-        // 4. Order trucks within each fixed group by entry time (oldest first)
-        fixedGroups.forEach(group => {
-            group.data.sort((a, b) => a.entrada - b.entrada);
-        });
-
-        // 5. Render the grid
-        this.renderGrid(fixedGroups);
+    async loadData(forceRefresh = false) {
+        showLoading();
+        try {
+            // Usamos fetchAllData para ter todos os links (fazendas, frentes, fornecedores)
+            this.data = await dataCache.fetchAllData(forceRefresh);
+            // Prepara os dados agregados uma vez
+            this.aggregateFazendaData();
+            // Renderiza os marcadores
+            this.renderMarkers();
+        } catch (error) {
+            handleOperation(error);
+        } finally {
+            hideLoading();
+        }
     }
     
-    renderGrid(fixedGroups) {
-        const grid = document.getElementById('descarga-grid');
-        if (!grid) return;
+    // Prepara o array `allFazendasData` com todas as informações linkadas
+    aggregateFazendaData() {
+        const { fazendas = [], frentes_servico = [] } = this.data;
+        const fazendaDataMap = new Map();
         
-        // Always set 3 columns
-        grid.style.gridTemplateColumns = `repeat(3, 1fr)`;
-
-        // Check for empty state across all groups
-        const allEmpty = fixedGroups.every(group => group.data.length === 0);
-        
-        if (allEmpty) {
-             grid.innerHTML = `
-                <div class="empty-state-descarga" style="grid-column: 1 / -1; height: 300px;">
-                    <i class="ph-fill ph-check-square-offset" style="color: var(--accent-primary);"></i>
-                    <p>Nenhum caminhão atualmente no status 'Descarregando' nas frentes monitoradas.</p>
-                </div>
-            `;
-            return;
-        }
-
-        // Generate HTML for each column
-        let gridHTML = '';
-        fixedGroups.forEach(group => {
-            const listaCaminhoesHTML = group.data.map(caminhao => `
-                <div class="descarga-card">
-                    <div class="descarga-info-main">
-                        <div class="descarga-cod">#${caminhao.cod_equipamento}</div>
-                        <div class="descarga-frente-origem">${caminhao.frente_nome_origem}</div> </div>
-                    <div class="descarga-time">${formatDateTime(caminhao.entrada)}</div>
-                </div>
-            `).join('');
-
-            gridHTML += `
-                <div class="descarga-coluna">
-                    <h2 class="descarga-frente-title">${group.columnName}</h2>
-                    <div class="descarga-list">
-                        ${group.data.length > 0 ? listaCaminhoesHTML : '<div class="empty-state-list"><i class="ph-fill ph-info"></i><p>Nenhum caminhão nesta categoria.</p></div>'}
-                    </div>
-                </div>
-            `;
+        fazendas.forEach(f => {
+             fazendaDataMap.set(f.id, {
+                ...f,
+                frenteStatus: null,
+                frenteNome: 'N/A',
+                // O 'fornecedores' já vem linkado de fetchAllData
+                fornecedorNome: f.fornecedores?.nome || '' 
+             });
         });
 
-        grid.innerHTML = gridHTML;
+        // Linka o status da frente à fazenda
+        frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata' || f.status === 'inativa'))
+                       .forEach(frente => {
+                           if (fazendaDataMap.has(frente.fazenda_id)) {
+                               const data = fazendaDataMap.get(frente.fazenda_id);
+                               data.frenteStatus = frente.status;
+                               data.frenteNome = frente.nome || 'N/A';
+                           }
+                       });
+        
+        this.allFazendasData = Array.from(fazendaDataMap.values());
+    }
+    
+    // Renderiza marcadores baseado nos filtros atuais
+    renderMarkers() {
+        if (!this.map || !this.markersLayer) return;
+        
+        this.markersLayer.clearLayers(); // Limpa marcadores antigos
+        
+        const fazendaFilter = this.container.querySelector('#fazenda-search')?.value.toLowerCase() || '';
+        const fornecedorFilter = this.container.querySelector('#fornecedor-search')?.value.toLowerCase() || '';
+
+        // Filtra os dados agregados
+        const filteredFazendas = this.allFazendasData.filter(f => {
+            // 1. Filtro de Texto (Fazenda ou Frente)
+            const matchesFazenda = fazendaFilter === '' ||
+                f.nome.toLowerCase().includes(fazendaFilter) ||
+                f.frenteNome.toLowerCase().includes(fazendaFilter);
+            
+            // 2. Filtro de Texto (Fornecedor)
+            const matchesFornecedor = fornecedorFilter === '' ||
+                f.fornecedorNome.toLowerCase().includes(fornecedorFilter);
+            
+            // 3. Filtro de Legenda (Status)
+            const filterKey = f.frenteStatus || 'inativa';
+            const matchesLegend = this.activeFilters[filterKey] !== false; // Inclui null/inativa
+
+            return matchesFazenda && matchesFornecedor && matchesLegend;
+        });
+
+        // Renderiza os marcadores (lógica copiada/adaptada do dashboard.js)
+        const newMarkers = [];
+        filteredFazendas.forEach(fazenda => {
+            if (fazenda.latitude && fazenda.longitude) {
+                const coords = [parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)];
+                let color, statusLabel, iconClass = fazenda.frenteStatus;
+                
+                switch(fazenda.frenteStatus) {
+                    case 'ativa': color = '#38A169'; statusLabel = 'Colhendo'; break;
+                    case 'fazendo_cata': color = '#ED8936'; statusLabel = 'Fazendo Cata'; break;
+                    case 'inativa': color = '#C53030'; statusLabel = 'Com Atenção'; break;
+                    default: color = '#718096'; statusLabel = 'Sem Frente Ativa'; iconClass = 'inativa'; break;
+                }
+
+                const customIcon = L.divIcon({
+                    className: `fazenda-marker status-${iconClass}`,
+                    html: `<div class="marker-pin" style="background-color: ${color}"><i class="ph-fill ph-tree-evergreen"></i></div><div class="marker-pulse" style="background-color: ${color}"></div>`,
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 40]
+                });
+                
+                const marker = L.marker(coords, { icon: customIcon });
+                
+                const popupContent = `
+                    <div class="fazenda-popup">
+                        <h4>${fazenda.nome}</h4>
+                        <div class="popup-status ${iconClass}">
+                            <i class="ph-fill ph-circle"></i>
+                            ${statusLabel}
+                        </div>
+                        <div class="popup-details">
+                            <p><strong>Frente:</strong> <span class="value">${fazenda.frenteStatus ? fazenda.frenteNome : 'Nenhuma'}</span></p>
+                            <p><strong>Fornecedor:</strong> <span class="value">${fazenda.fornecedores?.nome || 'N/A'}</span></p>
+                            <p><strong>Código:</strong> <span class="value">${fazenda.cod_equipamento || 'N/A'}</span></p>
+                        </div>
+                    </div>
+                `;
+                marker.bindPopup(popupContent);
+                newMarkers.push(marker);
+            }
+        });
+        
+        if (newMarkers.length > 0) {
+            newMarkers.forEach(m => this.markersLayer.addLayer(m));
+            const bounds = L.latLngBounds(newMarkers.map(m => m.getLatLng()));
+            bounds.extend(USINA_COORDS); // Garante que a usina esteja visível
+            this.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+        } else if (fazendaFilter === '' && fornecedorFilter === '') {
+            // Se nenhum filtro e nenhum marcador, apenas centraliza na usina
+            this.map.setView(USINA_COORDS, 10);
+        }
+        // Se houver filtros, mas nenhum resultado, o mapa não mexe (mostra a última visão)
     }
     
     addEventListeners() {
-        const refreshBtn = document.getElementById('refresh-descarga');
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', () => {
-                this.loadData(true); // Força o refresh, ignorando o cache
-                showToast('Fila de descarga atualizada', 'success');
-            });
+        const fazendaSearch = this.container.querySelector('#fazenda-search');
+        const fornecedorSearch = this.container.querySelector('#fornecedor-search');
+        const legend = this.container.querySelector('#map-legend');
+
+        if (fazendaSearch) {
+            fazendaSearch.addEventListener('keyup', this._boundSearchHandler);
+        }
+        if (fornecedorSearch) {
+            fornecedorSearch.addEventListener('keyup', this._boundSearchHandler);
+        }
+        if (legend) {
+            legend.addEventListener('click', this._boundLegendClickHandler);
+        }
+    }
+    
+    // Handler para os inputs de pesquisa
+    handleSearch() {
+        this.renderMarkers();
+    }
+    
+    // Handler para a legenda
+    handleLegendClick(e) {
+        const item = e.target.closest('.legend-item');
+        const filterKey = item?.dataset.filterKey;
+        if (filterKey && filterKey !== 'usina') {
+            this.activeFilters[filterKey] = !this.activeFilters[filterKey];
+            item.classList.toggle('disabled');
+            this.renderMarkers(); // Re-renderiza marcadores com filtros
         }
     }
 }

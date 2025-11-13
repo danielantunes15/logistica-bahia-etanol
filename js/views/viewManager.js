@@ -6,7 +6,10 @@ import { CadastrosView } from './cadastros.js';
 import { FrotaView } from './frota.js';
 import { EquipamentosView } from './equipamentos.js'; 
 import { FilaEstacionamentoView } from './filaEstacionamento.js'; 
-import { DescargaView } from './descarga.js'; 
+// --- INÍCIO DA MODIFICAÇÃO ---
+// Importa a nova 'FazendasView' do arquivo 'descarga.js' (que foi modificado)
+import { FazendasView } from './descarga.js'; 
+// --- FIM DA MODIFICAÇÃO ---
 import { LoginView } from './login.js'; // NOVO: Tela de Login
 import { GerencialView } from './gerencial.js'; // NOVO: Tela Gerencial
 // NOVO: Importa BoletimDiarioView
@@ -45,7 +48,12 @@ export class ViewManager {
         this.views.set('frota', new FrotaView());
         this.views.set('equipamentos', new EquipamentosView()); 
         this.views.set('fila-estacionamento', new FilaEstacionamentoView()); 
-        this.views.set('fila-descarga', new DescargaView()); 
+        
+        // --- INÍCIO DA MODIFICAÇÃO ---
+        // this.views.set('fila-descarga', new DescargaView()); // Linha antiga removida
+        this.views.set('fazendas', new FazendasView()); // Nova view registrada
+        // --- FIM DA MODIFICAÇÃO ---
+        
         // NOVO: Registra a view Pátio Carregado
         this.views.set('fila-patio-carregado', new PatioCarregadoView()); // <<-- LINHA ADICIONADA
         this.views.set('relatorios', new RelatoriosView());
