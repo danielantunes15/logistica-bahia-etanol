@@ -1,4 +1,4 @@
-// js/views/fazenda.js (MODIFICADO PARA NOVOS FILTROS NO HEADER)
+// js/views/fazenda.js (MODIFICADO PARA CORRIGIR MAPA E REMOVER FRENTES)
 
 import { initFazendaMap } from '../fazendaMap.js'; 
 import { dataCache } from '../dataCache.js';
@@ -52,15 +52,19 @@ export class FazendasView {
     }
 
     getHTML() {
-        // HTML com os filtros movidos para o header
+        // --- CORREÇÃO 1 (Layout) e CORREÇÃO 2 (Textos) ---
+        // 1. Adicionado style flex-direction: column e height: 100% na view
+        // 2. Título h1 e label de busca por nome alterados.
+        // 3. Adicionado flex-shrink: 0 ao header.
+        // 4. Adicionado flex-grow: 1 ao map-fullscreen e style 100% ao map-container.
         return `
-            <div id="fazendas-view" class="view active-view">
-                <div class="dashboard-header" style="flex-direction: column; align-items: flex-start; gap: 15px;">
-                    <h1 style="margin: 0;">Mapa de Fazendas e Frentes</h1>
+            <div id="fazendas-view" class="view active-view" style="display: flex; flex-direction: column; height: 100%;">
+                <div class="dashboard-header" style="flex-direction: column; align-items: flex-start; gap: 15px; flex-shrink: 0;">
+                    <h1 style="margin: 0;">Mapa de Fazendas (Fornecedores)</h1>
                     
                     <div class="fazenda-filters-header">
                         <div class="filter-group">
-                            <label for="fazenda-search-nome"><i class="ph-fill ph-magnifying-glass"></i> Nome (Fazenda/Frente)</label>
+                            <label for="fazenda-search-nome"><i class="ph-fill ph-magnifying-glass"></i> Nome da Fazenda</label>
                             <input type="text" id="fazenda-search-nome" class="form-input" placeholder="Buscar por nome...">
                         </div>
                         <div class="filter-group">
@@ -81,12 +85,13 @@ export class FazendasView {
                         </div>
                     </div>
                     </div>
-                <div class="map-fullscreen">
-                    <div id="fazendas-map-container"></div>
+                <div class="map-fullscreen" style="flex-grow: 1; position: relative; height: auto;">
+                    <div id="fazendas-map-container" style="height: 100%; width: 100%;"></div>
                     </div>
             </div>
         `;
     }
+    // --- FIM DAS CORREÇÕES DE HTML ---
 
     async initializeMap() {
         this.map = initFazendaMap('fazendas-map-container');
@@ -132,31 +137,27 @@ export class FazendasView {
         }
     }
     
+    // --- CORREÇÃO 3 (Remoção da Lógica de Frentes) ---
     aggregateFazendaData() {
-        const { fazendas = [], frentes_servico = [] } = this.data;
+        const { fazendas = [] } = this.data; // Removido frentes_servico
         const fazendaDataMap = new Map();
         
+        // Apenas mapeia as fazendas e seus fornecedores
         fazendas.forEach(f => {
              fazendaDataMap.set(f.id, {
                 ...f, // Inclui f.id, f.cod_equipamento, f.fornecedor_id
-                frenteStatus: null,
-                frenteNome: 'N/A',
+                // Removeu frenteStatus e frenteNome
                 fornecedorNome: f.fornecedores?.nome || '' 
              });
         });
 
-        frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata' || f.status === 'inativa'))
-                       .forEach(frente => {
-                           if (fazendaDataMap.has(frente.fazenda_id)) {
-                               const data = fazendaDataMap.get(frente.fazenda_id);
-                               data.frenteStatus = frente.status;
-                               data.frenteNome = frente.nome || 'N/A';
-                           }
-                       });
+        // O loop de frentes_servico foi removido.
         
         this.allFazendasData = Array.from(fazendaDataMap.values());
     }
+    // --- FIM DA CORREÇÃO 3 ---
     
+    // --- CORREÇÃO 4 (Atualização dos Marcadores) ---
     renderMarkers() {
         if (!this.map || !this.markersLayer) return;
         
@@ -169,10 +170,9 @@ export class FazendasView {
         const fazendaFilter = this.container.querySelector('#fazenda-select-fazenda')?.value || '';
 
         const filteredFazendas = this.allFazendasData.filter(f => {
-            // Aplica os 4 filtros
+            // Filtro de nome agora busca apenas no nome da fazenda
             const matchesNome = nomeFilter === '' ||
-                f.nome.toLowerCase().includes(nomeFilter) ||
-                f.frenteNome.toLowerCase().includes(nomeFilter);
+                f.nome.toLowerCase().includes(nomeFilter);
             
             const matchesCodigo = codigoFilter === '' ||
                 (f.cod_equipamento && f.cod_equipamento.toLowerCase().includes(codigoFilter));
@@ -190,14 +190,10 @@ export class FazendasView {
         filteredFazendas.forEach(fazenda => {
             if (fazenda.latitude && fazenda.longitude) {
                 const coords = [parseFloat(fazenda.latitude), parseFloat(fazenda.longitude)];
-                let color, statusLabel, iconClass = fazenda.frenteStatus;
                 
-                switch(fazenda.frenteStatus) {
-                    case 'ativa': color = '#38A169'; statusLabel = 'Colhendo'; break;
-                    case 'fazendo_cata': color = '#ED8936'; statusLabel = 'Fazendo Cata'; break;
-                    case 'inativa': color = '#C53030'; statusLabel = 'Com Atenção'; break;
-                    default: color = '#718096'; statusLabel = 'Sem Frente Ativa'; iconClass = 'inativa'; break;
-                }
+                // Lógica de cor removida. Cor estática para todas as fazendas.
+                let color = '#2B6CB0'; // Azul (accent-edit)
+                let iconClass = 'supplier-farm'; // Classe genérica
 
                 // Ícone de Alfinete (sem pisca-pisca)
                 const customIcon = L.divIcon({
@@ -209,17 +205,14 @@ export class FazendasView {
                 
                 const marker = L.marker(coords, { icon: customIcon });
                 
+                // Popup simplificado, focado no fornecedor (como solicitado)
                 const popupContent = `
                     <div class="fazenda-popup">
                         <h4>${fazenda.nome}</h4>
-                        <div class="popup-status ${iconClass}">
-                            <i class="ph-fill ph-circle"></i>
-                            ${statusLabel}
-                        </div>
-                        <div class="popup-details">
-                            <p><strong>Frente:</strong> <span class="value">${fazenda.frenteStatus ? fazenda.frenteNome : 'Nenhuma'}</span></p>
+                        <div class="popup-details" style="margin-top: 10px;">
                             <p><strong>Fornecedor:</strong> <span class="value">${fazenda.fornecedores?.nome || 'N/A'}</span></p>
                             <p><strong>Código:</strong> <span class="value">${fazenda.cod_equipamento || 'N/A'}</span></p>
+                            <p><strong>Coordenadas:</strong> <span class="value">${parseFloat(fazenda.latitude).toFixed(4)}, ${parseFloat(fazenda.longitude).toFixed(4)}</span></p>
                         </div>
                     </div>
                 `;
@@ -246,6 +239,7 @@ export class FazendasView {
         }
         // Se houver filtros, mas nenhum resultado, não mexe no mapa
     }
+    // --- FIM DA CORREÇÃO 4 ---
     
     addEventListeners() {
         const nomeInput = this.container.querySelector('#fazenda-search-nome');
