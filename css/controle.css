@@ -5,11 +5,11 @@
     background-color: var(--bg-dark);
     display: flex;
     flex-direction: column;
-    /* As linhas 'height: 100%' e 'overflow: hidden' foram REMOVIDAS para restaurar a rolagem vertical da página */
+    /* Rolagem vertical da página inteira está ATIVADA */
 }
 
 .controle-header {
-    padding: 16px 24px 0 24px;  /* <-- Padding diminuído */
+    padding: 16px 24px 0 24px;  
     flex-shrink: 0;
     display: flex;
     justify-content: space-between;
@@ -27,8 +27,8 @@
 .movimentacao-legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 12px; /* <-- Gap diminuído */
-    padding: 10px 24px 15px 24px; /* <-- Padding diminuído */
+    gap: 8px 12px; 
+    padding: 10px 24px 15px 24px; 
     border-bottom: 1px solid var(--border-color);
     background-color: var(--bg-dark); 
     flex-shrink: 0;
@@ -52,7 +52,7 @@
     border: 1px solid rgba(255,255,255,0.2);
 }
 .legend-label {
-    font-size: 0.7rem; /* <-- Fonte diminuída */
+    font-size: 0.7rem; 
     color: var(--text-secondary);
     font-weight: 500;
 }
@@ -490,15 +490,15 @@
     background-color: var(--bg-light);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 12px; /* <-- Padding diminuído */
+    padding: 12px; 
 }
 
 .descarga-frente-title {
-    font-size: 1.1rem; /* <-- Fonte diminuída */
+    font-size: 1.1rem; 
     font-weight: 700;
     color: var(--accent-primary);
-    margin-bottom: 12px; /* <-- Margem diminuída */
-    padding-bottom: 8px; /* <-- Padding diminuído */
+    margin-bottom: 12px; 
+    padding-bottom: 8px; 
     border-bottom: 2px solid var(--accent-primary);
     text-align: center;
 }
@@ -512,7 +512,7 @@
 .descarga-card {
     background-color: var(--bg-dark);
     border: 1px solid var(--border-color);
-    padding: 10px; /* <-- Padding diminuído */
+    padding: 10px; 
     border-radius: 8px;
     display: flex;
     justify-content: space-between;
@@ -535,19 +535,19 @@
 }
 
 .descarga-cod {
-    font-size: 0.95rem; /* <-- Fonte diminuída */
+    font-size: 0.95rem; 
     font-weight: 600;
     color: var(--text-primary);
 }
 
 .descarga-frente-origem {
-    font-size: 0.7rem; /* <-- Fonte diminuída */
+    font-size: 0.7rem; 
     color: var(--text-secondary);
     font-weight: 400;
 }
 
 .descarga-time {
-    font-size: 0.8rem; /* <-- Fonte diminuída */
+    font-size: 0.8rem; 
     color: var(--text-secondary);
 }
 
@@ -581,49 +581,36 @@
 
 /* --- TABELA DE MOVIMENTAÇÃO (MATRIZ) --- */
 
-/* 🛑 CORREÇÃO DE LAYOUT: Container da Matriz */
 .report-table-container {
-    /* flex-grow: 1; */ /* <-- REMOVIDO */
     padding: 0 24px; 
-    /* min-height: 0; */ /* <-- REMOVIDO */
     display: flex; 
     flex-direction: column;
 }
 
 .report-table-container .table-wrapper {
-    /* flex-grow: 1; */ /* <-- REMOVIDO */
-    /* overflow-y: auto; */ /* <-- REMOVIDO */
-    overflow-x: auto; /* <-- MANTIDO (Garante rolagem horizontal) */
-    /* min-height: 0; */ /* <-- REMOVIDO */
+    overflow-x: hidden; /* <-- CHAVE: Desliga a rolagem horizontal */
 }
 
-/* 🛑 CORREÇÃO PARA O SEU PEDIDO (NÃO ROLAR HORIZONTAL) */
 .report-table-container .data-table-modern {
     table-layout: fixed; /* <-- CHAVE: Força a tabela a obedecer as larguras */
     width: 100%; /* <-- CHAVE: Força a tabela a ter 100% do wrapper */
     min-width: 0 !important; /* <-- CHAVE: Sobrescreve o 'min-width: 1500px' do JS */
 }
 
-.report-table-container .table-wrapper {
-    overflow-x: hidden; /* <-- CHAVE: Desliga a rolagem horizontal */
-}
-/* --- FIM DA CORREÇÃO --- */
-
 
 .data-table-modern .mov-header-group-title {
     text-align: center;
     background-color: var(--accent-edit); 
     color: white;
-    font-size: 1.0rem; /* <-- Fonte diminuída */
-    padding: 6px; /* <-- Padding diminuído */
+    font-size: 1.0rem; 
+    padding: 6px; 
 }
 
 .data-table-modern .mov-header-slots th {
     background-color: var(--bg-dark);
-    font-size: 0.75rem; /* <-- Fonte diminuída */
-    padding: 6px 4px; /* <-- Padding diminuído */
+    font-size: 0.75rem; 
+    padding: 6px 4px; 
     border-bottom: 1px solid var(--border-color);
-    /* A largura será automática por causa do 'table-layout: fixed' */
 }
 
 .data-table-modern .mov-frente-name {
@@ -633,9 +620,9 @@
     font-size: 1rem;
     display: flex;
     flex-direction: column;
-    padding: 8px; /* <-- Padding diminuído */
+    padding: 6px 8px; /* <-- Padding ajustado */
     border-left: 5px solid var(--accent-primary);
-    white-space: nowrap; 
+    white-space: normal; /* <-- CHAVE: Permite a quebra de linha */
     transition: background-color 0.2s ease, box-shadow 0.2s ease; 
 }
 
@@ -655,25 +642,32 @@
 .data-table-modern .frente-name-text {
     color: var(--text-primary);
     font-weight: 700;
-    font-size: 0.9rem; /* <-- Fonte diminuída */
+    font-size: 0.85rem; /* <-- Fonte diminuída */
     display: flex;
     align-items: center;
     gap: 5px;
 }
 
+/* NOVO: Seletor para a linha da Fazenda */
+.data-table-modern .frente-fazenda-text {
+    font-size: 0.75rem; /* <-- Fonte controlada */
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
 .data-table-modern .frente-group-text {
-    font-size: 0.7rem; /* <-- Fonte diminuída */
+    font-size: 0.65rem; /* <-- Fonte diminuída */
     color: var(--text-secondary);
     font-weight: 500;
 }
 
 .data-table-modern .mov-cell {
-    /* min-width: 55px; */ /* <-- REMOVIDO para permitir que a coluna encolha */
+    /* min-width foi removido */
     text-align: center;
-    padding: 3px; /* <-- Padding diminuído */
+    padding: 3px; 
     vertical-align: top;
     border: 1px solid var(--border-color); 
-    height: 36px; /* <-- Altura diminuída */
+    height: 36px; 
     transition: background-color 0.2s ease; 
 }
 
@@ -703,11 +697,11 @@
 .truck-code-badge {
     display: inline-block;
     color: white;
-    padding: 2px 4px; /* <-- Padding diminuído */
+    padding: 2px 4px; 
     border-radius: 4px;
-    font-size: 0.7rem; /* <-- Fonte diminuída */
+    font-size: 0.7rem; 
     font-weight: 600;
-    margin: 1px; /* <-- Margem diminuída */
+    margin: 1px; 
     line-height: 1.2;
     white-space: nowrap;
     cursor: pointer;
@@ -779,17 +773,17 @@
 
 /* Tabela Descarga */
 .descarga-container-matriz {
-    padding: 0 24px 16px 24px; /* <-- Padding diminuído */
+    padding: 0 24px 16px 24px; 
     flex-shrink: 0; 
     border-top: 1px solid var(--border-color); 
-    margin-top: 16px; /* <-- Margem diminuída */
+    margin-top: 16px; 
 }
 
 .descarga-header-matriz {
-    font-size: 1.3rem; /* <-- Fonte diminuída */
+    font-size: 1.3rem; 
     color: var(--accent-primary); 
-    margin-top: 16px; /* <-- Margem diminuída */
-    margin-bottom: 12px; /* <-- Margem diminuída */
+    margin-top: 16px; 
+    margin-bottom: 12px; 
     padding-bottom: 10px;
     display: flex;
     align-items: center;
