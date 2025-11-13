@@ -163,6 +163,7 @@ export class GerencialView {
 
     // --- MÉTODOS DA ABA DE ESCALA ---
 
+    // CORRIGIDO: Gera escala 6x2 rotativa para 366 dias e usa data UTC
     generate6x2Schedule(funcionarioId, startDateStr, initialTurno) {
         const schedule = [];
         const turnSequence = ['C', 'B', 'A'];
@@ -170,9 +171,15 @@ export class GerencialView {
         let workDayCounter = 0;
         let offDayCounter = 0;
 
-        for (let i = 0; i < 30; i++) { // Gera 30 dias de escala
-            const currentDate = new Date(startDateStr);
-            currentDate.setUTCDate(currentDate.getUTCDate() + i);
+        // CORREÇÃO 1: Parse da data de início como UTC para evitar erros de fuso horário
+        const [year, month, day] = startDateStr.split('-').map(Number);
+        const startDateUTC = new Date(Date.UTC(year, month - 1, day));
+
+        // CORREÇÃO 2: Gera a escala para 366 dias (1 ano) em vez de 30
+        for (let i = 0; i < 366; i++) { 
+            const currentDate = new Date(startDateUTC);
+            // CORREÇÃO 3: Usa setUTCDate para incrementar o dia no fuso UTC
+            currentDate.setUTCDate(currentDate.getUTCDate() + i); 
             const currentDateStr = currentDate.toISOString().split('T')[0];
 
             if (workDayCounter < 6) {
@@ -184,10 +191,10 @@ export class GerencialView {
                 workDayCounter++;
             } else {
                 offDayCounter++;
-                if (offDayCounter === 2) {
+                if (offDayCounter === 2) { 
                     workDayCounter = 0;
                     offDayCounter = 0;
-                    const currentTurnIndex = turnSequence.indexOf(currentTurn);
+                    const currentTurnIndex = turnSequence.indexOf(currentTurn); 
                     currentTurn = turnSequence[(currentTurnIndex + 1) % turnSequence.length];
                 }
             }
@@ -196,15 +203,20 @@ export class GerencialView {
     }
     
     /**
-     * Gera escala 6x2 SEM rodízio de turno (turno fixo).
+     * CORRIGIDO: Gera escala 6x2 turno fixo para 366 dias e usa data UTC
      */
     generate6x2FixedTurnSchedule(funcionarioId, startDateStr, fixedTurno) {
         const schedule = [];
         let workDayCounter = 0;
         let offDayCounter = 0;
 
-        for (let i = 0; i < 30; i++) { // Gera 30 dias de escala
-            const currentDate = new Date(startDateStr);
+        // CORREÇÃO 1: Parse da data de início como UTC
+        const [year, month, day] = startDateStr.split('-').map(Number);
+        const startDateUTC = new Date(Date.UTC(year, month - 1, day));
+
+        // CORREÇÃO 2: Gera a escala para 366 dias
+        for (let i = 0; i < 366; i++) {
+            const currentDate = new Date(startDateUTC);
             currentDate.setUTCDate(currentDate.getUTCDate() + i);
             const currentDateStr = currentDate.toISOString().split('T')[0];
 
@@ -228,15 +240,20 @@ export class GerencialView {
     }
 
     /**
-     * NOVO: Gera escala 5x1 SEM rodízio de turno (turno fixo).
+     * CORRIGIDO: Gera escala 5x1 turno fixo para 366 dias e usa data UTC
      */
     generate5x1FixedTurnSchedule(funcionarioId, startDateStr, fixedTurno) {
         const schedule = [];
         let workDayCounter = 0;
         let offDayCounter = 0;
 
-        for (let i = 0; i < 30; i++) { // Gera 30 dias de escala
-            const currentDate = new Date(startDateStr);
+        // CORREÇÃO 1: Parse da data de início como UTC
+        const [year, month, day] = startDateStr.split('-').map(Number);
+        const startDateUTC = new Date(Date.UTC(year, month - 1, day));
+
+        // CORREÇÃO 2: Gera a escala para 366 dias
+        for (let i = 0; i < 366; i++) {
+            const currentDate = new Date(startDateUTC);
             currentDate.setUTCDate(currentDate.getUTCDate() + i);
             const currentDateStr = currentDate.toISOString().split('T')[0];
 
