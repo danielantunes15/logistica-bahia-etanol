@@ -1,11 +1,18 @@
 /* css/controle.css */
 
 .controle-view {
-    padding: 24px;
+    padding: 0; /* REMOVIDO: Padding principal para que o header e o info-footer gerenciem */
     background-color: var(--bg-dark);
+    /* 🛑 CORREÇÃO DE LAYOUT: Flexbox para ocupar 100% da altura e empilhar itens */
+    display: flex;
+    flex-direction: column;
+    height: 100%;
 }
 
 .controle-header {
+    /* ADICIONADO padding vertical */
+    padding: 24px 24px 0 24px; 
+    flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -451,7 +458,6 @@
     }
 }
 
-/* NOVO: Ajusta a grade de frentes para 1 coluna em telas muito pequenas */
 @media (max-width: 600px) {
     .controle-grid {
         grid-template-columns: 1fr;
@@ -560,4 +566,107 @@
     .descarga-grid {
         grid-template-columns: 1fr !important;
     }
+}
+
+/* --- NOVOS ESTILOS PARA TABELA DE MOVIMENTAÇÃO (MATRIZ) --- */
+
+/* 🛑 CORREÇÃO DE LAYOUT: Faz o container da tabela esticar verticalmente */
+.report-table-container {
+    flex-grow: 1; /* Ocupa todo o espaço vertical restante */
+    padding: 0 24px; /* Adiciona o padding lateral */
+    overflow: hidden; /* Oculta qualquer overflow no container principal da matriz */
+    display: flex; /* Transforma em flex container para gerenciar o wrapper */
+    flex-direction: column;
+}
+
+.report-table-container .table-wrapper {
+    flex-grow: 1;
+    overflow-y: hidden; /* Não deve haver rolagem vertical no wrapper da tabela */
+    overflow-x: auto; /* Mantém a rolagem horizontal para a tabela grande */
+}
+
+
+.data-table-modern .mov-header-group-title {
+    text-align: center;
+    background-color: var(--accent-edit); /* Cor de destaque */
+    color: white;
+    font-size: 1.1rem;
+    padding: 8px;
+}
+
+.data-table-modern .mov-header-slots th {
+    background-color: var(--bg-dark);
+    font-size: 0.8rem;
+    padding: 8px 5px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-table-modern .mov-frente-name {
+    text-align: left;
+    background-color: var(--bg-light);
+    font-weight: 600;
+    font-size: 1rem;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    /* Adiciona uma borda à esquerda para destaque */
+    border-left: 5px solid var(--accent-primary);
+    /* Garante que o nome da frente não quebre a linha */
+    white-space: nowrap; 
+}
+
+.data-table-modern .mov-frente-name i {
+    color: var(--accent-primary);
+    margin-right: 5px;
+    font-size: 1.1rem;
+}
+
+.data-table-modern .frente-name-text {
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.data-table-modern .frente-group-text {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.data-table-modern .mov-cell {
+    /* Células de dados */
+    min-width: 60px; /* Largura mínima para os slots de hora */
+    text-align: center;
+    padding: 5px;
+    vertical-align: top;
+    border: 1px solid var(--border-color); /* Borda mais fina */
+    height: 40px; /* Altura mínima para a célula */
+}
+
+.data-table-modern .mov-cell.has-data {
+    background-color: rgba(56, 161, 105, 0.1); /* Fundo leve para células com dados */
+}
+
+/* Estilo para o código do caminhão (badge) */
+.truck-code-badge {
+    display: inline-block;
+    background-color: var(--accent-primary);
+    color: white;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin: 2px;
+    line-height: 1.2;
+    white-space: nowrap;
+    /* 🛑 NOVO: Adiciona cursor de ponteiro para indicar que é clicável */
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.truck-code-badge:hover {
+    background-color: var(--accent-hover);
 }

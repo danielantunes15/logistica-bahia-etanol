@@ -5,9 +5,10 @@ import { showToast, handleOperation, showLoading, hideLoading } from '../helpers
 import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString, groupDowntimeSessions, formatMillisecondsToHoursMinutes, calculateTimeDifference } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA (Adiciona calculateTimeDifference e formatMillisecondsToHoursMinutes)
 import { openModal, closeModal } from '../components/modal.js';
 import { dataCache } from '../dataCache.js';
-import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS } from '../constants.js';
+import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS, CAMINHAO_ROUTE_STATUS } from '../constants.js';
 
 const ESTACIONAMENTO_STATUS = ['disponivel', 'patio_vazio']; // Status que indicam que o caminhão está na fila/pátio
+const DEPARTURE_STATUS = CAMINHAO_ROUTE_STATUS; // Status de partida do pátio para uma frente
 
 export class ControleView {
     constructor() {
@@ -18,65 +19,58 @@ export class ControleView {
         
         this.frenteStatusLabels = FRENTE_STATUS_LABELS;
         
-        // NOVO: 1. Adiciona a referência para o handler
         this._boundStatusUpdateHandler = this.handleStatusUpdate.bind(this);
 
-        // NOVO: Expor a view no window para o script do modal funcionar
         if (window.viewManager) {
              window.viewManager.views.set('controle', this);
         }
         
-        // ADICIONADO: Mapa para armazenar a hora da última movimentação
         this.latestStatusTimeMap = new Map();
+        
+        // NOVO: Armazena o ID do caminhão que partiu em cada slot
+        this.movimentacaoData = {}; 
+        // NOVO: Armazena os headers de 1h
+        this.cycleHeaders = [];
+        this.frentesMap = new Map(); // Mapa de frentes para renderização
     }
 
     async show() {
         await this.loadData();
-        // NOVO: 2. Adiciona o listener de Real-Time ao mostrar a view
         window.addEventListener('statusUpdated', this._boundStatusUpdateHandler);
+        this.addEventListeners();
     }
 
     async hide() {
-        // NOVO: 3. Remove o listener ao esconder a view
         window.removeEventListener('statusUpdated', this._boundStatusUpdateHandler);
     }
 
-    // NOVO: 4. Handler para o evento global 'statusUpdated'
     handleStatusUpdate(e) {
-        // Tabelas relevantes para esta view
         const relevantTables = ['caminhoes', 'frentes_servico'];
         
         if (relevantTables.includes(e.detail.table)) {
             console.log('Real-Time: ControleView detectou mudança, recarregando...');
-            // O dataCache.js já invalidou o cache.
-            // loadData(true) força a busca dos novos dados.
             this.loadData(true); 
         }
     }
 
     async loadData(forceRefresh = false) {
-        showLoading(); // Chamada inicial de loading para o show()
+        showLoading();
         
-        // NOVO: 1. Salva a posição de scroll antes de renderizar
         let savedScrollTop = 0;
-        // O elemento de view tem a rolagem (overflow-y: auto)
         if (this.container && this.container.scrollTop > 0) {
             savedScrollTop = this.container.scrollTop;
             console.log(`Scroll: Salvando posição ${savedScrollTop}`);
         }
 
         try {
-            this.data = await dataCache.fetchAllData(forceRefresh); // USANDO CACHE AQUI
+            this.data = await dataCache.fetchAllData(forceRefresh); 
             
-            // ADICIONADO: Pré-calcula o mapa do último status de movimento para a visualização
             this.latestStatusTimeMap = this.calculateLatestStatusTimes(this.data.caminhao_historico);
             
             this.render();
-            this.addEventListeners(); // CORREÇÃO: Rebind listeners após renderizar o HTML
+            this.addEventListeners();
             
-            // NOVO: 2. Restaura a posição de scroll após renderizar
             if (savedScrollTop > 0) {
-                // Pequeno delay para garantir que o navegador complete o redesenho do DOM
                 setTimeout(() => {
                      if (this.container) {
                           this.container.scrollTop = savedScrollTop;
@@ -91,17 +85,14 @@ export class ControleView {
         }
     }
     
-    // NOVO MÉTODO
     calculateLatestStatusTimes(history = []) {
         const latestStatusTimeMap = new Map();
         
-        // Classifica o histórico do mais recente para o mais antigo (para garantir o primeiro é o mais recente)
         const sortedHistory = history.sort((a, b) => 
             new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca)
         );
         
         sortedHistory.forEach(log => {
-            // Apenas registra o primeiro (mais recente) log para cada caminhão
             if (!latestStatusTimeMap.has(log.caminhao_id)) {
                 latestStatusTimeMap.set(log.caminhao_id, log.timestamp_mudanca);
             }
@@ -110,326 +101,264 @@ export class ControleView {
         return latestStatusTimeMap;
     }
 
-    render() {
-        // --- MODIFICAÇÃO INICIA AQUI: Lógica de Agrupamento e Contagem ---
-        const { frentes_servico = [], caminhoes = [] } = this.data;
-        
-        // 1. Agrupar Frentes
-        const frentesCanaInteira = frentes_servico
-            .filter(f => f.tipo_producao === 'MANUAL')
-            .sort((a, b) => a.nome.localeCompare(b.nome));
+    /**
+     * @NOVO
+     * Calcula as 24 colunas do ciclo (07:00h do dia D até 06:00h do dia D+1).
+     * @returns {Array<{start: string, end: string, display: string}>} Lista de cabeçalhos de 1 hora.
+     */
+    _getCycleHeaders() {
+        const headers = [];
+        const startHour = 7; // Início do ciclo é 07:00
+
+        let currentHour = startHour;
+        for (let i = 0; i < 24; i++) {
+            const displayHour = String(currentHour % 24).padStart(2, '0');
             
-        const frentesCanaMecanizada = frentes_servico
-            .filter(f => f.tipo_producao === 'MECANIZADA')
-            .sort((a, b) => a.nome.localeCompare(b.nome));
+            headers.push({
+                start: `${displayHour}:00`,
+                display: `${displayHour}:00`
+            });
+            currentHour++;
+        }
+        return headers;
+    }
+
+    /**
+     * @NOVO
+     * Processa o histórico para encontrar as PARTIDAS do pátio para as frentes.
+     * Resultado: this.movimentacaoData = { [frenteId]: { [horaSlot]: [{id, cod}] } }
+     */
+    _processMovimentacaoData() {
+        this.movimentacaoData = {};
+        this.cycleHeaders = this._getCycleHeaders();
+        const { caminhao_historico = [], frentes_servico = [], caminhoes = [] } = this.data;
+
+        const caminhoesMap = new Map(caminhoes.map(c => [c.id, c]));
+        // Map para garantir que cada caminhão seja registrado apenas uma vez por slot de 1h e frente.
+        const trucksAddedToSlot = new Map(); 
+
+        // 2. Filtra as partidas e as agrupa por slot de tempo e frente
+        caminhao_historico.filter(log => {
+            const statusAnterior = log.status_anterior;
+
+            // Condição 1: Status anterior era de estacionamento (disponível, pátio_vazio) OU estava null/vazio.
+            const isPreDeparture = ESTACIONAMENTO_STATUS.includes(statusAnterior) || statusAnterior === null || statusAnterior === '';
             
-        const frentesOutras = frentes_servico
-            .filter(f => f.tipo_producao !== 'MANUAL' && f.tipo_producao !== 'MECANIZADA')
-            .sort((a, b) => a.nome.localeCompare(b.nome));
+            // Condição 2: Novo status é de rota/carregado (partida)
+            const isNewDeparture = DEPARTURE_STATUS.includes(log.status_novo);
 
-        // 2. Obter IDs para contagem
-        const inteiraIDs = new Set(frentesCanaInteira.map(f => f.id));
-        const mecanizadaIDs = new Set(frentesCanaMecanizada.map(f => f.id));
-        const outrasIDs = new Set(frentesOutras.map(f => f.id));
+            return isPreDeparture && isNewDeparture;
 
-        // 3. Contar Caminhões 
-        let countInteira = 0;
-        let countMecanizada = 0;
-        let countOutras = 0;
+        }).forEach(log => {
+            const timestamp = new Date(log.timestamp_mudanca);
+            const caminhao = caminhoesMap.get(log.caminhao_id);
 
-        // Contar apenas caminhões que estão em operação (não 'disponivel', 'parado', 'quebrado')
-        const operationalStatuses = ['indo_carregar', 'carregando', 'retornando', 'patio_carregado', 'descarregando', 'patio_vazio'];
-        
-        caminhoes.forEach(c => {
-            if (c.frente_id && operationalStatuses.includes(c.status)) {
-                if (inteiraIDs.has(c.frente_id)) {
-                    countInteira++;
-                } else if (mecanizadaIDs.has(c.frente_id)) {
-                    countMecanizada++;
-                } else if (outrasIDs.has(c.frente_id)) {
-                    countOutras++;
+            // CORREÇÃO DE RESILIÊNCIA: Usa log.frente_id se disponível, caso contrário, usa o status atual do caminhão.
+            const frenteId = log.frente_id || caminhao?.frente_id; 
+
+            // C. Garante que o log é válido (SEM FILTRO DE DATA/CICLO)
+            if (frenteId && caminhao && !isNaN(timestamp)) {
+                
+                const logHour = timestamp.getHours();
+                // Ajusta a hora para o índice de 0 a 23 (onde 7h é o índice 0)
+                let slotIndex = (logHour - 7 + 24) % 24; 
+                
+                const slotKey = this.cycleHeaders[slotIndex].display; // Ex: '07:00'
+                const truckSlotKey = `${frenteId}_${slotKey}_${caminhao.id}`; // Chave única para o slot/caminhão
+
+                // 🛑 VERIFICAÇÃO DE UNICIDADE: Só adiciona se o caminhão não estiver no slot
+                if (trucksAddedToSlot.has(truckSlotKey)) {
+                    return; 
                 }
+                trucksAddedToSlot.set(truckSlotKey, true);
+
+                if (!this.movimentacaoData[frenteId]) {
+                    this.movimentacaoData[frenteId] = {};
+                }
+                
+                if (!this.movimentacaoData[frenteId][slotKey]) {
+                    this.movimentacaoData[frenteId][slotKey] = [];
+                }
+                
+                // Salva o ID e o Código completo
+                this.movimentacaoData[frenteId][slotKey].push({
+                    id: caminhao.id, 
+                    cod: caminhao.cod_equipamento
+                });
             }
         });
-        // --- MODIFICAÇÃO TERMINA AQUI ---
+        
+        // 3. Define as frentes para o render (apenas as que são de produção)
+        this.frentesMap = new Map(this.data.frentes_servico.filter(f => 
+            f.tipo_producao === 'MANUAL' || f.tipo_producao === 'MECANIZADA' || f.tipo_producao === 'NA' || !f.tipo_producao)
+            .map(f => [f.id, f]));
+        
+        // Ordena o mapa para que a renderização seja em ordem alfabética do nome da frente
+        this.frentesMap = new Map(
+            Array.from(this.frentesMap.entries())
+                 .sort(([, a], [, b]) => a.nome.localeCompare(b.nome))
+        );
+    }
 
+    render() {
+        this._processMovimentacaoData(); 
         const container = document.getElementById('views-container');
+        
         container.innerHTML = `
             <div id="controle-view" class="view controle-view active-view">
                 <div class="controle-header">
-                    <h1>Painel de Controle de Frota</h1>
+                    <h1>Matriz de Movimentação de Frota (Ciclo 24h)</h1>
                     <button class="btn-primary" id="btn-fazer-acao">
                         <i class="ph-fill ph-plus-circle"></i>
                         Fazer Ação
                     </button>
                 </div>
 
-                ${this.renderDashboardSummary()}
-                
-                <div class="frente-group-header">
-                    <h2>Frentes de Cana Inteira</h2>
-                    <span class="frente-group-truck-count">
-                        <i class="ph-fill ph-truck"></i> ${countInteira} Caminhões 
-                    </span>
+                ${this.renderMovimentacaoTable()}
+
+                <div class="info-footer">
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);">
+                        <i class="ph-fill ph-info"></i> Esta tabela mostra as partidas de caminhões do pátio agrupadas por slot de horário, sem filtro de data.
+                    </p>
                 </div>
-                <div class="controle-grid" id="main-grid-top">
-                    ${this.renderFrentes(frentesCanaInteira)}
-                </div>
-                
-                <div class="frente-group-header">
-                    <h2>Frentes de Cana Mecanizada</h2>
-                    <span class="frente-group-truck-count">
-                        <i class="ph-fill ph-truck"></i> ${countMecanizada} Caminhões 
-                    </span>
-                </div>
-                <div class="controle-grid" id="main-grid-bottom">
-                    ${this.renderFrentes(frentesCanaMecanizada)}
-                </div>
-                
-                ${frentesOutras.length > 0 ? `
-                <div class="frente-group-header">
-                    <h2>Outras Frentes (Sem Grupo / Agro Unione)</h2>
-                    <span class="frente-group-truck-count">
-                        <i class="ph-fill ph-truck"></i> ${countOutras} Caminhões 
-                    </span>
-                </div>
-                <div class="controle-grid" id="main-grid-outras">
-                    ${this.renderFrentes(frentesOutras)}
-                </div>
-                ` : ''}
+
             </div>
         `;
         this.container = container.querySelector('#controle-view');
     }
 
-    renderDashboardSummary() {
-        const { caminhoes = [] } = this.data;
-        // Incluído 'parado' na contagem
-        const statusesToCount = [...this.statusCiclo, 'quebrado', 'parado']; 
-        const statusCounts = {};
-        
-        // Contagem de todos os status (incluindo 'disponivel')
-        const allStatuses = [...statusesToCount, 'disponivel'];
-        allStatuses.forEach(status => { statusCounts[status] = 0; });
-
-
-        caminhoes.forEach(caminhao => {
-            if (statusCounts.hasOwnProperty(caminhao.status)) {
-                statusCounts[caminhao.status]++;
-            }
-        });
-
-        // --- CÁLCULO PARA O NOVO CARD DE DISPONIBILIDADE ---
-        const disponiveisParaUso = (statusCounts['disponivel'] || 0) + (statusCounts['patio_vazio'] || 0);
-        
-        const summaryCards = `
-            <div class="summary-card summary-disponivel" style="border-color: var(--accent-primary);">
-                <div class="summary-card-value">${disponiveisParaUso}</div>
-                <div class="summary-card-label">Caminhões Disponíveis</div>
-            </div>
-            ${statusesToCount.map(status => `
-                <div class="summary-card summary-${status}">
-                    <div class="summary-card-value">${statusCounts[status]}</div>
-                    <div class="summary-card-label">${this.statusLabels[status]}</div>
-                </div>
-            `).join('')}
-        `;
-
-        return `
-            <div class="controle-dashboard-summary">
-                ${summaryCards}
-            </div>
-        `;
-    }
-
-    // renderParadosPanel() FOI MOVIDO PARA frota.js
-
-    // --- MODIFICAÇÃO AQUI: Aceita um array de frentes como argumento ---
-    renderFrentes(frentesArray) {
-        const { caminhoes = [] } = this.data;
-        
-        // Se o array estiver vazio, mostra uma mensagem
-        if (frentesArray.length === 0) {
-            return `<div class="empty-state-frente-grid">Nenhuma frente ativa neste grupo.</div>`;
+    /**
+     * @NOVO
+     * Renderiza a nova tabela de movimentação de frota.
+     */
+    renderMovimentacaoTable() {
+        if (this.frentesMap.size === 0) {
+            return `<div class="empty-state-frente-grid" style="margin-top: 24px;">Nenhuma frente de produção com meta de produção cadastrada.</div>`;
         }
         
-        return frentesArray.map(frente => {
-        // --- FIM DA MODIFICAÇÃO ---
-            const caminhoesEmOperacao = caminhoes.filter(c => c.frente_id === frente.id && c.status !== 'disponivel');
-            const fazendaAtual = frente.fazendas;
-            const frenteStatus = frente.status || 'inativa'; // Garante um status
+        const cycleStartDisplay = this.cycleHeaders[0]?.display;
+        const cycleEndDisplay = this.cycleHeaders[this.cycleHeaders.length - 1]?.display;
+        
+        // 1. Cabeçalho da Tabela (Slots de Hora)
+        const headerHTML = this.cycleHeaders.map(header => `
+            <th class="mov-header-slot">${header.display}</th>
+        `).join('');
+        
+        // 2. Corpo da Tabela
+        const bodyHTML = Array.from(this.frentesMap.values()).map(frente => {
+            
+            // BUSCA O NOME DA FAZENDA
+            // frente.fazendas é um objeto retornado pelo Supabase (ou null)
+            const fazendaNome = frente.fazendas?.nome || 'N/A';
+            const fazendaCod = frente.fazendas?.cod_equipamento || 'N/A';
+            const fazendaDisplay = (frente.fazendas && fazendaNome !== 'N/A') ? `${fazendaCod}-${fazendaNome}` : 'Nenhuma Fazenda Associada';
 
-            return `
-                <div class="frente-card">
-                    <div class="frente-header">
-                        <div class="frente-header-main">
-                            <i class="ph-fill ph-users-three"></i><h3>${frente.nome}</h3>
-                            <span class="frente-status-badge status-${frenteStatus}">${this.frenteStatusLabels[frenteStatus]}</span>
-                        </div>
-                        <div class="frente-fazenda-info">
-                            <div class="fazenda-display">
-                                <i class="ph-fill ph-tree-evergreen"></i>
-                                <div>
-                                    <span class="fazenda-nome">${fazendaAtual?.nome || 'Nenhuma Fazenda'}</span>
-                                    ${fazendaAtual ? `<span class="fazenda-codigo">${fazendaAtual.cod_equipamento}</span>` : ''}
-                                </div>
-                            </div>
-                            <button class="btn-secondary btn-alterar-fazenda" data-frente-id="${frente.id}">Alterar</button>
-                        </div>
-                    </div>
-                    <div class="frente-body">
-                        <h4>Ações da Frente</h4>
-                        <div class="frente-status-actions">
-                            <button class="btn-secondary btn-frente-status" data-frente-id="${frente.id}" data-current-status="${frenteStatus}">Mudar Status</button>
-                        </div>
+            const cellsHTML = this.cycleHeaders.map(header => {
+                // trucks agora é um array de objetos: [{id, cod}]
+                const trucks = this.movimentacaoData[frente.id]?.[header.display] || [];
+                
+                // === LÓGICA DE AGRUPAMENTO E COMPACTAÇÃO NO JAVASCRIPT ===
+                const chunkSize = 3;
+                // AQUI ESTÁ A CORREÇÃO: trucksHTML é renderizado para ser o CONTEÚDO da célula de horário.
+                let trucksHTML = '<div class="mov-stacks-wrapper">'; 
+
+                for (let i = 0; i < trucks.length; i += chunkSize) {
+                    const group = trucks.slice(i, i + chunkSize);
+
+                    // Abre um novo grupo vertical (que flui horizontalmente)
+                    trucksHTML += '<div class="mov-stack-group">';
+                    
+                    group.forEach(truck => {
+                        const codString = String(truck.cod || ''); 
+                        const last3 = codString.slice(-3); 
                         
-                        <h4 style="margin-top: 15px;">Caminhões em Operação</h4>
-                        <table class="caminhoes-em-operacao-table">
-                            <thead>
-                                <tr>
-                                    <th>Cód. Caminhão</th>
-                                    <th>Status</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${caminhoesEmOperacao.length > 0 ? caminhoesEmOperacao.map(c => {
-                                     // ALTERAÇÃO PRINCIPAL AQUI: Adiciona o tooltip com a hora da última movimentação
-                                     const latestTime = this.latestStatusTimeMap.get(c.id);
-                                     const formattedTime = latestTime ? formatDateTime(latestTime) : 'N/A';
-                                     const tooltip = `Última Movimentação: ${formattedTime}`;
-                                     
-                                     return `
-                                    <tr>
-                                        <td>
-                                            <strong title="${tooltip}">${c.cod_equipamento}</strong>
-                                        </td>
-                                        <td><span class="caminhao-status-badge status-${c.status}">${this.statusLabels[c.status]}</span></td>
-                                        <td><button class="btn-primary" style="font-size: 0.8rem; padding: 6px 10px;" data-caminhao-id="${c.id}">Alterar Status</button></td>
-                                    </tr>
-                                    `
-                                }).join('') : '<tr><td colspan="3">Nenhum caminhão em operação.</td></tr>'}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                        // Renderiza o badge (sem # e com minimal padding)
+                        trucksHTML += `<span class="truck-code-badge clickable-truck-code" 
+                                            data-truck-id="${truck.id}" 
+                                            title="Caminhão #${truck.cod}">${last3}</span>`;
+                    });
+                    
+                    trucksHTML += '</div>'; // Fecha o grupo vertical
+                }
+                trucksHTML += '</div>'; // Fecha o wrapper principal
+                // ========================================================
+                
+                return `
+                    <td class="mov-cell ${trucks.length > 0 ? 'has-data' : ''}">
+                        ${trucksHTML}
+                    </td>
+                `;
+            }).join('');
+            
+            return `
+                <tr>
+                    <td class="mov-frente-name clickable-front" data-frente-id="${frente.id}" data-frente-status="${frente.status || 'inativa'}">
+                        <i class="ph-fill ph-users-three"></i> 
+                        <span class="frente-name-text">${frente.nome}</span>
+                        <span class="frente-fazenda-text">${fazendaDisplay}</span>
+                        <span class="frente-group-text">${this.formatOption(frente.tipo_producao)}</span>
+                    </td>
+                    ${cellsHTML}
+                </tr>
             `;
         }).join('');
-    }
-
-    // NOVO: Função dedicada para a lógica de atribuição (reutilizável)
-    async handleAssignTruck(caminhaoId, frenteId, status, hora) {
-        showLoading();
-        try {
-            // 1. Designa o caminhão e atualiza status no DB
-            await assignCaminhaoToFrente(caminhaoId, frenteId, status, getBrtIsoString(hora));
-            
-            // 2. Remove da fila de estacionamento persistida
-            await removeCaminhaoFromFila(caminhaoId); 
-            
-            // 3. Invalida o Cache
-            dataCache.invalidateAllData();
-
-            // *** MELHORIA: Mensagem de toast mais genérica ***
-            showToast('Caminhão realocado e novo ciclo iniciado!', 'success');
-            closeModal();
-            await this.loadData(true); 
-        } catch (error) {
-            handleOperation(error); 
-        } finally {
-            hideLoading(); 
-        }
-    }
-    
-    // MODIFICADO: Modal para o fluxo de Finalizar Ciclo (com seletor de status)
-    showFinalizeCycleModal(caminhaoId) {
-        const { caminhoes = [], frentes_servico = [] } = this.data;
-        const caminhao = caminhoes.find(c => c.id == caminhaoId);
-        if (!caminhao) return;
-
-        // Filtra para mostrar apenas frentes ATIVAS (ativa ou fazendo_cata) e com fazenda associada
-        const frentesAtivas = frentes_servico
-            .filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
-            .sort((a, b) => a.nome.localeCompare(b.nome));
-
-        // Usa a função getBrtNowString para o valor inicial do formulário
-        const nowString = getBrtNowString();
         
-        // *** MELHORIA: Gera as opções de status do ciclo ***
-        const statusOptionsHTML = this.statusCiclo.map(s => 
-            `<option value="${s}">${this.statusLabels[s]}</option>`
-        ).join('');
-        
-        const modalContent = `
-            <p>Caminhão: <strong>${caminhao.cod_equipamento}</strong> - Ciclo Finalizado.</p>
-            <p class="form-help">Escolha a ação para o caminhão após o ciclo de retorno/descarga:</p>
-
-            <hr style="margin: 20px 0; border-color: var(--border-color);">
-
-            <h4>Opção 1: Realocar para Nova Frente de Serviço</h4>
-            <form id="reallocate-cycle-form" class="action-modal-form" style="margin-bottom: 20px;">
-                <input type="hidden" name="caminhaoId" value="${caminhaoId}">
-                <div class="form-group">
-                    <label>Frente de Destino</label>
-                    <select name="frente" class="form-select" required>
-                        <option value="">Selecione a Frente (Obrigatório)</option>
-                        ${frentesAtivas.map(f => `<option value="${f.id}">${f.nome} (${this.frenteStatusLabels[f.status]})</option>`).join('')}
-                    </select>
+        // 3. Montagem da Tabela Final
+        return `
+            <div class="report-table-container">
+                <div class="table-wrapper">
+                    <table class="data-table-modern" style="min-width: 1500px;">
+                        <thead>
+                            <tr class="mov-header-group">
+                                <th rowspan="2" style="width: 200px;">Frente de Serviço</th>
+                                <th colspan="${this.cycleHeaders.length}" class="mov-header-group-title">
+                                    Partidas do Pátio (07:00 - 06:00)
+                                </th>
+                            </tr>
+                            <tr class="mov-header-slots">
+                                ${headerHTML}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${bodyHTML}
+                        </tbody>
+                    </table>
                 </div>
-                
-                <div class="form-group">
-                    <label>Etapa Inicial do Novo Ciclo</label>
-                    <select name="status" class="form-select" required>
-                        ${statusOptionsHTML}
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label>Hora de Início da Etapa</label>
-                    <input type="datetime-local" name="hora" class="form-input" value="${nowString}" required>
-                </div>
-                <button type="submit" class="btn-primary">
-                    <i class="ph-fill ph-plus-circle"></i> Iniciar Novo Ciclo
-                </button>
-            </form>
-
-            <hr style="margin: 20px 0; border-color: var(--border-color);">
-
-            <h4>Opção 2: Deixar no Pátio Vazio</h4>
-            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manualmente via "Fila Estacionamento" ou "Fazer Ação".</p>
-            <button id="btn-set-patio-vazio" class="btn-secondary" style="background-color: #805AD5;">
-                <i class="ph-fill ph-warehouse"></i> Marcar como Pátio Vazio
-            </button>
+            </div>
         `;
-        openModal('Ação Pós-Ciclo - ' + caminhao.cod_equipamento, modalContent);
+    }
 
-        // Listener para Opção 1: Realocar
-        document.getElementById('reallocate-cycle-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = e.target;
-            const frenteId = formData.frente.value;
-            const status = formData.status.value; // *** MELHORIA: Lê o status selecionado ***
-            const hora = formData.hora.value;
-            
-            if (!frenteId) {
-                showToast('Selecione uma Frente de Destino.', 'error');
-                return;
-            }
-            
-            // *** MELHORIA: Passa o status selecionado ***
-            this.handleAssignTruck(caminhaoId, frenteId, status, hora); 
-        });
-
-        // Listener para Opção 2: Pátio Vazio
-        document.getElementById('btn-set-patio-vazio').addEventListener('click', () => {
-            // Usa 'patio_vazio' e o status atual para a frente (null, pois está finalizando o ciclo)
-            this.handleStatusUpdate(caminhaoId, 'patio_vazio', null, 'Caminhão movido para Pátio Vazio!');
-        });
+    formatOption(option) {
+        if (option === 'NA' || option === null) return 'Não Atribuído';
+        if (option === 'MANUAL') return 'Cana Manual';
+        if (option === 'MECANIZADA') return 'Cana Mecanizada';
+        if (!option || typeof option !== 'string') {
+            return 'N/A';
+        }
+        return option.charAt(0).toUpperCase() + option.slice(1).replace('_', ' ');
     }
 
     addEventListeners() {
         this.container.addEventListener('click', (e) => {
             const btn = e.target.closest('button');
+            const truckBadge = e.target.closest('.clickable-truck-code'); // Captura o clique no badge
+            const clickableFront = e.target.closest('.clickable-front'); // Captura o clique na TD da frente
+            
+            if (truckBadge) {
+                // Se o badge foi clicado, abre o modal de status/movimentação do caminhão
+                const caminhaoId = truckBadge.dataset.truckId;
+                this.showStatusUpdateModal(caminhaoId); 
+                return;
+            }
+            
+            if (clickableFront) {
+                // Se a célula da frente foi clicada, abre o modal de edição de Fazenda/Status
+                const frenteId = clickableFront.dataset.frenteId;
+                const currentStatus = clickableFront.dataset.frenteStatus;
+                this.showFrontEditModal(frenteId, currentStatus); // NOVO: Chama a função que contém os dois botões
+                return;
+            }
+
             if (!btn) return;
 
             if (btn.id === 'btn-fazer-acao') this.showAssignmentModal();
@@ -439,35 +368,98 @@ export class ControleView {
             if (btn.dataset.caminhaoId && !btn.closest('#action-modal-form')) {
                 this.showStatusUpdateModal(btn.dataset.caminhaoId);
             }
-            
-            // REMOVIDO: Listener para finalizar inatividade (movido para frota.js)
         });
     }
 
-    showFrenteStatusModal(frenteId, currentStatus) {
-        const optionsHTML = Object.entries(this.frenteStatusLabels).map(([statusKey, statusLabel]) => 
+    /**
+     * @NOVO
+     * Modal unificado para edição da frente: permite alterar Fazenda OU Status.
+     */
+    showFrontEditModal(frenteId, currentStatus) {
+        const frente = this.data.frentes_servico.find(f => f.id == frenteId);
+        const fazendas = this.data.fazendas || [];
+        
+        const currentFazendaNome = frente.fazendas?.nome || 'Nenhuma';
+
+        const optionsStatusHTML = Object.entries(this.frenteStatusLabels).map(([statusKey, statusLabel]) => 
             `<option value="${statusKey}" ${statusKey === currentStatus ? 'selected' : ''}>${statusLabel}</option>`
         ).join('');
+        
+        const optionsFazendaHTML = fazendas.map(f => 
+            `<option value="${f.id}" ${f.id === frente.fazenda_id ? 'selected' : ''}>${f.nome}</option>`
+        ).join('');
+
 
         const modalContent = `
+            <h3>Gerenciar Frente: ${frente.nome}</h3>
+            <p>Fazenda Atual: <strong>${currentFazendaNome}</strong></p>
+            <p>Status Atual: <span class="caminhao-status-badge status-${currentStatus}">${this.frenteStatusLabels[currentStatus]}</span></p>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+
+            <h4>1. Alterar Fazenda de Colheita</h4>
+            <form id="fazenda-select-form" class="action-modal-form">
+                <div class="form-group">
+                    <label>Selecione a Nova Fazenda</label>
+                    <select name="fazenda" class="form-select">
+                        <option value="">Nenhuma / Limpar</option>
+                        ${optionsFazendaHTML}
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary" style="background-color: var(--accent-edit);">
+                    Atualizar Fazenda
+                </button>
+            </form>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+
+            <h4>2. Mudar Status da Frente</h4>
             <form id="frente-status-form" class="action-modal-form">
-                <p>Status atual: <strong>${this.frenteStatusLabels[currentStatus]}</strong></p>
                 <div class="form-group">
                     <label>Novo Status da Frente</label>
                     <select name="new_status" class="form-select" required>
-                        ${optionsHTML}
+                        ${optionsStatusHTML}
                     </select>
                 </div>
-                <button type="submit" class="btn-primary">Atualizar Status</button>
+                <button type="submit" class="btn-primary" style="background-color: var(--accent-primary);">
+                    Atualizar Status
+                </button>
             </form>
         `;
-        openModal('Alterar Status da Frente', modalContent);
+        openModal('Edição Rápida de Frente', modalContent);
 
+        // Listener 1: Alterar Fazenda
+        document.getElementById('fazenda-select-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const selectedFazendaId = e.target.fazenda.value;
+            this.handleUpdateFazenda(frenteId, selectedFazendaId);
+        });
+
+        // Listener 2: Alterar Status
         document.getElementById('frente-status-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const newStatus = e.target.new_status.value;
             this.handleFrenteStatusUpdate(frenteId, newStatus);
         });
+    }
+
+    async handleUpdateFazenda(frenteId, selectedFazendaId) {
+        showLoading();
+        try {
+            await updateFrenteComFazenda(frenteId, selectedFazendaId || null);
+            dataCache.invalidateAllData();
+            showToast('Fazenda atualizada com sucesso!', 'success');
+            closeModal();
+            await this.loadData(true); 
+        } catch (error) {
+            handleOperation(error);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    showFazendaSelector(frenteId) {
+        // ... (Método antigo, mantido para compatibilidade, mas o showFrontEditModal é o novo principal)
     }
 
     async handleFrenteStatusUpdate(frenteId, newStatus) {
@@ -563,9 +555,114 @@ export class ControleView {
         });
     }
 
-    // showFinalizeDowntimeModal() FOI MOVIDO PARA frota.js
+    async handleAssignTruck(caminhaoId, frenteId, status, hora) {
+        showLoading();
+        try {
+            // 1. Designa o caminhão e atualiza status no DB
+            await assignCaminhaoToFrente(caminhaoId, frenteId, status, getBrtIsoString(hora));
+            
+            // 2. Remove da fila de estacionamento persistida
+            await removeCaminhaoFromFila(caminhaoId); 
+            
+            // 3. Invalida o Cache
+            dataCache.invalidateAllData();
 
-    // MODIFICADO: showStatusUpdateModal agora chama o NOVO modal de finalizar ciclo
+            // *** MELHORIA: Mensagem de toast mais genérica ***
+            showToast('Caminhão realocado e novo ciclo iniciado!', 'success');
+            closeModal();
+            await this.loadData(true); 
+        } catch (error) {
+            handleOperation(error); 
+        } finally {
+            hideLoading(); 
+        }
+    }
+    
+    showFinalizeCycleModal(caminhaoId) {
+        const { caminhoes = [], frentes_servico = [] } = this.data;
+        const caminhao = caminhoes.find(c => c.id == caminhaoId);
+        if (!caminhao) return;
+
+        // Filtra para mostrar apenas frentes ATIVAS (ativa ou fazendo_cata) e com fazenda associada
+        const frentesAtivas = frentes_servico
+            .filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata'))
+            .sort((a, b) => a.nome.localeCompare(b.nome));
+
+        // Usa a função getBrtNowString para o valor inicial do formulário
+        const nowString = getBrtNowString();
+        
+        // *** MELHORIA: Gera as opções de status do ciclo ***
+        const statusOptionsHTML = this.statusCiclo.map(s => 
+            `<option value="${s}">${this.statusLabels[s]}</option>`
+        ).join('');
+        
+        const modalContent = `
+            <p>Caminhão: <strong>${caminhao.cod_equipamento}</strong> - Ciclo Finalizado.</p>
+            <p class="form-help">Escolha a ação para o caminhão após o ciclo de retorno/descarga:</p>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+
+            <h4>Opção 1: Realocar para Nova Frente de Serviço</h4>
+            <form id="reallocate-cycle-form" class="action-modal-form" style="margin-bottom: 20px;">
+                <input type="hidden" name="caminhaoId" value="${caminhaoId}">
+                <div class="form-group">
+                    <label>Frente de Destino</label>
+                    <select name="frente" class="form-select" required>
+                        <option value="">Selecione a Frente (Obrigatório)</option>
+                        ${frentesAtivas.map(f => `<option value="${f.id}">${f.nome} (${this.frenteStatusLabels[f.status]})</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Etapa Inicial do Novo Ciclo</label>
+                    <select name="status" class="form-select" required>
+                        ${statusOptionsHTML}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Hora de Início da Etapa</label>
+                    <input type="datetime-local" name="hora" class="form-input" value="${nowString}" required>
+                </div>
+                <button type="submit" class="btn-primary">
+                    <i class="ph-fill ph-plus-circle"></i> Iniciar Novo Ciclo
+                </button>
+            </form>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+
+            <h4>Opção 2: Deixar no Pátio Vazio</h4>
+            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manualmente via "Fila Estacionamento" ou "Fazer Ação".</p>
+            <button id="btn-set-patio-vazio" class="btn-secondary" style="background-color: #805AD5;">
+                <i class="ph-fill ph-warehouse"></i> Marcar como Pátio Vazio
+            </button>
+        `;
+        openModal('Ação Pós-Ciclo - ' + caminhao.cod_equipamento, modalContent);
+
+        // Listener para Opção 1: Realocar
+        document.getElementById('reallocate-cycle-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = e.target;
+            const frenteId = formData.frente.value;
+            const status = formData.status.value; // *** MELHORIA: Lê o status selecionado ***
+            const hora = formData.hora.value;
+            
+            if (!frenteId) {
+                showToast('Selecione uma Frente de Destino.', 'error');
+                return;
+            }
+            
+            // *** MELHORIA: Passa o status selecionado ***
+            this.handleAssignTruck(caminhaoId, frenteId, status, hora); 
+        });
+
+        // Listener para Opção 2: Pátio Vazio
+        document.getElementById('btn-set-patio-vazio').addEventListener('click', () => {
+            // Usa 'patio_vazio' e o status atual para a frente (null, pois está finalizando o ciclo)
+            this.handleStatusUpdate(caminhaoId, 'patio_vazio', null, 'Caminhão movido para Pátio Vazio!');
+        });
+    }
+
     showStatusUpdateModal(caminhaoId) {
         const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
         if (!caminhao) return;
@@ -579,9 +676,7 @@ export class ControleView {
              initialMotivo = latestLog?.motivo_parada || '';
         }
 
-        // Se o caminhão está parado/quebrado, oferece o modal de gerenciamento/finalização da inatividade.
         if (isCurrentDowntime) {
-             // Tenta encontrar a hora de início para passar ao modal de finalização
              const openSessions = groupDowntimeSessions(this.data.caminhao_historico, 'caminhao_id', isDowntimeStatus).filter(s => s.end_time === null && s.startLog.caminhao_id === caminhaoId);
              
              let startTime = caminhao.created_at; // Fallback
@@ -696,7 +791,6 @@ export class ControleView {
         });
     }
     
-    // MODIFICADO: Inclui timestamp para permitir edição da hora de fim de ciclo
     async handleStatusUpdate(caminhaoId, novoStatus, frenteId, successMessage, motivoParada = null, timestamp = null) {
         showLoading(); // INICIA AQUI
         try {
