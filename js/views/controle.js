@@ -8,6 +8,7 @@ import { dataCache } from '../dataCache.js';
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS, CAMINHAO_ROUTE_STATUS } from '../constants.js';
 
 const ESTACIONAMENTO_STATUS = ['disponivel', 'patio_vazio']; // Status que indicam que o caminhão está na fila/pátio
+// CORREÇÃO: A linha abaixo não é mais usada para o filtro de partida, mas é mantida caso outras lógicas dependam dela.
 const DEPARTURE_STATUS = CAMINHAO_ROUTE_STATUS; // Status de partida do pátio para uma frente
 
 export class ControleView {
@@ -124,7 +125,7 @@ export class ControleView {
     }
 
     /**
-     * @NOVO
+     * @NOVO E CORRIGIDO
      * Processa o histórico para encontrar as PARTIDAS do pátio para as frentes.
      * Resultado: this.movimentacaoData = { [frenteId]: { [horaSlot]: [{id, cod}] } }
      */
@@ -133,49 +134,77 @@ export class ControleView {
         this.cycleHeaders = this._getCycleHeaders();
         const { caminhao_historico = [], frentes_servico = [], caminhoes = [] } = this.data;
 
+        // 1. Definir o ciclo de 24 horas atual (07:00 de D-1/D até 07:00 de D/D+1)
+        const now = new Date(); // Hora local (BRT)
+        const cycleStart = new Date();
+        cycleStart.setHours(7, 0, 0, 0); // Define o início do ciclo para 07:00
+
+        // Se a hora atual for ANTES das 7h, o ciclo começou às 7h do dia anterior
+        if (now.getHours() < 7) {
+            cycleStart.setDate(cycleStart.getDate() - 1);
+        }
+
+        const cycleEnd = new Date(cycleStart);
+        cycleEnd.setDate(cycleStart.getDate() + 1); // O fim é 24h depois
+
+        const cycleStartISO = cycleStart.toISOString();
+        const cycleEndISO = cycleEnd.toISOString();
+
+
         const caminhoesMap = new Map(caminhoes.map(c => [c.id, c]));
-        // Map para garantir que cada caminhão seja registrado apenas uma vez por slot de 1h e frente.
-        const trucksAddedToSlot = new Map(); 
+        
+        // *** CORREÇÃO: Mapa de unicidade global para o ciclo de 24h ***
+        const trucksAddedToCycle = new Map(); 
 
-        // 2. Filtra as partidas e as agrupa por slot de tempo e frente
-        caminhao_historico.filter(log => {
-            const statusAnterior = log.status_anterior;
-
-            // Condição 1: Status anterior era de estacionamento (disponível, pátio_vazio) OU estava null/vazio.
-            const isPreDeparture = ESTACIONAMENTO_STATUS.includes(statusAnterior) || statusAnterior === null || statusAnterior === '';
+        // 2. Filtra logs que são partidas REAIS (indo_carregar) DENTRO do ciclo de 24h
+        let filteredDepartures = caminhao_historico.filter(log => {
+            const logTime = log.timestamp_mudanca;
+            // Filtro 1: Log está dentro do ciclo de 24h
+            if (logTime < cycleStartISO || logTime >= cycleEndISO) {
+                return false;
+            }
             
-            // Condição 2: Novo status é de rota/carregado (partida)
-            const isNewDeparture = DEPARTURE_STATUS.includes(log.status_novo);
+            const statusAnterior = log.status_anterior;
+            // Filtro 2: Saiu do pátio (Estacionamento)
+            const isPreDeparture = ESTACIONAMENTO_STATUS.includes(statusAnterior) || statusAnterior === null || statusAnterior === '';
+            // Filtro 3: Está especificamente INDO CARREGAR
+            const isNewDeparture = log.status_novo === 'indo_carregar';
 
             return isPreDeparture && isNewDeparture;
+        });
 
-        }).forEach(log => {
+        // 3. *** CORREÇÃO: Ordena as partidas da MAIS ANTIGA para a MAIS NOVA ***
+        // (Isso garante que vamos pegar a *primeira* partida do ciclo)
+        filteredDepartures.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
+
+        // 4. Processa a lista ordenada, garantindo unicidade
+        filteredDepartures.forEach(log => {
+            
+            // *** CORREÇÃO: Verificação de unicidade global ***
+            const caminhaoId = log.caminhao_id;
+            if (trucksAddedToCycle.has(caminhaoId)) {
+                return; // Caminhão já teve sua *primeira* partida registrada neste ciclo.
+            }
+            // *** FIM DA CORREÇÃO ***
+            
             const timestamp = new Date(log.timestamp_mudanca);
-            const caminhao = caminhoesMap.get(log.caminhao_id);
-
-            // CORREÇÃO DE RESILIÊNCIA: Usa log.frente_id se disponível, caso contrário, usa o status atual do caminhão.
+            const caminhao = caminhoesMap.get(caminhaoId);
             const frenteId = log.frente_id || caminhao?.frente_id; 
 
-            // C. Garante que o log é válido (SEM FILTRO DE DATA/CICLO)
             if (frenteId && caminhao && !isNaN(timestamp)) {
                 
+                // *** MARCA COMO ADICIONADO (este é o primeiro log de partida dele no ciclo) ***
+                trucksAddedToCycle.set(caminhaoId, true);
+
                 const logHour = timestamp.getHours();
                 // Ajusta a hora para o índice de 0 a 23 (onde 7h é o índice 0)
                 let slotIndex = (logHour - 7 + 24) % 24; 
                 
                 const slotKey = this.cycleHeaders[slotIndex].display; // Ex: '07:00'
-                const truckSlotKey = `${frenteId}_${slotKey}_${caminhao.id}`; // Chave única para o slot/caminhão
-
-                // 🛑 VERIFICAÇÃO DE UNICIDADE: Só adiciona se o caminhão não estiver no slot
-                if (trucksAddedToSlot.has(truckSlotKey)) {
-                    return; 
-                }
-                trucksAddedToSlot.set(truckSlotKey, true);
-
+                
                 if (!this.movimentacaoData[frenteId]) {
                     this.movimentacaoData[frenteId] = {};
                 }
-                
                 if (!this.movimentacaoData[frenteId][slotKey]) {
                     this.movimentacaoData[frenteId][slotKey] = [];
                 }
@@ -188,7 +217,7 @@ export class ControleView {
             }
         });
         
-        // 3. Define as frentes para o render (apenas as que são de produção)
+        // 5. Define as frentes para o render (apenas as que são de produção)
         this.frentesMap = new Map(this.data.frentes_servico.filter(f => 
             f.tipo_producao === 'MANUAL' || f.tipo_producao === 'MECANIZADA' || f.tipo_producao === 'NA' || !f.tipo_producao)
             .map(f => [f.id, f]));
@@ -632,7 +661,7 @@ export class ControleView {
             <hr style="margin: 20px 0; border-color: var(--border-color);">
 
             <h4>Opção 2: Deixar no Pátio Vazio</h4>
-            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manualmente via "Fila Estacionamento" ou "Fazer Ação".</p>
+            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manually via "Fila Estacionamento" ou "Fazer Ação".</p>
             <button id="btn-set-patio-vazio" class="btn-secondary" style="background-color: #805AD5;">
                 <i class="ph-fill ph-warehouse"></i> Marcar como Pátio Vazio
             </button>
