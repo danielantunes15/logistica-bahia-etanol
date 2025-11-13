@@ -547,6 +547,10 @@
 .descarga-card:hover {
     background-color: #262c38; /* Fundo levemente mais escuro no hover */
     transform: translateY(-1px);
+    /* --- INÍCIO DA CORREÇÃO (CLICKABLE CARD) --- */
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(56, 161, 105, 0.3);
+    /* --- FIM DA CORREÇÃO (CLICKABLE CARD) --- */
 }
 
 /* NOVO: Container para código e frente de origem */

@@ -407,14 +407,17 @@ export class ControleView {
         
         let gridHTML = '';
         fixedGroups.forEach(group => {
+            // *** INÍCIO DA CORREÇÃO (CLICKABLE CARD) ***
             const listaCaminhoesHTML = group.data.map(caminhao => `
-                <div class="descarga-card">
+                <div class="descarga-card clickable-truck-descarga" data-truck-id="${caminhao.id}" title="Clique para ver Ações">
                     <div class="descarga-info-main">
                         <div class="descarga-cod">#${caminhao.cod_equipamento}</div>
-                        <div class="descarga-frente-origem">${caminhao.frente_nome_origem}</div> </div>
+                        <div class="descarga-frente-origem">${caminhao.frente_nome_origem}</div> 
+                    </div>
                     <div class="descarga-time">${formatDateTime(caminhao.entrada)}</div>
                 </div>
             `).join('');
+            // *** FIM DA CORREÇÃO (CLICKABLE CARD) ***
 
             gridHTML += `
                 <div class="descarga-coluna">
@@ -581,6 +584,9 @@ export class ControleView {
             const truckBadge = e.target.closest('.clickable-truck-code'); // Captura o clique no badge
             const clickableFront = e.target.closest('.clickable-front'); // Captura o clique na TD da frente
             
+            // *** INÍCIO DA CORREÇÃO (CLICKABLE CARD) ***
+            const truckDescarga = e.target.closest('.clickable-truck-descarga'); // Captura o clique no card de descarga
+            
             if (truckBadge) {
                 // Se o badge foi clicado, abre o modal de status/movimentação do caminhão
                 const caminhaoId = truckBadge.dataset.truckId;
@@ -588,6 +594,14 @@ export class ControleView {
                 return;
             }
             
+            if (truckDescarga) {
+                // Se o card de descarga foi clicado, abre o mesmo modal
+                const caminhaoId = truckDescarga.dataset.truckId;
+                this.showStatusUpdateModal(caminhaoId); 
+                return;
+            }
+            // *** FIM DA CORREÇÃO (CLICKABLE CARD) ***
+
             if (clickableFront) {
                 // Se a célula da frente foi clicada, abre o modal de edição de Fazenda/Status
                 const frenteId = clickableFront.dataset.frenteId;
