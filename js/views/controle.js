@@ -217,11 +217,14 @@ export class ControleView {
                     this.movimentacaoData[frenteId][slotKey] = [];
                 }
                 
-                // Salva o ID e o Código completo
+                // *** INÍCIO DA CORREÇÃO (STATUS DINÂMICO) ***
+                // Salva o ID, o Código e o STATUS ATUAL do caminhão
                 this.movimentacaoData[frenteId][slotKey].push({
                     id: caminhao.id, 
-                    cod: caminhao.cod_equipamento
+                    cod: caminhao.cod_equipamento,
+                    status: caminhao.status || 'disponivel' // Armazena o status atual
                 });
+                // *** FIM DA CORREÇÃO (STATUS DINÂMICO) ***
             }
         });
         
@@ -250,7 +253,8 @@ export class ControleView {
                         Fazer Ação
                     </button>
                 </div>
-
+                
+                ${this.renderLegend()}
                 ${this.renderMovimentacaoTable()}
 
                 <div class="info-footer">
@@ -263,6 +267,43 @@ export class ControleView {
         `;
         this.container = container.querySelector('#controle-view');
     }
+
+    /**
+     * @NOVO (LEGENDA)
+     * Renderiza o HTML da legenda de status dos caminhões.
+     */
+    renderLegend() {
+        // Define quais status são relevantes para a legenda da matriz
+        const relevantStatuses = [
+            'indo_carregar', 
+            'carregando', 
+            'retornando', 
+            'patio_carregado',
+            'descarregando',
+            'patio_vazio',
+            'parado',
+            'quebrado'
+            // 'disponivel' é omitido por ser o estado "padrão" ou pós-ciclo
+        ];
+        
+        const legendItems = relevantStatuses.map(status => {
+            const label = this.statusLabels[status] || 'Indefinido';
+            return `
+                <div class="legend-item">
+                    <span class="legend-color-box status-${status}"></span>
+                    <span class="legend-label">${label}</span>
+                </div>
+            `;
+        }).join('');
+
+        return `
+            <div class="movimentacao-legend">
+                <span class="legend-title">Status Atual do Caminhão:</span>
+                ${legendItems}
+            </div>
+        `;
+    }
+
 
     /**
      * @NOVO
@@ -302,8 +343,10 @@ export class ControleView {
 
 
             const cellsHTML = this.cycleHeaders.map(header => {
-                // trucks agora é um array de objetos: [{id, cod}]
+                // *** INÍCIO DA CORREÇÃO (STATUS DINÂMICO) ***
+                // trucks agora é um array de objetos: [{id, cod, status}]
                 const trucks = this.movimentacaoData[frente.id]?.[header.display] || [];
+                // *** FIM DA CORREÇÃO (STATUS DINÂMICO) ***
                 
                 // *** INÍCIO DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
                 const isCurrentHour = header.display === this.currentHourSlot;
@@ -325,10 +368,13 @@ export class ControleView {
                         const codString = String(truck.cod || ''); 
                         const last3 = codString.slice(-3); 
                         
-                        // Renderiza o badge (sem # e com minimal padding)
-                        trucksHTML += `<span class="truck-code-badge clickable-truck-code" 
+                        // *** INÍCIO DA CORREÇÃO (STATUS DINÂMICO) ***
+                        // Adiciona a classe de status ao badge e o status ao title
+                        const statusLabel = this.statusLabels[truck.status] || 'N/A';
+                        trucksHTML += `<span class="truck-code-badge clickable-truck-code status-${truck.status}" 
                                             data-truck-id="${truck.id}" 
-                                            title="Caminhão #${truck.cod}">${last3}</span>`;
+                                            title="Caminhão #${truck.cod} (Status: ${statusLabel})">${last3}</span>`;
+                        // *** FIM DA CORREÇÃO (STATUS DINÂMICO) ***
                     });
                     
                     trucksHTML += '</div>'; // Fecha o grupo vertical

@@ -16,7 +16,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    /* margin-bottom: 24px; */ /* REMOVIDO: A legenda agora gerencia o espaço inferior */
     padding-top: 5px; /* Garante que o header tenha um pequeno espaço no topo do container */
 }
 
@@ -25,6 +25,42 @@
     color: var(--text-primary);
     margin: 0; /* CORREÇÃO: Garante que TODAS as margens do H1 sejam zero para alinhamento perfeito */
 }
+
+/* --- INÍCIO DA CORREÇÃO (LEGENDA) --- */
+.movimentacao-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 15px; /* 10px vertical, 15px horizontal */
+    padding: 12px 24px 20px 24px; /* Adiciona padding e espaço inferior */
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-dark); /* Garante o fundo */
+    flex-shrink: 0;
+}
+.legend-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-right: 10px;
+    align-self: center;
+}
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.legend-color-box {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+.legend-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+/* --- FIM DA CORREÇÃO (LEGENDA) --- */
+
 
 .controle-dashboard-summary {
     display: grid;
@@ -664,7 +700,7 @@
 /* Estilo para o código do caminhão (badge) */
 .truck-code-badge {
     display: inline-block;
-    background-color: var(--accent-primary);
+    /* REMOVIDO: background-color: var(--accent-primary); */
     color: white;
     padding: 2px 5px;
     border-radius: 4px;
@@ -679,8 +715,40 @@
 }
 
 .truck-code-badge:hover {
+    /* Usa o accent-hover (verde escuro) para o hover de todos */
     background-color: var(--accent-hover);
 }
+
+/* --- INÍCIO DA CORREÇÃO (CORES DOS BADGES) --- */
+/* Cores dos badges baseadas nas cores de status (ver .status-indo_carregar, etc.) */
+.legend-color-box.status-indo_carregar,
+.truck-code-badge.status-indo_carregar { background-color: #2B6CB0; }
+
+.legend-color-box.status-carregando,
+.truck-code-badge.status-carregando { background-color: #D69E2E; }
+
+.legend-color-box.status-retornando,
+.truck-code-badge.status-retornando { background-color: #805AD5; }
+
+.legend-color-box.status-patio_carregado,
+.truck-code-badge.status-patio_carregado { background-color: #D53F8C; }
+
+.legend-color-box.status-descarregando,
+.truck-code-badge.status-descarregando { background-color: #38A169; }
+
+.legend-color-box.status-patio_vazio,
+.truck-code-badge.status-patio_vazio { background-color: #A0AEC0; }
+
+.legend-color-box.status-disponivel,
+.truck-code-badge.status-disponivel { background-color: #718096; }
+
+.legend-color-box.status-quebrado,
+.truck-code-badge.status-quebrado { background-color: var(--accent-danger); }
+
+.legend-color-box.status-parado,
+.truck-code-badge.status-parado { background-color: #ED8936; }
+/* --- FIM DA CORREÇÃO (CORES DOS BADGES) --- */
+
 
 /* --- INÍCIO DA CORREÇÃO (DESTAQUE HORA ATUAL) --- */
 .data-table-modern .mov-header-slot.current-hour-slot {
