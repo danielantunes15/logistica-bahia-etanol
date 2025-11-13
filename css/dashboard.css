@@ -636,61 +636,51 @@
 }
 
 /* --- INÍCIO DA MODIFICAÇÃO (FAZENDAS VIEW) --- */
-.fazendas-filters {
-    display: flex;
-    gap: 15px;
-    flex-wrap: wrap;
-    /* Alinha à direita no header */
-    margin-left: auto;
-}
 
-#fazendas-map-container {
-    height: 100%;
+/* (Estilos do painel lateral esquerdo removidos) */
+
+/* --- NOVOS ESTILOS PARA FAZENDAS VIEW (FILTROS NO HEADER) --- */
+.fazenda-filters-header {
+    display: flex;
+    flex-wrap: wrap; /* Permite que os filtros quebrem a linha em telas menores */
+    gap: 16px;
     width: 100%;
+    background-color: var(--bg-light);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
 }
 
-/* --- NOVOS ESTILOS PARA FAZENDAS VIEW (CONTROLE LATERAL) --- */
-.fazenda-view-controls {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    width: 320px;
-    z-index: 1000;
-    /* Estilo moderno (similar ao stats-panel) */
-    background: rgba(26, 32, 44, 0.9);
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-    color: var(--text-primary);
-}
-.fazenda-search-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-color);
-}
-.fazenda-search-header i {
-    font-size: 1.2rem;
-    color: var(--accent-primary);
-}
-.fazenda-search-header span {
-    font-size: 1rem;
-    font-weight: 600;
-}
-.fazenda-filters-body {
-    padding: 16px;
+.fazenda-filters-header .filter-group {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
+    flex-grow: 1;
+    min-width: 200px; /* Largura mínima para cada filtro */
 }
-.fazenda-filters-body .form-input {
-    /* Garante que o input use os estilos base e ocupe 100% */
+
+.fazenda-filters-header .filter-group label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.fazenda-filters-header .filter-group label i {
+    color: var(--accent-primary);
+}
+
+.fazenda-filters-header .form-input,
+.fazenda-filters-header .form-select {
+    /* Garante que os inputs/selects usem os estilos base */
     width: 100%;
-    background-color: var(--bg-dark); /* Fundo escuro para o input */
+    background-color: var(--bg-dark);
+    padding: 10px; /* Um pouco menor para caber no header */
+    font-size: 0.9rem;
 }
-/* --- FIM NOVOS ESTILOS DE CONTROLE --- */
+/* --- FIM NOVOS ESTILOS DE FILTRO --- */
 
 
 /* --- NOVOS ESTILOS PARA FAZENDAS VIEW (ÍCONE DE PINO) --- */
@@ -713,8 +703,9 @@
     /* O 'color' é aplicado inline no JS */
 }
 
-/* Reposiciona o pulso para a base do pino */
-.fazenda-view-marker .marker-pulse {
+/* Reposiciona o pulso para a base do pino (usado pela Usina) */
+.fazenda-view-marker .marker-pulse,
+.usina-marker .marker-pulse { /* Garante que o da usina também funcione */
     /* A animação 'pulsate' já existe em style.css */
     /* Move o pulso para a âncora (bottom-center) */
     top: 100%; /* Coloca no final do container de 48px */
@@ -724,7 +715,8 @@
     z-index: 0; /* Pulso atrás do pino */
 }
 /* Garante que o pulso 'after' (a animação) seja visível */
-.fazenda-view-marker .marker-pulse::after {
+.fazenda-view-marker .marker-pulse::after,
+.usina-marker .marker-pulse::after {
     box-shadow: 0 0 1px 3px currentColor; /* Garante que a sombra use a cor */
 }
 /* --- FIM NOVOS ESTILOS DE PINO --- */

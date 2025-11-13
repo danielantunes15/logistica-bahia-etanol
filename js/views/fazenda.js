@@ -1,46 +1,42 @@
-// js/views/fazenda.js (MODIFICADO PARA ISOLAMENTO)
+// js/views/fazenda.js (MODIFICADO PARA NOVOS FILTROS NO HEADER)
 
-// 1. REMOVE o mapManager
-// import { mapManager } from '../maps.js'; 
-// 2. ADICIONA o novo inicializador de mapa dedicado
 import { initFazendaMap } from '../fazendaMap.js'; 
-
 import { dataCache } from '../dataCache.js';
 import { showLoading, hideLoading, handleOperation } from '../helpers.js';
 import { formatDateTime } from '../timeUtils.js';
 
-// Coordenadas da usina (importadas localmente para cálculo de bounds)
+// Coordenadas da usina
 const USINA_COORDS = [-17.642301, -40.181525];
 
 export class FazendasView {
     constructor() {
         this.container = null;
-        this.map = null; // Mapa agora é local da view
+        this.map = null; 
         this.data = {};
         this.allFazendasData = []; 
         this.markersLayer = null; 
         
-        // REMOVIDO: Filtros da legenda não são mais necessários
-        
+        // Mantém a lógica de busca (keyup) e seleção (change)
         this._boundSearchHandler = this.handleSearch.bind(this);
-        // REMOVIDO: Handler da legenda
     }
 
     async show() {
         await this.loadHTML();
-        await this.initializeMap(); // Chama o novo inicializador
+        // O initializeMap agora também popula os filtros
+        await this.initializeMap(); 
         await this.loadData();
         this.addEventListeners();
     }
 
     async hide() {
         if (this.container) {
-            this.container.querySelector('#fazenda-search')?.removeEventListener('keyup', this._boundSearchHandler);
-            this.container.querySelector('#fornecedor-search')?.removeEventListener('keyup', this._boundSearchHandler);
-            // REMOVIDO: Listener da legenda
+            // Remove todos os listeners de filtro
+            this.container.querySelector('#fazenda-search-nome')?.removeEventListener('keyup', this._boundSearchHandler);
+            this.container.querySelector('#fazenda-search-codigo')?.removeEventListener('keyup', this._boundSearchHandler);
+            this.container.querySelector('#fazenda-select-fornecedor')?.removeEventListener('change', this._boundSearchHandler);
+            this.container.querySelector('#fazenda-select-fazenda')?.removeEventListener('change', this._boundSearchHandler);
         }
         
-        // Limpa o mapa local
         if (this.map) {
             this.map.remove();
             this.map = null;
@@ -56,49 +52,76 @@ export class FazendasView {
     }
 
     getHTML() {
-        // HTML com o painel lateral de pesquisa
+        // HTML com os filtros movidos para o header
         return `
             <div id="fazendas-view" class="view active-view">
-                <div class="dashboard-header" style="flex-wrap: wrap; gap: 15px;">
-                    <h1>Mapa de Fazendas e Frentes</h1>
-                </div>
-                <div class="map-fullscreen">
+                <div class="dashboard-header" style="flex-direction: column; align-items: flex-start; gap: 15px;">
+                    <h1 style="margin: 0;">Mapa de Fazendas e Frentes</h1>
                     
-                    <div class="fazenda-view-controls">
-                        <div class="fazenda-search-header">
-                            <i class="ph-fill ph-magnifying-glass"></i>
-                            <span>Filtrar Locais</span>
+                    <div class="fazenda-filters-header">
+                        <div class="filter-group">
+                            <label for="fazenda-search-nome"><i class="ph-fill ph-magnifying-glass"></i> Nome (Fazenda/Frente)</label>
+                            <input type="text" id="fazenda-search-nome" class="form-input" placeholder="Buscar por nome...">
                         </div>
-                        <div class="fazenda-filters-body">
-                            <input type="text" id="fazenda-search" class="form-input" placeholder="Buscar Fazenda ou Frente...">
-                            <input type="text" id="fornecedor-search" class="form-input" placeholder="Buscar por Fornecedor...">
+                        <div class="filter-group">
+                            <label for="fazenda-search-codigo"><i class="ph-fill ph-hash"></i> Código (Fazenda)</label>
+                            <input type="text" id="fazenda-search-codigo" class="form-input" placeholder="Buscar por código...">
+                        </div>
+                        <div class="filter-group">
+                            <label for="fazenda-select-fornecedor"><i class="ph-fill ph-user-list"></i> Fornecedor</label>
+                            <select id="fazenda-select-fornecedor" class="form-select">
+                                <option value="">Todos os Fornecedores</option>
+                                </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="fazenda-select-fazenda"><i class="ph-fill ph-tree-evergreen"></i> Fazenda</label>
+                            <select id="fazenda-select-fazenda" class="form-select">
+                                <option value="">Todas as Fazendas</option>
+                                </select>
                         </div>
                     </div>
-
+                    </div>
+                <div class="map-fullscreen">
                     <div id="fazendas-map-container"></div>
-                    
                     </div>
             </div>
         `;
     }
-    
-    // FUNÇÃO renderLegend() REMOVIDA
 
     async initializeMap() {
-        // CHAMA A FUNÇÃO DE INICIALIZAÇÃO ISOLADA
         this.map = initFazendaMap('fazendas-map-container');
         
         if (this.map) {
-            // A Usina já é adicionada pelo initFazendaMap
-            
-            // Inicializa a camada de marcadores local
             this.markersLayer = L.layerGroup().addTo(this.map);
+            // Chama o populateFilters aqui para garantir que os elementos do HTML existam
+            await this.populateFilters();
+        }
+    }
+
+    async populateFilters() {
+        // Busca os dados (do cache, se disponível)
+        const data = await dataCache.fetchMasterDataOnly();
+        
+        const fornecedorSelect = this.container.querySelector('#fazenda-select-fornecedor');
+        const fazendaSelect = this.container.querySelector('#fazenda-select-fazenda');
+
+        if (data.fornecedores && fornecedorSelect) {
+            data.fornecedores.forEach(f => {
+                fornecedorSelect.innerHTML += `<option value="${f.id}">${f.nome}</option>`;
+            });
+        }
+
+        if (data.fazendas && fazendaSelect) {
+            data.fazendas.forEach(f => {
+                fazendaSelect.innerHTML += `<option value="${f.id}">${f.nome} (${f.cod_equipamento})</option>`;
+            });
         }
     }
 
     async loadData(forceRefresh = false) {
         showLoading();
         try {
+            // fetchAllData é necessário para os links (frentes, fornecedores)
             this.data = await dataCache.fetchAllData(forceRefresh);
             this.aggregateFazendaData();
             this.renderMarkers();
@@ -115,7 +138,7 @@ export class FazendasView {
         
         fazendas.forEach(f => {
              fazendaDataMap.set(f.id, {
-                ...f,
+                ...f, // Inclui f.id, f.cod_equipamento, f.fornecedor_id
                 frenteStatus: null,
                 frenteNome: 'N/A',
                 fornecedorNome: f.fornecedores?.nome || '' 
@@ -139,19 +162,28 @@ export class FazendasView {
         
         this.markersLayer.clearLayers(); 
         
-        const fazendaFilter = this.container.querySelector('#fazenda-search')?.value.toLowerCase() || '';
-        const fornecedorFilter = this.container.querySelector('#fornecedor-search')?.value.toLowerCase() || '';
+        // Lê os 4 filtros
+        const nomeFilter = this.container.querySelector('#fazenda-search-nome')?.value.toLowerCase() || '';
+        const codigoFilter = this.container.querySelector('#fazenda-search-codigo')?.value.toLowerCase() || '';
+        const fornecedorFilter = this.container.querySelector('#fazenda-select-fornecedor')?.value || '';
+        const fazendaFilter = this.container.querySelector('#fazenda-select-fazenda')?.value || '';
 
         const filteredFazendas = this.allFazendasData.filter(f => {
-            const matchesFazenda = fazendaFilter === '' ||
-                f.nome.toLowerCase().includes(fazendaFilter) ||
-                f.frenteNome.toLowerCase().includes(fazendaFilter);
+            // Aplica os 4 filtros
+            const matchesNome = nomeFilter === '' ||
+                f.nome.toLowerCase().includes(nomeFilter) ||
+                f.frenteNome.toLowerCase().includes(nomeFilter);
             
+            const matchesCodigo = codigoFilter === '' ||
+                (f.cod_equipamento && f.cod_equipamento.toLowerCase().includes(codigoFilter));
+
             const matchesFornecedor = fornecedorFilter === '' ||
-                f.fornecedorNome.toLowerCase().includes(fornecedorFilter);
-            
-            // FILTRO DE LEGENDA REMOVIDO
-            return matchesFazenda && matchesFornecedor;
+                f.fornecedor_id == fornecedorFilter;
+                
+            const matchesFazenda = fazendaFilter === '' ||
+                f.id == fazendaFilter;
+
+            return matchesNome && matchesCodigo && matchesFornecedor && matchesFazenda;
         });
 
         const newMarkers = [];
@@ -167,13 +199,12 @@ export class FazendasView {
                     default: color = '#718096'; statusLabel = 'Sem Frente Ativa'; iconClass = 'inativa'; break;
                 }
 
-                // --- ÍCONE SEM O PISCA-PISCA (PULSE) ---
+                // Ícone de Alfinete (sem pisca-pisca)
                 const customIcon = L.divIcon({
                     className: `fazenda-view-marker status-${iconClass}`,
-                    // HTML agora contém APENAS o ícone do pino
                     html: `<i class="ph-fill ph-map-pin fazenda-pin-icon" style="color: ${color};"></i>`,
                     iconSize: [48, 48],
-                    iconAnchor: [24, 48] // Ponta inferior do pino
+                    iconAnchor: [24, 48] 
                 });
                 
                 const marker = L.marker(coords, { icon: customIcon });
@@ -199,30 +230,36 @@ export class FazendasView {
         
         if (newMarkers.length > 0) {
             newMarkers.forEach(m => this.markersLayer.addLayer(m));
-            const bounds = L.latLngBounds(newMarkers.map(m => m.getLatLng()));
-            bounds.extend(USINA_COORDS); 
-            this.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
-        } else if (fazendaFilter === '' && fornecedorFilter === '') {
+            
+            // Se um filtro específico de fazenda foi selecionado, centraliza nela
+            if (fazendaFilter && newMarkers.length === 1) {
+                 this.map.setView(newMarkers[0].getLatLng(), 14); // Zoom mais próximo
+            } else {
+                 const bounds = L.latLngBounds(newMarkers.map(m => m.getLatLng()));
+                 bounds.extend(USINA_COORDS); 
+                 this.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+            }
+
+        } else if (nomeFilter === '' && codigoFilter === '' && fornecedorFilter === '' && fazendaFilter === '') {
+            // Se nenhum filtro e nenhum resultado, zoom na usina
             this.map.setView(USINA_COORDS, 10);
         }
+        // Se houver filtros, mas nenhum resultado, não mexe no mapa
     }
     
     addEventListeners() {
-        const fazendaSearch = this.container.querySelector('#fazenda-search');
-        const fornecedorSearch = this.container.querySelector('#fornecedor-search');
-        // REMOVIDO: Listener da legenda
+        const nomeInput = this.container.querySelector('#fazenda-search-nome');
+        const codigoInput = this.container.querySelector('#fazenda-search-codigo');
+        const fornecedorSelect = this.container.querySelector('#fazenda-select-fornecedor');
+        const fazendaSelect = this.container.querySelector('#fazenda-select-fazenda');
 
-        if (fazendaSearch) {
-            fazendaSearch.addEventListener('keyup', this._boundSearchHandler);
-        }
-        if (fornecedorSearch) {
-            fornecedorSearch.addEventListener('keyup', this._boundSearchHandler);
-        }
+        if (nomeInput) nomeInput.addEventListener('keyup', this._boundSearchHandler);
+        if (codigoInput) codigoInput.addEventListener('keyup', this._boundSearchHandler);
+        if (fornecedorSelect) fornecedorSelect.addEventListener('change', this._boundSearchHandler);
+        if (fazendaSelect) fazendaSelect.addEventListener('change', this._boundSearchHandler);
     }
     
     handleSearch() {
         this.renderMarkers();
     }
-    
-    // FUNÇÃO handleLegendClick() REMOVIDA
 }
