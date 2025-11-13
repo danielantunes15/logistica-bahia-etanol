@@ -34,6 +34,10 @@ export class ControleView {
         this.cycleHeaders = [];
         this.frentesMap = new Map(); // Mapa de frentes para renderização
         this.currentHourSlot = null; // NOVO: Armazena o slot de hora atual
+        
+        // --- INÍCIO DA CORREÇÃO (TABELA DESCARGA) ---
+        this.statusToMonitor = 'descarregando';
+        // --- FIM DA CORREÇÃO (TABELA DESCARGA) ---
     }
 
     async show() {
@@ -161,6 +165,16 @@ export class ControleView {
 
         const caminhoesMap = new Map(caminhoes.map(c => [c.id, c]));
         
+        // *** INÍCIO DA CORREÇÃO (REQUISITO 5) ***
+        // Criar um Set de caminhões que estão descarregando
+        const descarregandoSet = new Set();
+        caminhoes.forEach(c => {
+            if (c.status === this.statusToMonitor) { // statusToMonitor = 'descarregando'
+                descarregandoSet.add(c.id);
+            }
+        });
+        // *** FIM DA CORREÇÃO (REQUISITO 5) ***
+        
         // *** CORREÇÃO: Mapa de unicidade global para o ciclo de 24h ***
         const trucksAddedToCycle = new Map(); 
 
@@ -190,6 +204,14 @@ export class ControleView {
             
             // *** CORREÇÃO: Verificação de unicidade global ***
             const caminhaoId = log.caminhao_id;
+
+            // *** INÍCIO DA CORREÇÃO (REQUISITO 5) ***
+            // Se o caminhão está na lista de descarga, PULA. Ele não deve aparecer na matriz.
+            if (descarregandoSet.has(caminhaoId)) {
+                return; 
+            }
+            // *** FIM DA CORREÇÃO (REQUISITO 5) ***
+
             if (trucksAddedToCycle.has(caminhaoId)) {
                 return; // Caminhão já teve sua *primeira* partida registrada neste ciclo.
             }
@@ -256,7 +278,8 @@ export class ControleView {
                 
                 ${this.renderLegend()}
                 ${this.renderMovimentacaoTable()}
-
+                
+                ${this.renderDescargaTable()}
                 <div class="info-footer">
                     <p style="font-size: 0.9rem; color: var(--text-secondary);">
                         <i class="ph-fill ph-info"></i> Esta tabela mostra as partidas de caminhões do pátio agrupadas por slot de horário, sem filtro de data.
@@ -300,6 +323,121 @@ export class ControleView {
             <div class="movimentacao-legend">
                 <span class="legend-title">Status Atual do Caminhão:</span>
                 ${legendItems}
+            </div>
+        `;
+    }
+
+    /**
+     * @NOVO (REQUISITOS 2, 3, 4)
+     * Renderiza a tabela de caminhões em descarga
+     */
+    renderDescargaTable() {
+        const { caminhoes = [], frentes_servico = [], caminhao_historico = [] } = this.data;
+
+        // --- INÍCIO DA LÓGICA DE GRUPO (COPIADA DE DESCARGA.JS) ---
+        
+        // 1. Define Fixed Groups (mesma ordem de Fila Descarga)
+        const fixedGroups = [
+            {
+                columnName: 'AGRO UNIONE',
+                frentes: ['AGRO UNIONE - MANUAL 01', 'AGRO UNIONE - MANUAL 02', 'AGRO UNIONE - MECANIZADA'],
+                data: [], 
+            },
+            {
+                columnName: 'CANA INTEIRA BEL',
+                frentes: ['RG TRANSPORTE', 'CASTRO SERVIÇOS AGRI', 'GM AGRONEGÓCIO E SER'],
+                data: [],
+            },
+            {
+                columnName: 'CANA MECANIZADA BEL',
+                frentes: ['PEDRO EPSON', 'AGROTERRA MECANIZADA', 'VALE DO ARAGUAIA', 'E. DOS SANTOS'],
+                data: [],
+            }
+        ];
+
+        // 2. Filter trucks and find entry time
+        const caminhoesEmDescarga = caminhoes.filter(c => c.status === this.statusToMonitor && c.frente_id);
+        if (caminhoesEmDescarga.length === 0) {
+            return ''; // Retorna vazio se não houver caminhões descarregando
+        }
+
+        const sortedHistory = caminhao_historico.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
+        const entradaDescargaMap = new Map();
+
+        caminhoesEmDescarga.forEach(caminhao => {
+            const latestLog = sortedHistory.find(log => log.caminhao_id === caminhao.id && log.status_novo === this.statusToMonitor);
+            entradaDescargaMap.set(caminhao.id, {
+                timestamp: new Date(latestLog ? latestLog.timestamp_mudanca : caminhao.created_at),
+            });
+        });
+        
+        // 3. Group trucks into fixed columns
+        const frentesMap = new Map(frentes_servico.map(f => [f.id, f]));
+
+        caminhoesEmDescarga.forEach(caminhao => {
+            const frente = frentesMap.get(caminhao.frente_id);
+            const frenteNome = frente ? frente.nome : null;
+            const entradaInfo = entradaDescargaMap.get(caminhao.id);
+
+            if (frenteNome && entradaInfo) {
+                const truckData = {
+                    cod_equipamento: caminhao.cod_equipamento,
+                    entrada: entradaInfo.timestamp,
+                    id: caminhao.id,
+                    frente_nome_origem: frenteNome, 
+                };
+
+                // Find which fixed group this truck belongs to
+                for (const group of fixedGroups) {
+                    if (group.frentes.includes(frenteNome)) {
+                        group.data.push(truckData);
+                        break; 
+                    }
+                }
+            }
+        });
+
+        // 4. Order trucks within each fixed group by entry time (oldest first)
+        fixedGroups.forEach(group => {
+            group.data.sort((a, b) => a.entrada - b.entrada);
+        });
+
+        // 5. Render the grid HTML
+        // (Note: This HTML uses the classes from descarga.css, which are already in controle.css)
+        
+        let gridHTML = '';
+        fixedGroups.forEach(group => {
+            const listaCaminhoesHTML = group.data.map(caminhao => `
+                <div class="descarga-card">
+                    <div class="descarga-info-main">
+                        <div class="descarga-cod">#${caminhao.cod_equipamento}</div>
+                        <div class="descarga-frente-origem">${caminhao.frente_nome_origem}</div> </div>
+                    <div class="descarga-time">${formatDateTime(caminhao.entrada)}</div>
+                </div>
+            `).join('');
+
+            gridHTML += `
+                <div class="descarga-coluna">
+                    <h2 class="descarga-frente-title">${group.columnName}</h2>
+                    <div class="descarga-list">
+                        ${group.data.length > 0 ? listaCaminhoesHTML : '<div class="empty-state-list"><i class="ph-fill ph-info"></i><p>Nenhum caminhão nesta categoria.</p></div>'}
+                    </div>
+                </div>
+            `;
+        });
+        // --- FIM DA LÓGICA DE GRUPO ---
+
+
+        // Envolve o grid no container e título
+        return `
+            <div class="descarga-container-matriz">
+                <h2 class="descarga-header-matriz">
+                    <i class="ph-fill ph-factory"></i>
+                    Caminhões em Descarga na Usina (${caminhoesEmDescarga.length})
+                </h2>
+                <div class="descarga-grid" style="grid-template-columns: repeat(3, 1fr);">
+                    ${gridHTML}
+                </div>
             </div>
         `;
     }
