@@ -7,8 +7,8 @@ import { FrotaView } from './frota.js';
 import { EquipamentosView } from './equipamentos.js'; 
 import { FilaEstacionamentoView } from './filaEstacionamento.js'; 
 // --- INÍCIO DA MODIFICAÇÃO ---
-// Importa a nova 'FazendasView' do arquivo 'descarga.js' (que foi modificado)
-import { FazendasView } from './descarga.js'; 
+// Importa a nova 'FazendasView' do arquivo 'fazenda.js' (que foi modificado)
+import { FazendasView } from './fazenda.js'; 
 // --- FIM DA MODIFICAÇÃO ---
 import { LoginView } from './login.js'; // NOVO: Tela de Login
 import { GerencialView } from './gerencial.js'; // NOVO: Tela Gerencial
