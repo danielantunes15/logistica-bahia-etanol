@@ -613,7 +613,17 @@
     border-left: 5px solid var(--accent-primary);
     /* Garante que o nome da frente não quebre a linha */
     white-space: nowrap; 
+    transition: background-color 0.2s ease, box-shadow 0.2s ease; /* Efeito hover */
 }
+
+/* --- INÍCIO DA CORREÇÃO (HOVER NA FRENTE) --- */
+.data-table-modern .mov-frente-name.clickable-front:hover {
+    cursor: pointer;
+    background-color: #374151; /* Um pouco mais escuro que o bg-light */
+    box-shadow: inset 3px 0 0 var(--accent-primary);
+}
+/* --- FIM DA CORREÇÃO (HOVER NA FRENTE) --- */
+
 
 .data-table-modern .mov-frente-name i {
     color: var(--accent-primary);
@@ -644,6 +654,7 @@
     vertical-align: top;
     border: 1px solid var(--border-color); /* Borda mais fina */
     height: 40px; /* Altura mínima para a célula */
+    transition: background-color 0.2s ease; /* Efeito hover */
 }
 
 .data-table-modern .mov-cell.has-data {
@@ -670,3 +681,38 @@
 .truck-code-badge:hover {
     background-color: var(--accent-hover);
 }
+
+/* --- INÍCIO DA CORREÇÃO (DESTAQUE HORA ATUAL) --- */
+.data-table-modern .mov-header-slot.current-hour-slot {
+    background-color: var(--accent-edit); /* Azul */
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--accent-primary);
+}
+.data-table-modern .mov-cell.current-hour-slot {
+    background-color: rgba(43, 108, 176, 0.15); /* Fundo azul bem claro */
+    border-left: 1px solid var(--accent-edit);
+    border-right: 1px solid var(--accent-edit);
+}
+/* --- FIM DA CORREÇÃO (DESTAQUE HORA ATUAL) --- */
+
+
+/* --- INÍCIO DA CORREÇÃO (DESTAQUE FRENTE INATIVA) --- */
+.data-table-modern tbody tr.frente-inativa td {
+    /* Linha vermelha na parte inferior de cada célula da linha */
+    border-bottom: 1px solid var(--accent-danger); 
+    /* Um leve fundo para indicar a linha inteira */
+    background-color: rgba(197, 48, 48, 0.05); 
+}
+/* Destaca o nome da frente inativa também */
+.data-table-modern tbody tr.frente-inativa .mov-frente-name {
+    border-left-color: var(--accent-danger);
+    background-color: rgba(197, 48, 48, 0.1);
+}
+.data-table-modern tbody tr.frente-inativa .frente-name-text {
+    color: var(--accent-danger);
+    opacity: 0.8;
+}
+.data-table-modern tbody tr.frente-inativa .frente-fazenda-text {
+    opacity: 0.7;
+}
+/* --- FIM DA CORREÇÃO (DESTAQUE FRENTE INATIVA) --- */

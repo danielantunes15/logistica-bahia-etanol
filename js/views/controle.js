@@ -33,6 +33,7 @@ export class ControleView {
         // NOVO: Armazena os headers de 1h
         this.cycleHeaders = [];
         this.frentesMap = new Map(); // Mapa de frentes para renderização
+        this.currentHourSlot = null; // NOVO: Armazena o slot de hora atual
     }
 
     async show() {
@@ -136,6 +137,13 @@ export class ControleView {
 
         // 1. Definir o ciclo de 24 horas atual (07:00 de D-1/D até 07:00 de D/D+1)
         const now = new Date(); // Hora local (BRT)
+        
+        // *** INÍCIO DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
+        // Calcula o slot de hora atual (ex: 16:43 -> "16:00")
+        const currentHourString = String(now.getHours()).padStart(2, '0') + ":00";
+        this.currentHourSlot = currentHourString;
+        // *** FIM DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
+
         const cycleStart = new Date();
         cycleStart.setHours(7, 0, 0, 0); // Define o início do ciclo para 07:00
 
@@ -269,9 +277,14 @@ export class ControleView {
         const cycleEndDisplay = this.cycleHeaders[this.cycleHeaders.length - 1]?.display;
         
         // 1. Cabeçalho da Tabela (Slots de Hora)
-        const headerHTML = this.cycleHeaders.map(header => `
-            <th class="mov-header-slot">${header.display}</th>
-        `).join('');
+        const headerHTML = this.cycleHeaders.map(header => {
+            // *** INÍCIO DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
+            const isCurrentHour = header.display === this.currentHourSlot;
+            const headerClass = isCurrentHour ? 'current-hour-slot' : '';
+            // *** FIM DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
+            
+            return `<th class="mov-header-slot ${headerClass}">${header.display}</th>`;
+        }).join('');
         
         // 2. Corpo da Tabela
         const bodyHTML = Array.from(this.frentesMap.values()).map(frente => {
@@ -281,11 +294,22 @@ export class ControleView {
             const fazendaNome = frente.fazendas?.nome || 'N/A';
             const fazendaCod = frente.fazendas?.cod_equipamento || 'N/A';
             const fazendaDisplay = (frente.fazendas && fazendaNome !== 'N/A') ? `${fazendaCod}-${fazendaNome}` : 'Nenhuma Fazenda Associada';
+            
+            // *** INÍCIO DA CORREÇÃO (DESTAQUE FRENTE INATIVA) ***
+            const isFrenteInativa = (frente.status === 'inativa' || !frente.status);
+            const rowClass = isFrenteInativa ? 'frente-inativa' : '';
+            // *** FIM DA CORREÇÃO (DESTAQUE FRENTE INATIVA) ***
+
 
             const cellsHTML = this.cycleHeaders.map(header => {
                 // trucks agora é um array de objetos: [{id, cod}]
                 const trucks = this.movimentacaoData[frente.id]?.[header.display] || [];
                 
+                // *** INÍCIO DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
+                const isCurrentHour = header.display === this.currentHourSlot;
+                const cellClass = isCurrentHour ? 'current-hour-slot' : '';
+                // *** FIM DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
+
                 // === LÓGICA DE AGRUPAMENTO E COMPACTAÇÃO NO JAVASCRIPT ===
                 const chunkSize = 3;
                 // AQUI ESTÁ A CORREÇÃO: trucksHTML é renderizado para ser o CONTEÚDO da célula de horário.
@@ -313,14 +337,14 @@ export class ControleView {
                 // ========================================================
                 
                 return `
-                    <td class="mov-cell ${trucks.length > 0 ? 'has-data' : ''}">
+                    <td class="mov-cell ${trucks.length > 0 ? 'has-data' : ''} ${cellClass}">
                         ${trucksHTML}
                     </td>
                 `;
             }).join('');
             
             return `
-                <tr>
+                <tr class="${rowClass}">
                     <td class="mov-frente-name clickable-front" data-frente-id="${frente.id}" data-frente-status="${frente.status || 'inativa'}">
                         <i class="ph-fill ph-users-three"></i> 
                         <span class="frente-name-text">${frente.nome}</span>
@@ -661,7 +685,7 @@ export class ControleView {
             <hr style="margin: 20px 0; border-color: var(--border-color);">
 
             <h4>Opção 2: Deixar no Pátio Vazio</h4>
-            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manually via "Fila Estacionamento" ou "Fazer Ação".</p>
+            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manualmente via "Fila Estacionamento" ou "Fazer Ação".</p>
             <button id="btn-set-patio-vazio" class="btn-secondary" style="background-color: #805AD5;">
                 <i class="ph-fill ph-warehouse"></i> Marcar como Pátio Vazio
             </button>
