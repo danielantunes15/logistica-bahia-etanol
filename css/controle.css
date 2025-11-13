@@ -1,39 +1,36 @@
 /* css/controle.css */
 
 .controle-view {
-    padding: 0; /* REMOVIDO: Padding principal para que o header e o info-footer gerenciem */
+    padding: 0; 
     background-color: var(--bg-dark);
-    /* 🛑 CORREÇÃO DE LAYOUT: Flexbox para ocupar 100% da altura e empilhar itens */
     display: flex;
     flex-direction: column;
-    height: 100%;
+    /* As linhas 'height: 100%' e 'overflow: hidden' foram REMOVIDAS para restaurar a rolagem vertical da página */
 }
 
 .controle-header {
-    /* ADICIONADO padding vertical */
-    padding: 24px 24px 0 24px; 
+    padding: 16px 24px 0 24px;  /* <-- Padding diminuído */
     flex-shrink: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    /* margin-bottom: 24px; */ /* REMOVIDO: A legenda agora gerencia o espaço inferior */
-    padding-top: 5px; /* Garante que o header tenha um pequeno espaço no topo do container */
+    padding-top: 5px; 
 }
 
 .controle-header h1 {
     font-size: 1.8rem;
     color: var(--text-primary);
-    margin: 0; /* CORREÇÃO: Garante que TODAS as margens do H1 sejam zero para alinhamento perfeito */
+    margin: 0; 
 }
 
-/* --- INÍCIO DA CORREÇÃO (LEGENDA) --- */
+/* --- LEGENDA --- */
 .movimentacao-legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px 15px; /* 10px vertical, 15px horizontal */
-    padding: 12px 24px 20px 24px; /* Adiciona padding e espaço inferior */
+    gap: 8px 12px; /* <-- Gap diminuído */
+    padding: 10px 24px 15px 24px; /* <-- Padding diminuído */
     border-bottom: 1px solid var(--border-color);
-    background-color: var(--bg-dark); /* Garante o fundo */
+    background-color: var(--bg-dark); 
     flex-shrink: 0;
 }
 .legend-title {
@@ -55,11 +52,11 @@
     border: 1px solid rgba(255,255,255,0.2);
 }
 .legend-label {
-    font-size: 0.75rem;
+    font-size: 0.7rem; /* <-- Fonte diminuída */
     color: var(--text-secondary);
     font-weight: 500;
 }
-/* --- FIM DA CORREÇÃO (LEGENDA) --- */
+/* --- FIM LEGENDA --- */
 
 
 .controle-dashboard-summary {
@@ -101,17 +98,17 @@
 .summary-patio_vazio { border-color: #A0AEC0; }
 .summary-descarregando { border-color: #38A169; }
 .summary-quebrado { border-color: var(--accent-danger); }
-.summary-disponivel { border-color: var(--accent-primary); } /* Cor para o novo card de Disponíveis */
-.summary-parado { border-color: #ED8936; } /* Cor para o card Parado (Laranja) */
+.summary-disponivel { border-color: var(--accent-primary); } 
+.summary-parado { border-color: #ED8936; } 
 
-/* --- NOVOS ESTILOS PARA CABEÇALHO DO GRUPO --- */
+/* --- CABEÇALHO DO GRUPO --- */
 .frente-group-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 24px; /* Espaço acima do título */
-    margin-bottom: 12px; /* Espaço entre o título e a grade */
-    padding: 0 5px; /* Alinhamento leve com a grade */
+    margin-top: 24px; 
+    margin-bottom: 12px; 
+    padding: 0 5px; 
 }
 
 .frente-group-header h2 {
@@ -136,20 +133,17 @@
 .frente-group-truck-count i {
     font-size: 1.3rem;
 }
-/* --- FIM NOVOS ESTILOS --- */
+/* --- FIM CABEÇALHO GRUPO --- */
 
 
 .controle-grid {
     display: grid;
-    /* --- Mantém as 5 colunas --- */
     grid-template-columns: repeat(5, 1fr);
-    gap: 16px; /* Diminuído o gap */
-    /* --- MODIFICAÇÃO: Ajuste de margem --- */
+    gap: 16px; 
     margin-bottom: 16px; 
     margin-top: 0;
 }
 
-/* NOVO: Estilo para estado vazio da grade */
 .empty-state-frente-grid {
     grid-column: 1 / -1;
     text-align: center;
@@ -172,7 +166,6 @@
 
 .frente-header {
     background-color: #374151;
-    /* --- MODIFICAÇÃO: Padding diminuído --- */
     padding: 12px;
     border-bottom: 1px solid var(--border-color);
 }
@@ -180,29 +173,27 @@
 .frente-header-main {
     display: flex;
     align-items: center;
-    gap: 10px; /* Diminuído o gap */
-    margin-bottom: 12px; /* Diminuído o margin-bottom */
+    gap: 10px; 
+    margin-bottom: 12px; 
 }
 
-.frente-header-main i { font-size: 20px; color: var(--accent-primary); } /* Diminuído o ícone */
-/* --- MODIFICAÇÃO: Fonte diminuída --- */
+.frente-header-main i { font-size: 20px; color: var(--accent-primary); } 
 .frente-header-main h3 { font-size: 1.0rem; color: var(--text-primary); margin: 0; }
 
 .frente-fazenda-info { display: flex; justify-content: space-between; align-items: center; background-color: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; }
 .fazenda-display { display: flex; align-items: center; gap: 8px; }
 .fazenda-display i { color: var(--text-secondary); }
-.fazenda-nome { font-weight: 500; font-size: 0.85rem; } /* Diminuída a fonte */
+.fazenda-nome { font-weight: 500; font-size: 0.85rem; } 
 .fazenda-codigo { font-size: 0.75rem; color: var(--text-secondary); background-color: var(--bg-dark); padding: 2px 8px; border-radius: 6px; }
 .btn-alterar-fazenda { padding: 6px 12px; font-size: 0.8rem; background-color: var(--bg-light); }
 
 .frente-body {
-    /* --- MODIFICAÇÃO: Padding diminuído --- */
     padding: 12px;
     flex-grow: 1;
 }
 
 .frente-body h4 {
-    font-size: 0.85rem; /* Diminuída a fonte */
+    font-size: 0.85rem; 
     color: var(--text-secondary);
     margin-bottom: 10px;
     padding-bottom: 8px;
@@ -215,24 +206,21 @@
 }
 
 .caminhoes-em-operacao-table th, .caminhoes-em-operacao-table td {
-    /* --- MODIFICAÇÃO: Padding diminuído e remoção do nowrap --- */
     padding: 8px 5px;
     text-align: left;
     border-bottom: 1px solid var(--border-color);
 }
 
 .caminhoes-em-operacao-table th {
-    font-size: 0.75rem; /* Diminuída a fonte */
+    font-size: 0.75rem; 
     color: var(--text-secondary);
-    white-space: nowrap; /* Manter o cabeçalho sem quebra */
+    white-space: nowrap; 
 }
 
-/* NOVO: Reduz fonte da célula da tabela */
 .caminhoes-em-operacao-table td {
     font-size: 0.85rem;
 }
 
-/* --- NOVAS REGRAS DE LARGURA DE COLUNA --- */
 .caminhoes-em-operacao-table th:nth-child(1),
 .caminhoes-em-operacao-table td:nth-child(1) {
     width: 30%; /* Cód. */
@@ -241,24 +229,21 @@
 .caminhoes-em-operacao-table th:nth-child(2),
 .caminhoes-em-operacao-table td:nth-child(2) {
     width: 40%; /* Status */
-    white-space: normal; /* Permite que o status quebre a linha */
+    white-space: normal; 
 }
 
 .caminhoes-em-operacao-table th:nth-child(3),
 .caminhoes-em-operacao-table td:nth-child(3) {
     width: 30%; /* Ações */
-    text-align: center; /* Centraliza o botão */
+    text-align: center; 
 }
-/* --- FIM NOVAS REGRAS --- */
 
-/* NOVO: Diminui o botão de Ações da tabela */
 .caminhoes-em-operacao-table .btn-primary {
     font-size: 0.75rem !important;
     padding: 5px 8px !important;
 }
 
 
-/* --- ESTILOS ADICIONAIS PARA FRENTE --- */
 .frente-status-badge {
     padding: 4px 10px;
     border-radius: 12px;
@@ -271,11 +256,9 @@
     margin-bottom: 15px;
 }
 
-/* Status das Frentes */
-.status-ativa { background-color: var(--accent-primary); } /* Verde */
-.status-inativa { background-color: #718096; } /* Cinza */
-.status-fazendo_cata { background-color: #D69E2E; } /* Amarelo */
-/* --- FIM ESTILOS ADICIONAIS --- */
+.status-ativa { background-color: var(--accent-primary); } 
+.status-inativa { background-color: #718096; } 
+.status-fazendo_cata { background-color: #D69E2E; } 
 
 
 .caminhao-status-badge {
@@ -286,7 +269,6 @@
     color: white;
 }
 
-/* NOVO: Diminui o badge de status DENTRO da tabela */
 .caminhoes-em-operacao-table .caminhao-status-badge {
     font-size: 0.7rem;
     padding: 3px 6px;
@@ -302,7 +284,7 @@
 .status-descarregando { background-color: #38A169; }
 .status-disponivel { background-color: #718096; }
 .status-quebrado { background-color: var(--accent-danger); }
-.status-parado { background-color: #ED8936; } /* Cor para o status Parado (Laranja) */
+.status-parado { background-color: #ED8936; } 
 
 
 .historico-container { background-color: var(--bg-light); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; }
@@ -314,25 +296,24 @@
 .data-table-modern th { color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase; }
 .data-table-modern tbody tr:hover { background-color: rgba(74, 85, 104, 0.2); }
 
-/* Estilos para o Modal de Ação */
 .action-modal-form {
     display: flex;
     flex-direction: column;
     gap: 16px;
 }
 
-/* --- ESTILOS PARA FILA NO ESTACIONAMENTO (DRAG AND DROP) --- */
+/* --- ESTACIONAMENTO (DRAG AND DROP) --- */
 
 .fila-main-grid {
     display: grid;
-    grid-template-columns: 350px 1fr; /* Lista de disponíveis e painéis de fila */
+    grid-template-columns: 350px 1fr; 
     gap: 24px;
     padding: 24px;
 }
 
 .fila-queues-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* 3 colunas responsivas */
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
     gap: 24px;
 }
 
@@ -344,7 +325,7 @@
     padding: 20px;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 150px); /* Altura base para caber na tela */
+    height: calc(100vh - 150px); 
     overflow: hidden;
 }
 
@@ -364,7 +345,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding-right: 5px; /* Espaço para a scrollbar */
+    padding-right: 5px; 
 }
 
 .truck-card {
@@ -375,7 +356,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    cursor: grab; /* Mãozinha para indicar que é arrastável */
+    cursor: grab; 
     transition: all 0.2s ease;
 }
 
@@ -451,7 +432,7 @@
     }
     
     .fila-queues-grid {
-        grid-template-columns: repeat(2, 1fr); /* Volta para 2 colunas em telas menores */
+        grid-template-columns: repeat(2, 1fr); 
     }
 
     .fila-disponiveis-panel,
@@ -460,7 +441,6 @@
         min-height: 300px;
     }
 
-    /* NOVO: Ajusta a grade de frentes para 3 colunas em telas médias */
     .controle-grid {
         grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     }
@@ -468,10 +448,9 @@
 
 @media (max-width: 900px) {
     .fila-queues-grid {
-        grid-template-columns: 1fr; /* 1 coluna em mobile */
+        grid-template-columns: 1fr; 
     }
     
-    /* Regra para evitar que o header estoure em telas pequenas */
     .controle-view {
         padding: 16px; 
     }
@@ -488,7 +467,6 @@
         width: 100%; 
     }
 
-    /* NOVO: Ajusta a grade de frentes para 2 colunas */
     .controle-grid {
         grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
     }
@@ -501,10 +479,9 @@
 }
 
 
-/* --- NOVOS ESTILOS PARA FILA DE DESCARGA (COLUNAS DINÂMICAS) --- */
+/* --- FILA DE DESCARGA (COLUNAS DINÂMICAS) --- */
 .descarga-grid {
     display: grid;
-    /* grid-template-columns é definido dinamicamente no JS */
     gap: 24px;
     margin-bottom: 32px;
 }
@@ -513,15 +490,15 @@
     background-color: var(--bg-light);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 15px;
+    padding: 12px; /* <-- Padding diminuído */
 }
 
 .descarga-frente-title {
-    font-size: 1.2rem;
+    font-size: 1.1rem; /* <-- Fonte diminuída */
     font-weight: 700;
     color: var(--accent-primary);
-    margin-bottom: 15px;
-    padding-bottom: 10px;
+    margin-bottom: 12px; /* <-- Margem diminuída */
+    padding-bottom: 8px; /* <-- Padding diminuído */
     border-bottom: 2px solid var(--accent-primary);
     text-align: center;
 }
@@ -535,7 +512,7 @@
 .descarga-card {
     background-color: var(--bg-dark);
     border: 1px solid var(--border-color);
-    padding: 12px;
+    padding: 10px; /* <-- Padding diminuído */
     border-radius: 8px;
     display: flex;
     justify-content: space-between;
@@ -545,15 +522,12 @@
 }
 
 .descarga-card:hover {
-    background-color: #262c38; /* Fundo levemente mais escuro no hover */
+    background-color: #262c38; 
     transform: translateY(-1px);
-    /* --- INÍCIO DA CORREÇÃO (CLICKABLE CARD) --- */
     cursor: pointer;
     box-shadow: 0 0 10px rgba(56, 161, 105, 0.3);
-    /* --- FIM DA CORREÇÃO (CLICKABLE CARD) --- */
 }
 
-/* NOVO: Container para código e frente de origem */
 .descarga-info-main {
     display: flex;
     flex-direction: column;
@@ -561,20 +535,19 @@
 }
 
 .descarga-cod {
-    font-size: 1rem;
+    font-size: 0.95rem; /* <-- Fonte diminuída */
     font-weight: 600;
     color: var(--text-primary);
 }
 
-/* NOVO: Estilo para o nome da Frente de Origem */
 .descarga-frente-origem {
-    font-size: 0.75rem; /* Menor que o código */
+    font-size: 0.7rem; /* <-- Fonte diminuída */
     color: var(--text-secondary);
     font-weight: 400;
 }
 
 .descarga-time {
-    font-size: 0.85rem;
+    font-size: 0.8rem; /* <-- Fonte diminuída */
     color: var(--text-secondary);
 }
 
@@ -594,9 +567,7 @@
     color: #718096;
 }
 
-/* Responsividade para colunas */
 @media (max-width: 1400px) {
-    /* Diminui o número de colunas se houver muitas */
     .descarga-grid {
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
     }
@@ -608,37 +579,51 @@
     }
 }
 
-/* --- NOVOS ESTILOS PARA TABELA DE MOVIMENTAÇÃO (MATRIZ) --- */
+/* --- TABELA DE MOVIMENTAÇÃO (MATRIZ) --- */
 
-/* 🛑 CORREÇÃO DE LAYOUT: Faz o container da tabela esticar verticalmente */
+/* 🛑 CORREÇÃO DE LAYOUT: Container da Matriz */
 .report-table-container {
-    flex-grow: 1; /* Ocupa todo o espaço vertical restante */
-    padding: 0 24px; /* Adiciona o padding lateral */
-    overflow: hidden; /* Oculta qualquer overflow no container principal da matriz */
-    display: flex; /* Transforma em flex container para gerenciar o wrapper */
+    /* flex-grow: 1; */ /* <-- REMOVIDO */
+    padding: 0 24px; 
+    /* min-height: 0; */ /* <-- REMOVIDO */
+    display: flex; 
     flex-direction: column;
 }
 
 .report-table-container .table-wrapper {
-    flex-grow: 1;
-    overflow-y: hidden; /* Não deve haver rolagem vertical no wrapper da tabela */
-    overflow-x: auto; /* Mantém a rolagem horizontal para a tabela grande */
+    /* flex-grow: 1; */ /* <-- REMOVIDO */
+    /* overflow-y: auto; */ /* <-- REMOVIDO */
+    overflow-x: auto; /* <-- MANTIDO (Garante rolagem horizontal) */
+    /* min-height: 0; */ /* <-- REMOVIDO */
 }
+
+/* 🛑 CORREÇÃO PARA O SEU PEDIDO (NÃO ROLAR HORIZONTAL) */
+.report-table-container .data-table-modern {
+    table-layout: fixed; /* <-- CHAVE: Força a tabela a obedecer as larguras */
+    width: 100%; /* <-- CHAVE: Força a tabela a ter 100% do wrapper */
+    min-width: 0 !important; /* <-- CHAVE: Sobrescreve o 'min-width: 1500px' do JS */
+}
+
+.report-table-container .table-wrapper {
+    overflow-x: hidden; /* <-- CHAVE: Desliga a rolagem horizontal */
+}
+/* --- FIM DA CORREÇÃO --- */
 
 
 .data-table-modern .mov-header-group-title {
     text-align: center;
-    background-color: var(--accent-edit); /* Cor de destaque */
+    background-color: var(--accent-edit); 
     color: white;
-    font-size: 1.1rem;
-    padding: 8px;
+    font-size: 1.0rem; /* <-- Fonte diminuída */
+    padding: 6px; /* <-- Padding diminuído */
 }
 
 .data-table-modern .mov-header-slots th {
     background-color: var(--bg-dark);
-    font-size: 0.8rem;
-    padding: 8px 5px;
+    font-size: 0.75rem; /* <-- Fonte diminuída */
+    padding: 6px 4px; /* <-- Padding diminuído */
     border-bottom: 1px solid var(--border-color);
+    /* A largura será automática por causa do 'table-layout: fixed' */
 }
 
 .data-table-modern .mov-frente-name {
@@ -648,21 +633,17 @@
     font-size: 1rem;
     display: flex;
     flex-direction: column;
-    padding: 10px;
-    /* Adiciona uma borda à esquerda para destaque */
+    padding: 8px; /* <-- Padding diminuído */
     border-left: 5px solid var(--accent-primary);
-    /* Garante que o nome da frente não quebre a linha */
     white-space: nowrap; 
-    transition: background-color 0.2s ease, box-shadow 0.2s ease; /* Efeito hover */
+    transition: background-color 0.2s ease, box-shadow 0.2s ease; 
 }
 
-/* --- INÍCIO DA CORREÇÃO (HOVER NA FRENTE) --- */
 .data-table-modern .mov-frente-name.clickable-front:hover {
     cursor: pointer;
-    background-color: #374151; /* Um pouco mais escuro que o bg-light */
+    background-color: #374151; 
     box-shadow: inset 3px 0 0 var(--accent-primary);
 }
-/* --- FIM DA CORREÇÃO (HOVER NA FRENTE) --- */
 
 
 .data-table-modern .mov-frente-name i {
@@ -674,57 +655,70 @@
 .data-table-modern .frente-name-text {
     color: var(--text-primary);
     font-weight: 700;
-    font-size: 0.95rem;
+    font-size: 0.9rem; /* <-- Fonte diminuída */
     display: flex;
     align-items: center;
     gap: 5px;
 }
 
 .data-table-modern .frente-group-text {
-    font-size: 0.75rem;
+    font-size: 0.7rem; /* <-- Fonte diminuída */
     color: var(--text-secondary);
     font-weight: 500;
 }
 
 .data-table-modern .mov-cell {
-    /* Células de dados */
-    min-width: 60px; /* Largura mínima para os slots de hora */
+    /* min-width: 55px; */ /* <-- REMOVIDO para permitir que a coluna encolha */
     text-align: center;
-    padding: 5px;
+    padding: 3px; /* <-- Padding diminuído */
     vertical-align: top;
-    border: 1px solid var(--border-color); /* Borda mais fina */
-    height: 40px; /* Altura mínima para a célula */
-    transition: background-color 0.2s ease; /* Efeito hover */
+    border: 1px solid var(--border-color); 
+    height: 36px; /* <-- Altura diminuída */
+    transition: background-color 0.2s ease; 
 }
 
 .data-table-modern .mov-cell.has-data {
-    background-color: rgba(56, 161, 105, 0.1); /* Fundo leve para células com dados */
+    background-color: rgba(56, 161, 105, 0.1); 
 }
 
-/* Estilo para o código do caminhão (badge) */
+/* 🛑 NOVO: Estilos para forçar o empilhamento vertical dos badges */
+/* Wrapper para os grupos de stacks */
+.mov-stacks-wrapper {
+    display: flex; /* Faz os grupos de 3 fluírem horizontalmente */
+    flex-direction: row;
+    gap: 2px; /* Espaço entre as pilhas verticais */
+    justify-content: center; /* Centraliza as pilhas na célula */
+    flex-wrap: wrap; /* Permite quebrar a linha se houver muitas pilhas */
+}
+
+/* Um grupo (pilha) vertical de até 3 badges */
+.mov-stack-group {
+    display: flex; /* Faz os badges fluírem verticalmente */
+    flex-direction: column;
+    gap: 2px; /* Espaço entre os badges na pilha */
+}
+/* --- FIM DO NOVO ESTILO DE EMPILHAMENTO --- */
+
+
 .truck-code-badge {
     display: inline-block;
-    /* REMOVIDO: background-color: var(--accent-primary); */
     color: white;
-    padding: 2px 5px;
+    padding: 2px 4px; /* <-- Padding diminuído */
     border-radius: 4px;
-    font-size: 0.75rem;
+    font-size: 0.7rem; /* <-- Fonte diminuída */
     font-weight: 600;
-    margin: 2px;
+    margin: 1px; /* <-- Margem diminuída */
     line-height: 1.2;
     white-space: nowrap;
-    /* 🛑 NOVO: Adiciona cursor de ponteiro para indicar que é clicável */
     cursor: pointer;
     transition: background-color 0.1s ease;
 }
 
 .truck-code-badge:hover {
-    /* Usa o accent-hover (verde escuro) para o hover de todos */
     background-color: var(--accent-hover);
 }
 
-/* --- INÍCIO DA CORREÇÃO (CORES DOS BADGES) --- */
-/* Cores dos badges baseadas nas cores de status (ver .status-indo_carregar, etc.) */
+/* Cores dos badges */
 .legend-color-box.status-indo_carregar,
 .truck-code-badge.status-indo_carregar { background-color: #2B6CB0; }
 
@@ -751,31 +745,26 @@
 
 .legend-color-box.status-parado,
 .truck-code-badge.status-parado { background-color: #ED8936; }
-/* --- FIM DA CORREÇÃO (CORES DOS BADGES) --- */
 
 
-/* --- INÍCIO DA CORREÇÃO (DESTAQUE HORA ATUAL) --- */
+/* Destaque Hora Atual */
 .data-table-modern .mov-header-slot.current-hour-slot {
-    background-color: var(--accent-edit); /* Azul */
+    background-color: var(--accent-edit); 
     color: var(--text-primary);
     border-bottom: 2px solid var(--accent-primary);
 }
 .data-table-modern .mov-cell.current-hour-slot {
-    background-color: rgba(43, 108, 176, 0.15); /* Fundo azul bem claro */
+    background-color: rgba(43, 108, 176, 0.15); 
     border-left: 1px solid var(--accent-edit);
     border-right: 1px solid var(--accent-edit);
 }
-/* --- FIM DA CORREÇÃO (DESTAQUE HORA ATUAL) --- */
 
 
-/* --- INÍCIO DA CORREÇÃO (DESTAQUE FRENTE INATIVA) --- */
+/* Destaque Frente Inativa */
 .data-table-modern tbody tr.frente-inativa td {
-    /* Linha vermelha na parte inferior de cada célula da linha */
     border-bottom: 1px solid var(--accent-danger); 
-    /* Um leve fundo para indicar a linha inteira */
     background-color: rgba(197, 48, 48, 0.05); 
 }
-/* Destaca o nome da frente inativa também */
 .data-table-modern tbody tr.frente-inativa .mov-frente-name {
     border-left-color: var(--accent-danger);
     background-color: rgba(197, 48, 48, 0.1);
@@ -787,31 +776,22 @@
 .data-table-modern tbody tr.frente-inativa .frente-fazenda-text {
     opacity: 0.7;
 }
-/* --- FIM DA CORREÇÃO (DESTAQUE FRENTE INATIVA) --- */
 
-/* --- INÍCIO DA CORREÇÃO (TABELA DESCARGA) --- */
+/* Tabela Descarga */
 .descarga-container-matriz {
-    padding: 0 24px 24px 24px; /* Padding para alinhar com a tabela */
-    flex-shrink: 0; /* Impede que encolha */
-    border-top: 1px solid var(--border-color); /* Separa da matriz */
-    margin-top: 20px; /* Espaço entre a matriz e esta seção */
+    padding: 0 24px 16px 24px; /* <-- Padding diminuído */
+    flex-shrink: 0; 
+    border-top: 1px solid var(--border-color); 
+    margin-top: 16px; /* <-- Margem diminuída */
 }
 
 .descarga-header-matriz {
-    font-size: 1.5rem;
-    color: var(--accent-primary); /* Verde */
-    margin-top: 20px;
-    margin-bottom: 16px;
+    font-size: 1.3rem; /* <-- Fonte diminuída */
+    color: var(--accent-primary); 
+    margin-top: 16px; /* <-- Margem diminuída */
+    margin-bottom: 12px; /* <-- Margem diminuída */
     padding-bottom: 10px;
     display: flex;
     align-items: center;
     gap: 10px;
 }
-
-/* REMOVIDO: .descarga-list-matriz (agora usa .descarga-grid) */
-
-/* Os estilos .descarga-grid, .descarga-coluna, .descarga-frente-title, 
-   .descarga-list, .descarga-card, .descarga-info-main, .descarga-cod, 
-   .descarga-frente-origem, e .descarga-time já existem acima (linhas 416-486)
-   e serão reutilizados pela nova estrutura de 3 colunas. */
-/* --- FIM DA CORREÇÃO (TABELA DESCARGA) --- */
