@@ -1,48 +1,46 @@
-// js/views/descarga.js (MODIFICADO PARA FAZENDAS VIEW)
-import { mapManager } from '../maps.js';
+// js/views/fazenda.js (MODIFICADO PARA ISOLAMENTO)
+
+// 1. REMOVE o mapManager
+// import { mapManager } from '../maps.js'; 
+// 2. ADICIONA o novo inicializador de mapa dedicado
+import { initFazendaMap } from '../fazendaMap.js'; 
+
 import { dataCache } from '../dataCache.js';
 import { showLoading, hideLoading, handleOperation } from '../helpers.js';
 import { formatDateTime } from '../timeUtils.js';
 
-// Importa coordenadas da usina (do maps.js, mas definido aqui para clareza se maps.js não exportar)
+// Coordenadas da usina (importadas localmente para cálculo de bounds)
 const USINA_COORDS = [-17.642301, -40.181525];
 
 export class FazendasView {
     constructor() {
         this.container = null;
-        this.map = null;
+        this.map = null; // Mapa agora é local da view
         this.data = {};
-        this.allFazendasData = []; // Armazena todas as fazendas para filtrar
-        this.markersLayer = null; // Camada para os marcadores
+        this.allFazendasData = []; 
+        this.markersLayer = null; 
         
-        // Filtros da legenda (copiado do dashboard)
-        this.activeFilters = { 
-            usina: true, 
-            ativa: true, 
-            fazendo_cata: true, 
-            inativa: true 
-        };
+        // REMOVIDO: Filtros da legenda não são mais necessários
         
-        // Armazena referências dos listeners para remoção
         this._boundSearchHandler = this.handleSearch.bind(this);
-        this._boundLegendClickHandler = this.handleLegendClick.bind(this);
+        // REMOVIDO: Handler da legenda
     }
 
     async show() {
         await this.loadHTML();
-        await this.initializeMap();
+        await this.initializeMap(); // Chama o novo inicializador
         await this.loadData();
         this.addEventListeners();
     }
 
     async hide() {
-        // Remove listeners para evitar memory leaks
         if (this.container) {
             this.container.querySelector('#fazenda-search')?.removeEventListener('keyup', this._boundSearchHandler);
             this.container.querySelector('#fornecedor-search')?.removeEventListener('keyup', this._boundSearchHandler);
-            this.container.querySelector('#map-legend')?.removeEventListener('click', this._boundLegendClickHandler);
+            // REMOVIDO: Listener da legenda
         }
         
+        // Limpa o mapa local
         if (this.map) {
             this.map.remove();
             this.map = null;
@@ -58,63 +56,42 @@ export class FazendasView {
     }
 
     getHTML() {
-        // Re-usando classes de dashboard.css para consistência
+        // HTML com o painel lateral de pesquisa
         return `
             <div id="fazendas-view" class="view active-view">
                 <div class="dashboard-header" style="flex-wrap: wrap; gap: 15px;">
                     <h1>Mapa de Fazendas e Frentes</h1>
-                    <div class="fazendas-filters">
-                        <input type="text" id="fazenda-search" class="form-input" placeholder="Buscar Fazenda ou Frente..." style="width: 250px;">
-                        <input type="text" id="fornecedor-search" class="form-input" placeholder="Buscar por Fornecedor..." style="width: 250px;">
-                    </div>
                 </div>
                 <div class="map-fullscreen">
+                    
+                    <div class="fazenda-view-controls">
+                        <div class="fazenda-search-header">
+                            <i class="ph-fill ph-magnifying-glass"></i>
+                            <span>Filtrar Locais</span>
+                        </div>
+                        <div class="fazenda-filters-body">
+                            <input type="text" id="fazenda-search" class="form-input" placeholder="Buscar Fazenda ou Frente...">
+                            <input type="text" id="fornecedor-search" class="form-input" placeholder="Buscar por Fornecedor...">
+                        </div>
+                    </div>
+
                     <div id="fazendas-map-container"></div>
-                    ${this.renderLegend()}
-                </div>
+                    
+                    </div>
             </div>
         `;
     }
     
-    // Copiado do dashboard.js para manter consistência
-    renderLegend() {
-         return `
-            <div class="map-legend" id="map-legend"> <div class="legend-title">Legenda</div>
-                <div class="legend-items">
-                    <div class="legend-item ${this.activeFilters.usina ? '' : 'disabled'}" data-filter-key="usina"> <div class="legend-color usina"></div>
-                        <span>Usina</span>
-                    </div>
-                    <div class="legend-item ${this.activeFilters.ativa ? '' : 'disabled'}" data-filter-key="ativa">
-                        <div class="legend-color colhendo"></div>
-                        <span>Colhendo</span>
-                    </div>
-                    <div class="legend-item ${this.activeFilters.fazendo_cata ? '' : 'disabled'}" data-filter-key="fazendo_cata">
-                        <div class="legend-color fazendo_cata"></div>
-                        <span>Cata</span>
-                    </div>
-                    <div class="legend-item ${this.activeFilters.inativa ? '' : 'disabled'}" data-filter-key="inativa">
-                        <div class="legend-color atencao"></div>
-                        <span>Frentes com Atenção</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
+    // FUNÇÃO renderLegend() REMOVIDA
 
     async initializeMap() {
-        this.map = mapManager.initMap('fazendas-map-container');
+        // CHAMA A FUNÇÃO DE INICIALIZAÇÃO ISOLADA
+        this.map = initFazendaMap('fazendas-map-container');
+        
         if (this.map) {
-            // Adiciona o marcador da Usina (lógica do maps.js/dashboard.js)
-            const usinaIcon = L.divIcon({
-                className: 'usina-marker',
-                html: `<div class="marker-pin usina"><i class="ph-fill ph-factory"></i></div><div class="marker-pulse usina"></div>`,
-                iconSize: [45, 45],
-                iconAnchor: [22, 45]
-            });
-            L.marker(USINA_COORDS, { icon: usinaIcon }).addTo(this.map)
-                .bindPopup('<b>Usina LOGISTICA BEL</b><br>Localização principal');
+            // A Usina já é adicionada pelo initFazendaMap
             
-            // Inicializa a camada de marcadores
+            // Inicializa a camada de marcadores local
             this.markersLayer = L.layerGroup().addTo(this.map);
         }
     }
@@ -122,11 +99,8 @@ export class FazendasView {
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            // Usamos fetchAllData para ter todos os links (fazendas, frentes, fornecedores)
             this.data = await dataCache.fetchAllData(forceRefresh);
-            // Prepara os dados agregados uma vez
             this.aggregateFazendaData();
-            // Renderiza os marcadores
             this.renderMarkers();
         } catch (error) {
             handleOperation(error);
@@ -135,7 +109,6 @@ export class FazendasView {
         }
     }
     
-    // Prepara o array `allFazendasData` com todas as informações linkadas
     aggregateFazendaData() {
         const { fazendas = [], frentes_servico = [] } = this.data;
         const fazendaDataMap = new Map();
@@ -145,12 +118,10 @@ export class FazendasView {
                 ...f,
                 frenteStatus: null,
                 frenteNome: 'N/A',
-                // O 'fornecedores' já vem linkado de fetchAllData
                 fornecedorNome: f.fornecedores?.nome || '' 
              });
         });
 
-        // Linka o status da frente à fazenda
         frentes_servico.filter(f => f.fazenda_id && (f.status === 'ativa' || f.status === 'fazendo_cata' || f.status === 'inativa'))
                        .forEach(frente => {
                            if (fazendaDataMap.has(frente.fazenda_id)) {
@@ -163,34 +134,26 @@ export class FazendasView {
         this.allFazendasData = Array.from(fazendaDataMap.values());
     }
     
-    // Renderiza marcadores baseado nos filtros atuais
     renderMarkers() {
         if (!this.map || !this.markersLayer) return;
         
-        this.markersLayer.clearLayers(); // Limpa marcadores antigos
+        this.markersLayer.clearLayers(); 
         
         const fazendaFilter = this.container.querySelector('#fazenda-search')?.value.toLowerCase() || '';
         const fornecedorFilter = this.container.querySelector('#fornecedor-search')?.value.toLowerCase() || '';
 
-        // Filtra os dados agregados
         const filteredFazendas = this.allFazendasData.filter(f => {
-            // 1. Filtro de Texto (Fazenda ou Frente)
             const matchesFazenda = fazendaFilter === '' ||
                 f.nome.toLowerCase().includes(fazendaFilter) ||
                 f.frenteNome.toLowerCase().includes(fazendaFilter);
             
-            // 2. Filtro de Texto (Fornecedor)
             const matchesFornecedor = fornecedorFilter === '' ||
                 f.fornecedorNome.toLowerCase().includes(fornecedorFilter);
             
-            // 3. Filtro de Legenda (Status)
-            const filterKey = f.frenteStatus || 'inativa';
-            const matchesLegend = this.activeFilters[filterKey] !== false; // Inclui null/inativa
-
-            return matchesFazenda && matchesFornecedor && matchesLegend;
+            // FILTRO DE LEGENDA REMOVIDO
+            return matchesFazenda && matchesFornecedor;
         });
 
-        // Renderiza os marcadores (lógica copiada/adaptada do dashboard.js)
         const newMarkers = [];
         filteredFazendas.forEach(fazenda => {
             if (fazenda.latitude && fazenda.longitude) {
@@ -204,11 +167,13 @@ export class FazendasView {
                     default: color = '#718096'; statusLabel = 'Sem Frente Ativa'; iconClass = 'inativa'; break;
                 }
 
+                // --- ÍCONE SEM O PISCA-PISCA (PULSE) ---
                 const customIcon = L.divIcon({
-                    className: `fazenda-marker status-${iconClass}`,
-                    html: `<div class="marker-pin" style="background-color: ${color}"><i class="ph-fill ph-tree-evergreen"></i></div><div class="marker-pulse" style="background-color: ${color}"></div>`,
-                    iconSize: [40, 40],
-                    iconAnchor: [20, 40]
+                    className: `fazenda-view-marker status-${iconClass}`,
+                    // HTML agora contém APENAS o ícone do pino
+                    html: `<i class="ph-fill ph-map-pin fazenda-pin-icon" style="color: ${color};"></i>`,
+                    iconSize: [48, 48],
+                    iconAnchor: [24, 48] // Ponta inferior do pino
                 });
                 
                 const marker = L.marker(coords, { icon: customIcon });
@@ -235,19 +200,17 @@ export class FazendasView {
         if (newMarkers.length > 0) {
             newMarkers.forEach(m => this.markersLayer.addLayer(m));
             const bounds = L.latLngBounds(newMarkers.map(m => m.getLatLng()));
-            bounds.extend(USINA_COORDS); // Garante que a usina esteja visível
+            bounds.extend(USINA_COORDS); 
             this.map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
         } else if (fazendaFilter === '' && fornecedorFilter === '') {
-            // Se nenhum filtro e nenhum marcador, apenas centraliza na usina
             this.map.setView(USINA_COORDS, 10);
         }
-        // Se houver filtros, mas nenhum resultado, o mapa não mexe (mostra a última visão)
     }
     
     addEventListeners() {
         const fazendaSearch = this.container.querySelector('#fazenda-search');
         const fornecedorSearch = this.container.querySelector('#fornecedor-search');
-        const legend = this.container.querySelector('#map-legend');
+        // REMOVIDO: Listener da legenda
 
         if (fazendaSearch) {
             fazendaSearch.addEventListener('keyup', this._boundSearchHandler);
@@ -255,24 +218,11 @@ export class FazendasView {
         if (fornecedorSearch) {
             fornecedorSearch.addEventListener('keyup', this._boundSearchHandler);
         }
-        if (legend) {
-            legend.addEventListener('click', this._boundLegendClickHandler);
-        }
     }
     
-    // Handler para os inputs de pesquisa
     handleSearch() {
         this.renderMarkers();
     }
     
-    // Handler para a legenda
-    handleLegendClick(e) {
-        const item = e.target.closest('.legend-item');
-        const filterKey = item?.dataset.filterKey;
-        if (filterKey && filterKey !== 'usina') {
-            this.activeFilters[filterKey] = !this.activeFilters[filterKey];
-            item.classList.toggle('disabled');
-            this.renderMarkers(); // Re-renderiza marcadores com filtros
-        }
-    }
+    // FUNÇÃO handleLegendClick() REMOVIDA
 }

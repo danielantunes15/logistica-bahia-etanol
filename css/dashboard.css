@@ -635,643 +635,6 @@
     }
 }
 
-/* css/dashboard.css */
-.report-header {
-    display: flex;
-    /* Altera para alinhar o título e o menu em duas linhas */
-    flex-direction: column; 
-    gap: 16px;
-    padding: 24px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-/* NOVO: Estilos para o menu interno */
-.report-internal-menu {
-    display: flex;
-    gap: 12px;
-    /* Faz o menu ocupar o container todo em telas maiores */
-    width: 100%; 
-    flex-wrap: wrap; 
-}
-
-.report-internal-menu .internal-menu-btn {
-    /* Base do btn-secondary já existe em style.css */
-    padding: 10px 16px;
-    font-size: 0.9rem;
-    white-space: nowrap;
-}
-
-.report-internal-menu .internal-menu-btn.active {
-    background-color: var(--accent-primary);
-    color: white;
-    border-color: var(--accent-primary);
-}
-/* FIM NOVO: Estilos para o menu interno */
-
-
-.report-filters {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-
-.charts-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    padding: 24px;
-}
-
-.chart-container {
-    background-color: var(--bg-light);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    padding: 20px;
-}
-
-.chart-container h3 {
-    margin-bottom: 16px;
-    color: var(--text-primary);
-    font-size: 1.1rem;
-}
-
-.chart-wrapper {
-    position: relative;
-    height: 300px;
-}
-
-.report-export {
-    padding: 0 24px 24px;
-    display: flex;
-    gap: 12px;
-}
-
-/* Estilos para o container de tabela */
-.report-table-container {
-    padding-bottom: 24px;
-    /* Adiciona margem superior para separar dos filtros */
-    margin-top: 24px; 
-}
-
-/* Garante que o .data-table-modern dentro do relatório tenha espaço e scroll */
-.report-table-container .data-table-modern {
-    min-width: 800px; /* Garante que a tabela não quebre em 1 coluna */
-}
-
-@media (max-width: 768px) {
-    .charts-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .report-header {
-        flex-direction: column;
-        gap: 16px;
-        align-items: flex-start;
-    }
-    
-    .report-internal-menu {
-        flex-direction: column;
-        gap: 8px;
-    }
-    
-    .report-internal-menu .internal-menu-btn {
-        width: 100%;
-        text-align: center;
-    }
-    
-    .report-table-container > div {
-        /* Permite scroll horizontal na tabela em telas pequenas */
-        overflow-x: auto; 
-    }
-    
-    .report-filters {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 16px;
-    }
-}
-/* css/dashboard.css */
-.dashboard-header {
-    padding: 24px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.kpi-container {
-    display: flex;
-    gap: 20px;
-    padding: 24px;
-    flex-wrap: wrap;
-}
-
-.kpi-card {
-    background-color: var(--bg-light);
-    padding: 20px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    min-width: 200px;
-    text-align: center;
-}
-
-.kpi-card h3 {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    margin-bottom: 8px;
-}
-
-.kpi-card p {
-    font-size: 2rem;
-    font-weight: 600;
-    color: var(--accent-primary);
-}
-
-.map-container {
-    height: 400px;
-    margin: 24px;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid var(--border-color);
-}
-
-/* --- ESTILOS MOVIDOS DE style.css --- */
-
-/* Painel Moderno Sobre o Mapa */
-.modern-dashboard-overlay {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    right: 20px;
-    z-index: 1000;
-}
-
-.stats-panel {
-    /* CORREÇÃO 1: Aumenta o desfoque para um efeito de profundidade maior */
-    background: rgba(26, 32, 44, 0.95); 
-    backdrop-filter: blur(25px); /* AUMENTADO O BLUR */
-    border: 1px solid rgba(74, 85, 104, 0.5); /* Borda um pouco mais visível */
-    border-radius: 16px;
-    padding: 20px;
-    box-shadow: 
-        0 20px 40px rgba(0, 0, 0, 0.4),
-        0 0 0 1px rgba(255, 255, 255, 0.1);
-    margin: 0 auto;
-    max-width: 1400px; 
-}
-
-.panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid rgba(74, 85, 104, 0.3);
-}
-
-.panel-header h3 {
-    margin: 0;
-    font-size: 1.3rem;
-    font-weight: 700;
-    background: none; 
-    color: var(--text-primary); 
-    -webkit-background-clip: unset;
-    -webkit-text-fill-color: var(--text-primary); 
-    background-clip: unset;
-}
-
-/* NOVO: Estilos para a equipe de turno */
-.on-shift-info {
-    display: flex;
-    gap: 20px;
-    text-align: center;
-    justify-content: center;
-    flex-grow: 1;
-}
-
-#on-shift-leaders,
-#on-shift-weighers {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
-#on-shift-leaders span,
-#on-shift-weighers span {
-    font-weight: 600;
-    color: var(--text-primary);
-    background-color: var(--bg-light);
-    padding: 3px 10px;
-    border-radius: 6px;
-    margin-left: 6px;
-}
-/* FIM NOVO */
-
-
-.last-update {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    background: rgba(74, 85, 104, 0.3);
-    padding: 4px 12px;
-    border-radius: 12px;
-    font-weight: 600;
-}
-
-.stats-grid {
-    display: grid;
-    /* Ajustado para garantir 4 colunas em telas grandes (a partir de 1200px) */
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 16px;
-    margin-bottom: 20px;
-}
-
-.stat-card {
-    background: linear-gradient(135deg, rgba(45, 55, 72, 0.9), rgba(26, 32, 44, 0.95));
-    border: 1px solid rgba(74, 85, 104, 0.3);
-    border-radius: 14px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    transition: all 0.3s ease, box-shadow 0.3s ease; /* Adiciona box-shadow à transição */
-    position: relative;
-    overflow: hidden;
-}
-
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, #38A169, #2B6CB0);
-    opacity: 0.7;
-}
-
-.stat-card:hover {
-    transform: translateY(-5px); /* AUMENTADO o movimento */
-    border-color: var(--accent-primary);
-    /* CORREÇÃO 2: Adiciona sombra de cor (Glow) */
-    box-shadow: 
-        0 10px 30px rgba(0, 0, 0, 0.5),
-        0 0 15px var(--accent-primary); /* Efeito de brilho */
-}
-
-.stat-header {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 10px;
-}
-
-.stat-icon {
-    width: 50px;
-    height: 50px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #38A169, #2F855A);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.stat-icon i {
-    font-size: 24px;
-    color: white;
-}
-
-.stat-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text-primary); 
-    background: none; 
-    -webkit-background-clip: unset;
-    -webkit-text-fill-color: var(--text-primary); 
-    background-clip: unset;
-}
-
-.stat-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 15px;
-}
-
-.stat-main,
-.stat-secondary {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    flex: 1;
-}
-
-.stat-value {
-    font-size: 2rem;
-    font-weight: 800;
-    color: var(--text-primary);
-    line-height: 1;
-    margin-bottom: 6px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* NOVO: Classe para valores menores quando há 3 métricas */
-.stat-value.small-value,
-.stat-badge.small-value {
-    font-size: 1.5rem; /* Reduz para caber */
-}
-
-.stat-badge {
-    font-size: 1.3rem;
-    font-weight: 800;
-    color: #E53E3E;
-    line-height: 1;
-    margin-bottom: 6px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.stat-badge.danger {
-    color: #E53E3E;
-}
-
-.stat-value.ready { 
-    color: var(--accent-edit); 
-    /* A classe small-value já define o tamanho de 1.5rem */
-}
-
-.stat-value.warning,
-.stat-badge.warning {
-    color: #ED8936; /* Laranja para o status Cata/Alerta */
-}
-
-
-.stat-label {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 600;
-    line-height: 1.2;
-}
-
-.stat-total {
-    position: absolute;
-    /* MODIFICADO: Desce o elemento para evitar que se junte aos números principais */
-    bottom: 8px; 
-    right: 16px;
-    font-size: 0.7rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-}
-
-.stat-total span {
-    color: var(--text-primary);
-    font-weight: 800;
-}
-
-.panel-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 15px;
-    border-top: 1px solid rgba(74, 85, 104, 0.3);
-}
-
-.efficiency-metric {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.metric-label {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-}
-
-.metric-value {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.metric-value span {
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: var(--text-primary);
-    min-width: 45px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
-.metric-bar {
-    width: 120px;
-    height: 6px;
-    background: rgba(74, 85, 104, 0.5);
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.metric-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: all 1s ease;
-    background: linear-gradient(90deg, #38A169, #2F855A);
-}
-
-.active-now {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-    font-weight: 600;
-    background: rgba(56, 161, 105, 0.15);
-    padding: 6px 12px;
-    border: 1px solid rgba(56, 161, 105, 0.3);
-    border-radius: 12px;
-}
-
-.active-now i {
-    color: var(--accent-primary);
-}
-
-.active-now span {
-    color: var(--text-primary);
-    font-weight: 800;
-}
-
-/* Legenda do Mapa */
-.map-legend {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    background: rgba(26, 32, 44, 0.95);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(74, 85, 104, 0.3);
-    border-radius: 12px;
-    padding: 16px;
-    z-index: 1000;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-}
-
-.legend-title {
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 12px;
-    text-align: center;
-}
-
-.legend-items {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.legend-item { 
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    cursor: pointer; 
-    padding: 5px 8px; 
-    border-radius: 6px;
-    transition: all 0.2s ease;
-}
-
-.legend-item:hover {
-    background: rgba(74, 85, 104, 0.2);
-}
-
-.legend-item.disabled { 
-    opacity: 0.4;
-    text-decoration: line-through;
-}
-
-.legend-color {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    border: 2px solid white;
-}
-
-.legend-color.usina {
-    /* MUDANÇA DE COR: Para #805AD5 (Roxo) */
-    background-color: #805AD5;
-}
-
-.legend-color.colhendo { 
-    background-color: var(--accent-primary);
-}
-
-.legend-color.fazendo_cata {
-    background-color: #ED8936; /* Laranja para Cata */
-}
-
-.legend-color.atencao {
-    /* MUDANÇA DE COR: Para VERMELHO */
-    background-color: var(--accent-danger); /* #C53030 */
-}
-
-.legend-color.finalizada {
-    background-color: #718096;
-}
-
-
-/* Responsivo */
-@media (max-width: 1024px) {
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .stats-panel {
-        padding: 16px;
-    }
-}
-
-@media (max-width: 768px) {
-    .stats-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .panel-footer {
-        flex-direction: column;
-        gap: 12px;
-        align-items: flex-start;
-    }
-    
-    .map-legend {
-        bottom: 10px;
-        right: 10px;
-        left: 10px;
-    }
-    
-    .legend-items {
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-}
-
-@media (max-width: 480px) {
-    .stats-panel {
-        padding: 12px;
-    }
-    
-    .stat-card {
-        padding: 16px;
-    }
-    
-    .stat-header {
-        flex-direction: column;
-        gap: 8px;
-        text-align: center;
-    }
-    
-    .stat-content {
-        flex-direction: column;
-        gap: 12px;
-    }
-    
-    .stat-main,
-    .stat-secondary {
-        flex-direction: row;
-        justify-content: space-between;
-        width: 100%;
-    }
-}
-
-/* NOVO: Estilo para a grade de 3 colunas (KPI de Caminhões) */
-.stat-content.status-3-cols { 
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 10px; 
-    margin-top: 10px; 
-    /* MODIFICADO: Aumenta a margem inferior para afastar do texto 'Total' */
-    margin-bottom: 35px;
-}
-
-.stat-content.status-3-cols .stat-main,
-.stat-content.status-3-cols .stat-secondary {
-    /* MODIFICADO: Adiciona min-height e centralização para uniformidade e proporção */
-    min-height: 70px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    
-    background: rgba(45, 55, 72, 0.5); 
-    border-radius: 8px;
-    padding: 5px; 
-}
-
-
-/* NOVO: Garante o layout de 4 colunas em telas grandes */
-@media (min-width: 1200px) {
-    .stats-grid {
-        /* Garante 4 colunas de tamanho igual quando há espaço suficiente */
-        grid-template-columns: repeat(4, 1fr); 
-    }
-}
-
 /* --- INÍCIO DA MODIFICAÇÃO (FAZENDAS VIEW) --- */
 .fazendas-filters {
     display: flex;
@@ -1285,4 +648,86 @@
     height: 100%;
     width: 100%;
 }
+
+/* --- NOVOS ESTILOS PARA FAZENDAS VIEW (CONTROLE LATERAL) --- */
+.fazenda-view-controls {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 320px;
+    z-index: 1000;
+    /* Estilo moderno (similar ao stats-panel) */
+    background: rgba(26, 32, 44, 0.9);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    color: var(--text-primary);
+}
+.fazenda-search-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+.fazenda-search-header i {
+    font-size: 1.2rem;
+    color: var(--accent-primary);
+}
+.fazenda-search-header span {
+    font-size: 1rem;
+    font-weight: 600;
+}
+.fazenda-filters-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.fazenda-filters-body .form-input {
+    /* Garante que o input use os estilos base e ocupe 100% */
+    width: 100%;
+    background-color: var(--bg-dark); /* Fundo escuro para o input */
+}
+/* --- FIM NOVOS ESTILOS DE CONTROLE --- */
+
+
+/* --- NOVOS ESTILOS PARA FAZENDAS VIEW (ÍCONE DE PINO) --- */
+.fazenda-view-marker {
+    /* Ajusta o container do ícone de pino */
+    width: 48px !important;
+    height: 48px !important;
+    /* Remove fundo e borda do container padrão do leaflet */
+    background: transparent !important;
+    border: none !important;
+}
+.fazenda-view-marker .fazenda-pin-icon {
+    font-size: 48px; /* Tamanho do ícone */
+    /* Efeito de "soltar" o pino, com sombra */
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
+    position: absolute; /* Permite que o pulso fique atrás */
+    top: 0;
+    left: 0;
+    z-index: 1; /* Pino na frente */
+    /* O 'color' é aplicado inline no JS */
+}
+
+/* Reposiciona o pulso para a base do pino */
+.fazenda-view-marker .marker-pulse {
+    /* A animação 'pulsate' já existe em style.css */
+    /* Move o pulso para a âncora (bottom-center) */
+    top: 100%; /* Coloca no final do container de 48px */
+    left: 50%;
+    margin: -7px 0 0 -7px; /* Centraliza o pulso de 14x14 */
+    transform: rotateX(55deg);
+    z-index: 0; /* Pulso atrás do pino */
+}
+/* Garante que o pulso 'after' (a animação) seja visível */
+.fazenda-view-marker .marker-pulse::after {
+    box-shadow: 0 0 1px 3px currentColor; /* Garante que a sombra use a cor */
+}
+/* --- FIM NOVOS ESTILOS DE PINO --- */
+
+
 /* --- FIM DA MODIFICAÇÃO (FAZENDAS VIEW) --- */
