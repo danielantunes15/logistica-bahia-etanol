@@ -18,8 +18,8 @@ export class FrotaView {
     }
 
     async show() {
-        await this.loadData(); // Modificado: Apenas carrega os dados
-        this.addEventListeners(); // Modificado: Adiciona listeners após o render
+        await this.loadData(); // loadData agora cuidará de chamar addEventListeners
+        // this.addEventListeners(); // REMOVIDO
     }
 
     async hide() {
@@ -59,16 +59,39 @@ export class FrotaView {
 
     async loadData(forceRefresh = false) {
         showLoading();
+        
+        // --- NOVO: SALVAR POSIÇÃO DE SCROLL ANTES DE SUBSTITUIR O DOM ---
+        let savedScrollTop = 0;
+        // O container da view é o elemento pai de todo o conteúdo rolável
+        const viewContainer = document.getElementById('frota-view'); 
+        if (viewContainer) {
+            savedScrollTop = viewContainer.scrollTop;
+        }
+        // ------------------------------------------------------------------
+
         try {
             // Usa fetchAllData para ter acesso ao caminhao_historico
             this.data = await dataCache.fetchAllData(forceRefresh); 
-            await this.loadHTML(); // Modificado: Carrega o HTML primeiro
+            await this.loadHTML(); // Modificado: Carrega o HTML primeiro (substitui o DOM)
             this.render(); // Modificado: Chama o render principal
         } catch (error) {
             handleOperation(error);
         } finally {
             hideLoading();
         }
+        
+        // --- NOVO: RESTAURAR POSIÇÃO DE SCROLL APÓS O DOM SER RECONSTRUÍDO ---
+        const newViewContainer = document.getElementById('frota-view'); 
+        if (newViewContainer && savedScrollTop > 0) {
+            // Usa um pequeno timeout para garantir que o navegador calculou a nova altura do conteúdo
+            setTimeout(() => {
+                newViewContainer.scrollTop = savedScrollTop;
+            }, 50);
+        }
+        // ------------------------------------------------------------------
+
+        // CORREÇÃO: REANEXAR OS LISTENERS APÓS O DOM SER RECONSTRUÍDO
+        this.addEventListeners();
     }
 
     // NOVO: Método render() para estruturar a view
