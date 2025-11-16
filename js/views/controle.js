@@ -252,6 +252,77 @@ export class ControleView {
         );
     }
 
+    // --- INÍCIO DA MODIFICAÇÃO: Inclusão do Dashboard ---
+
+    /**
+     * @NOVO: Calcula as contagens para o dashboard minimalista.
+     */
+    _calculateDashboardCounts() {
+        const counts = {
+            indo_carregar: 0,
+            carregando: 0,
+            retornando: 0,
+            descarregando: 0,
+            inativos: 0 // (Quebrado + Parado)
+        };
+        
+        if (!this.data.caminhoes) return counts;
+
+        for (const caminhao of this.data.caminhoes) {
+            switch (caminhao.status) {
+                case 'indo_carregar':
+                    counts.indo_carregar++;
+                    break;
+                case 'carregando':
+                    counts.carregando++;
+                    break;
+                case 'retornando':
+                    counts.retornando++;
+                    break;
+                case 'descarregando':
+                    counts.descarregando++;
+                    break;
+                case 'quebrado':
+                case 'parado':
+                    counts.inativos++;
+                    break;
+            }
+        }
+        return counts;
+    }
+
+    /**
+     * @NOVO: Renderiza o HTML do dashboard minimalista.
+     * Reutiliza as classes CSS .controle-dashboard-summary e .summary-card
+     */
+    renderMinimalistDashboard() {
+        const counts = this._calculateDashboardCounts();
+        
+        // Função auxiliar para criar os cards
+        const createCard = (statusKey, count, label) => {
+            // Usa 'summary-quebrado' (vermelho) para inativos, senão a classe do status
+            const cardClass = (statusKey === 'inativos') ? 'summary-quebrado' : `summary-${statusKey}`;
+            
+            return `
+                <div class="summary-card ${cardClass}">
+                    <div class="summary-card-label">${label}</div>
+                    <div class="summary-card-value">${count}</div>
+                </div>
+            `;
+        };
+
+        // Adiciona padding ao wrapper para alinhar com o restante do conteúdo
+        return `
+            <div class="controle-dashboard-summary" style="padding: 24px 24px 0 24px;">
+                ${createCard('indo_carregar', counts.indo_carregar, this.statusLabels['indo_carregar'])}
+                ${createCard('carregando', counts.carregando, this.statusLabels['carregando'])}
+                ${createCard('retornando', counts.retornando, this.statusLabels['retornando'])}
+                ${createCard('descarregando', counts.descarregando, this.statusLabels['descarregando'])}
+                ${createCard('inativos', counts.inativos, 'Quebrados / Parados')}
+            </div>
+        `;
+    }
+
     render() {
         this._processMovimentacaoData(); 
         const container = document.getElementById('views-container');
@@ -265,6 +336,8 @@ export class ControleView {
                         Fazer Ação
                     </button>
                 </div>
+                
+                ${this.renderMinimalistDashboard()} 
                 
                 ${this.renderLegend()}
                 ${this.renderMovimentacaoTable()}
@@ -280,6 +353,9 @@ export class ControleView {
         `;
         this.container = container.querySelector('#controle-view');
     }
+
+    // --- FIM DA MODIFICAÇÃO ---
+
 
     /**
      * @NOVO (LEGENDA)
@@ -873,7 +949,7 @@ export class ControleView {
             <hr style="margin: 20px 0; border-color: var(--border-color);">
 
             <h4>Opção 2: Deixar no Pátio Vazio</h4>
-            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manually via "Fila Estacionamento" ou "Fazer Ação".</p>
+            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manualmente via "Fila Estacionamento" ou "Fazer Ação".</p>
             <button id="btn-set-patio-vazio" class="btn-secondary" style="background-color: #805AD5;">
                 <i class="ph-fill ph-warehouse"></i> Marcar como Pátio Vazio
             </button>
