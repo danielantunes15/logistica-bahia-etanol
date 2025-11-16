@@ -60,32 +60,33 @@ export function getBrtNowString() {
  * Esta é a correção principal: força o fuso -03:00.
  */
 export function getBrtIsoString(timeString) {
-    // timeString é "YYYY-MM-DDTHH:MM" (em BRT)
-    if (timeString) {
-        try {
-            // 1. Divide a string "YYYY-MM-DDTHH:MM"
-            const parts = timeString.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-            if (!parts) throw new Error('Formato de data inválido');
-            
-            const [ , year, month, day, hour, minute] = parts.map(Number);
-            
-            // 2. Cria a data como se fosse UTC (mas usando os números do BRT)
-            // Ex: 02:00h BRT -> Date.UTC(..., 2, ...)
-            const timestampAsUtc = Date.UTC(year, month - 1, day, hour, minute);
-            
-            // 3. Adiciona as 3 horas de offset para SALVAR o UTC correto (02:00 BRT -> 05:00 UTC)
-            const correctUtcTime = timestampAsUtc + (3 * 60 * 60 * 1000);
-            
-            // 4. Converte o timestamp UTC final para ISO string
-            return new Date(correctUtcTime).toISOString();
+    
+    // CORREÇÃO: Se timeString não for fornecido (ex: uma ação rápida de mudança de status),
+    // usa a hora BRT ATUAL como padrão, em vez de depender do relógio do navegador.
+    const timeToConvert = timeString || getBrtNowString();
+    
+    try {
+        // 1. Divide a string "YYYY-MM-DDTHH:MM"
+        const parts = timeToConvert.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (!parts) throw new Error('Formato de data inválido');
+        
+        const [ , year, month, day, hour, minute] = parts.map(Number);
+        
+        // 2. Cria a data como se fosse UTC (mas usando os números do BRT)
+        // Ex: 02:00h BRT -> Date.UTC(..., 2, ...)
+        const timestampAsUtc = Date.UTC(year, month - 1, day, hour, minute);
+        
+        // 3. Adiciona as 3 horas de offset para SALVAR o UTC correto (02:00 BRT -> 05:00 UTC)
+        const correctUtcTime = timestampAsUtc + (3 * 60 * 60 * 1000);
+        
+        // 4. Converte o timestamp UTC final para ISO string
+        return new Date(correctUtcTime).toISOString();
 
-        } catch (e) {
-             console.error("Erro ao converter BRT para ISO:", e, timeString);
-             // Fallback se a string estiver mal formatada
-             return new Date().toISOString();
-        }
+    } catch (e) {
+         console.error("Erro ao converter BRT para ISO:", e, timeToConvert);
+         // Fallback de emergência (usa o 'new Date()' que já era o fallback antigo)
+         return new Date().toISOString();
     }
-    return new Date().toISOString();
 }
 
 /**
