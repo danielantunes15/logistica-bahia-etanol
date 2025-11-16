@@ -50,19 +50,46 @@ export function getBrtNowString() {
 
 /**
  * ✅ CORRIGIDO: Converte um horário local (BRT) para formato ISO UTC.
- * Não aplica mais adiantamento de +3 horas.
+ * Esta é a correção principal: força o fuso -03:00.
  */
 export function getBrtIsoString(timeString) {
     if (timeString) {
-        const localDate = new Date(timeString);
+        // 1. Pega a string do input (ex: "2025-11-16T02:00")
+        // 2. Adiciona o fuso BRT (GMT-3)
+        const localDateString = timeString + "-03:00";
+        // 3. Cria a data. O JS agora sabe que é 2am (BRT)
+        const localDate = new Date(localDateString); 
+
         if (!isNaN(localDate.getTime())) {
+            // 4. Converte para UTC (ex: "2025-11-16T05:00:00.000Z") e salva
             return localDate.toISOString();
         }
     }
 
+    // Fallback se algo der errado
     const now = new Date();
     return now.toISOString();
 }
+
+/**
+ * @NOVO: Converte um timestamp ISO (UTC) de volta para a hora BRT (0-23)
+ * Esta é a correção de leitura.
+ */
+export function getBrtHour(isoTimestamp) {
+    if (!isoTimestamp) return 0;
+    
+    const d = new Date(isoTimestamp);
+    
+    // Pega a hora universal (UTC)
+    const utcHour = d.getUTCHours();
+    
+    // Nanuque/Bahia é BRT (UTC-3) e não adota horário de verão.
+    // (utcHour - 3 + 24) % 24 lida com horas negativas (ex: 01:00 UTC - 3 = -2 + 24 = 22h BRT)
+    const brtHour = (utcHour - 3 + 24) % 24; 
+    
+    return brtHour;
+}
+
 
 /**
  * Função alternativa, gera ISO diretamente a partir da hora local atual.
