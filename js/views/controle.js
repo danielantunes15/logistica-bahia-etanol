@@ -304,7 +304,7 @@ export class ControleView {
             const cardClass = (statusKey === 'inativos') ? 'summary-quebrado' : `summary-${statusKey}`;
             
             return `
-                <div class="summary-card ${cardClass}">
+                <div class="summary-card ${cardClass} clickable-dashboard-card" data-status-key="${statusKey}">
                     <div class="summary-card-label">${label}</div>
                     <div class="summary-card-value">${count}</div>
                 </div>
@@ -649,6 +649,7 @@ export class ControleView {
             const btn = e.target.closest('button');
             const truckBadge = e.target.closest('.clickable-truck-code'); // Captura o clique no badge
             const clickableFront = e.target.closest('.clickable-front'); // Captura o clique na TD da frente
+            const dashboardCard = e.target.closest('.clickable-dashboard-card'); // NOVO: Listener do Card
             
             // *** INÍCIO DA CORREÇÃO (CLICKABLE CARD) ***
             const truckDescarga = e.target.closest('.clickable-truck-descarga'); // Captura o clique no card de descarga
@@ -667,6 +668,16 @@ export class ControleView {
                 return;
             }
             // *** FIM DA CORREÇÃO (CLICKABLE CARD) ***
+
+            // --- NOVO: Handler for dashboard card clicks ---
+            if (dashboardCard) {
+                const statusKey = dashboardCard.dataset.statusKey;
+                if (statusKey) {
+                    this.showStatusDetailModal(statusKey);
+                }
+                return;
+            }
+            // --- FIM NOVO ---
 
             if (clickableFront) {
                 // Se a célula da frente foi clicada, abre o modal de edição de Fazenda/Status
@@ -687,6 +698,89 @@ export class ControleView {
             }
         });
     }
+
+    /**
+     * @NOVO: Mostra um modal com a lista de caminhões em um status específico.
+     */
+    showStatusDetailModal(statusKey) {
+        const frentesMap = new Map(this.data.frentes_servico.map(f => [f.id, f.nome]));
+        
+        let statusList = [statusKey];
+        let modalTitle = this.statusLabels[statusKey];
+
+        if (statusKey === 'inativos') {
+            statusList = ['parado', 'quebrado'];
+            modalTitle = 'Quebrados / Parados';
+        }
+
+        // 1. Filtra os caminhões que estão no(s) status desejado(s)
+        const filteredTrucks = this.data.caminhoes.filter(c => statusList.includes(c.status));
+
+        // 2. Mapeia os detalhes, incluindo a hora de início do status
+        const truckDetails = filteredTrucks.map(truck => {
+            const frenteNome = frentesMap.get(truck.frente_id) || 'N/A';
+            
+            // Usa o mapa de 'último log' (calculado no loadData) para encontrar a hora que entrou no status
+            const startTime = this.latestStatusTimeMap.get(truck.id) || truck.created_at;
+            
+            // Reutiliza a função de cálculo de duração (tempo de início até agora)
+            const duration = calculateDowntimeDuration(startTime, null); 
+
+            return {
+                cod: truck.cod_equipamento,
+                frente: frenteNome,
+                startTimeISO: startTime,
+                startTimeFormatted: formatDateTime(startTime),
+                duration: duration,
+                status: truck.status // Para colorir o status 'parado' vs 'quebrado'
+            };
+        })
+        // 3. Ordena pela hora de início (os que estão há mais tempo aparecem primeiro)
+        .sort((a, b) => new Date(a.startTimeISO) - new Date(b.startTimeISO));
+
+        // 4. Gera o HTML da tabela
+        let rowsHTML = '';
+        if (truckDetails.length === 0) {
+            rowsHTML = '<tr><td colspan="5" style="text-align: center;">Nenhum caminhão neste status no momento.</td></tr>';
+        } else {
+            rowsHTML = truckDetails.map(truck => {
+                // Define a cor da badge de status (útil para 'inativos')
+                const statusClass = statusKey === 'inativos' ? truck.status : statusKey;
+                
+                return `
+                    <tr>
+                        <td><strong>#${truck.cod}</strong></td>
+                        <td><span class="caminhao-status-badge status-${statusClass}">${this.statusLabels[truck.status]}</span></td>
+                        <td>${truck.frente}</td>
+                        <td>${truck.startTimeFormatted}</td>
+                        <td><strong style="color: var(--accent-danger);">${truck.duration}</strong></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        const modalHTML = `
+            <div class="table-wrapper" style="max-height: 60vh; overflow-y: auto;">
+                <table class="data-table-modern">
+                    <thead>
+                        <tr>
+                            <th>Caminhão</th>
+                            <th>Status</th>
+                            <th>Frente</th>
+                            <th>Início do Status</th>
+                            <th>Duração</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHTML}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        
+        openModal(`Caminhões em: ${modalTitle} (${filteredTrucks.length})`, modalHTML);
+    }
+
 
     /**
      * @NOVO
