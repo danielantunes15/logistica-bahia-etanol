@@ -7,6 +7,15 @@
  * @param {string} type - O tipo de toast ('success', 'error', ou 'info').
  */
 export function showToast(message, type = 'success') {
+    
+    // --- INÍCIO DA CORREÇÃO: Ignora toasts de "sucesso" ---
+    if (type === 'success') {
+        // Apenas registra no console para depuração, mas não mostra na tela.
+        console.log('Toast (success) suprimido:', message); 
+        return; // Sai da função imediatamente, impedindo o toast de aparecer.
+    }
+    // --- FIM DA CORREÇÃO ---
+
     const container = document.getElementById('toast-container');
     if (!container) return;
     

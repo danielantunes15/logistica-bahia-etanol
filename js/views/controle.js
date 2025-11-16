@@ -2,31 +2,13 @@
 
 import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
-import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString, groupDowntimeSessions, formatMillisecondsToHoursMinutes, calculateTimeDifference } from '../timeUtils.js'; // IMPORTAÇÃO CORRIGIDA (Adiciona calculateTimeDifference e formatMillisecondsToHoursMinutes)
+// *** CORREÇÃO: Importa a nova função getBrtHour ***
+import { formatDateTime, calculateDowntimeDuration, getBrtNowString, getBrtIsoString, groupDowntimeSessions, formatMillisecondsToHoursMinutes, calculateTimeDifference, getBrtHour } from '../timeUtils.js'; 
 import { openModal, closeModal } from '../components/modal.js';
 import { dataCache } from '../dataCache.js';
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS, CAMINHAO_ROUTE_STATUS } from '../constants.js';
 
-// --- INÍCIO DA CORREÇÃO DE FUSO HORÁRIO (GMT-3) ---
-/**
- * Converte um timestamp ISO (UTC) para a hora BRT (0-23)
- * Esta é a correção definitiva, usando apenas matemática UTC-3 (BRT)
- */
-function getBrtHour(isoTimestamp) {
-    if (!isoTimestamp) return 0;
-    
-    const d = new Date(isoTimestamp);
-    
-    // Pega a hora universal (UTC)
-    const utcHour = d.getUTCHours();
-    
-    // Nanuque/Bahia é BRT (UTC-3) e não adota horário de verão.
-    // (utcHour - 3 + 24) % 24 lida com horas negativas (ex: 01:00 UTC - 3 = -2 + 24 = 22h BRT)
-    const brtHour = (utcHour - 3 + 24) % 24; 
-    
-    return brtHour;
-}
-// --- FIM DA CORREÇÃO DE FUSO HORÁRIO ---
+// --- REMOVIDA A FUNÇÃO getBrtHour LOCAL ---
 
 const ESTACIONAMENTO_STATUS = ['disponivel', 'patio_vazio']; // Status que indicam que o caminhão está na fila/pátio
 // CORREÇÃO: A linha abaixo não é mais usada para o filtro de partida, mas é mantida caso outras lógicas dependam dela.
@@ -216,6 +198,7 @@ export class ControleView {
                 trucksAddedToMatrix.set(caminhaoId, true); // Marca como adicionado
 
                 // *** CORREÇÃO DE FUSO: Obtém a hora BRT (0-23) para slotagem ***
+                // Esta função agora vem de timeUtils.js
                 const logHour = getBrtHour(log.timestamp_mudanca); // Pega a hora BRT (0 a 23)
                 // *** FIM DA CORREÇÃO DE FUSO ***
                 
