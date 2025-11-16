@@ -123,7 +123,7 @@ export class ControleView {
 
             // Se o log (status_novo) bate com o status ATUAL do caminhão,
             // este é o log de início do status atual.
-            if (log.status_novo === currentStatus) {
+            if (log.status_novo === currentStatus) { // <--- BUG IS HERE
                 latestStatusTimeMap.set(caminhaoId, log.timestamp_mudanca);
             }
         });

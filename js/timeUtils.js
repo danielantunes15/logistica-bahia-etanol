@@ -38,37 +38,54 @@ export function formatDateTime(date) {
  */
 export function getBrtNowString() {
     const now = new Date();
+    
+    // CORREÇÃO: Força a string a ser gerada no fuso de São Paulo
+    const options = {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false
+    };
+    
+    // Usar 'sv-SE' (Sueco) formata como YYYY-MM-DD HH:MM
+    const parts = new Intl.DateTimeFormat('sv-SE', options).formatToParts(now);
+    const map = new Map(parts.map(p => [p.type, p.value]));
 
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+    // Formato 'datetime-local' (YYYY-MM-DDTHH:MM)
+    return `${map.get('year')}-${map.get('month')}-${map.get('day')}T${map.get('hour')}:${map.get('minute')}`;
 }
+
 
 /**
  * ✅ CORRIGIDO: Converte um horário local (BRT) para formato ISO UTC.
  * Esta é a correção principal: força o fuso -03:00.
  */
 export function getBrtIsoString(timeString) {
+    // timeString é "YYYY-MM-DDTHH:MM" (em BRT)
     if (timeString) {
-        // 1. Pega a string do input (ex: "2025-11-16T02:00")
-        // 2. Adiciona o fuso BRT (GMT-3)
-        const localDateString = timeString + "-03:00";
-        // 3. Cria a data. O JS agora sabe que é 2am (BRT)
-        const localDate = new Date(localDateString); 
+        try {
+            // 1. Divide a string "YYYY-MM-DDTHH:MM"
+            const parts = timeString.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+            if (!parts) throw new Error('Formato de data inválido');
+            
+            const [ , year, month, day, hour, minute] = parts.map(Number);
+            
+            // 2. Cria a data como se fosse UTC (mas usando os números do BRT)
+            // Ex: 02:00h BRT -> Date.UTC(..., 2, ...)
+            const timestampAsUtc = Date.UTC(year, month - 1, day, hour, minute);
+            
+            // 3. Adiciona as 3 horas de offset para SALVAR o UTC correto (02:00 BRT -> 05:00 UTC)
+            const correctUtcTime = timestampAsUtc + (3 * 60 * 60 * 1000);
+            
+            // 4. Converte o timestamp UTC final para ISO string
+            return new Date(correctUtcTime).toISOString();
 
-        if (!isNaN(localDate.getTime())) {
-            // 4. Converte para UTC (ex: "2025-11-16T05:00:00.000Z") e salva
-            return localDate.toISOString();
+        } catch (e) {
+             console.error("Erro ao converter BRT para ISO:", e, timeString);
+             // Fallback se a string estiver mal formatada
+             return new Date().toISOString();
         }
     }
-
-    // Fallback se algo der errado
-    const now = new Date();
-    return now.toISOString();
+    return new Date().toISOString();
 }
 
 /**
