@@ -64,6 +64,8 @@
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 16px;
     margin-bottom: 32px;
+    /* NOVO: Adicionado padding que faltava (movido do renderMinimalistDashboard) */
+    padding: 24px 24px 0 24px;
 }
 
 .summary-card {
@@ -71,12 +73,21 @@
     border-radius: 12px;
     padding: 20px;
     border-bottom: 4px solid;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease; /* Adicionado box-shadow na transição */
 }
 
 .summary-card:hover {
     transform: translateY(-5px);
 }
+
+/* --- INÍCIO DA CORREÇÃO: Feedback visual para cards clicáveis --- */
+.clickable-dashboard-card:hover {
+    cursor: pointer; /* Muda o cursor para a "mãozinha" */
+    box-shadow: 0 0 15px rgba(56, 161, 105, 0.5); /* Adiciona um brilho sutil (verde) */
+    border-bottom-color: var(--accent-hover); /* Escurece a borda inferior no hover */
+}
+/* --- FIM DA CORREÇÃO --- */
+
 
 .summary-card-value {
     font-size: 2.5rem;
