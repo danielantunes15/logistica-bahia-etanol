@@ -74,6 +74,7 @@ export class ControleView {
         try {
             this.data = await dataCache.fetchAllData(forceRefresh); 
             
+            // *** CORREÇÃO: A função agora é chamada DEPOIS que this.data.caminhoes está definido ***
             this.latestStatusTimeMap = this.calculateLatestStatusTimes(this.data.caminhao_historico);
             
             this.render();
@@ -94,19 +95,47 @@ export class ControleView {
         }
     }
     
+    /**
+     * @MODIFICADO: Esta função agora encontra o timestamp de INÍCIO do status ATUAL.
+     */
     calculateLatestStatusTimes(history = []) {
         const latestStatusTimeMap = new Map();
         
+        // 1. Mapeia o status atual de todos os caminhões
+        const currentStatusMap = new Map(this.data.caminhoes.map(c => [c.id, c.status]));
+
+        // 2. Ordena o histórico do MAIS NOVO para o MAIS ANTIGO
         const sortedHistory = history.sort((a, b) => 
             new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca)
         );
         
+        // 3. Itera o histórico
         sortedHistory.forEach(log => {
-            if (!latestStatusTimeMap.has(log.caminhao_id)) {
-                latestStatusTimeMap.set(log.caminhao_id, log.timestamp_mudanca);
+            const caminhaoId = log.caminhao_id;
+            
+            // Se já encontramos o log para este caminhão, pulamos
+            if (latestStatusTimeMap.has(caminhaoId)) {
+                return;
+            }
+
+            // Pega o status atual do caminhão
+            const currentStatus = currentStatusMap.get(caminhaoId);
+
+            // Se o log (status_novo) bate com o status ATUAL do caminhão,
+            // este é o log de início do status atual.
+            if (log.status_novo === currentStatus) {
+                latestStatusTimeMap.set(caminhaoId, log.timestamp_mudanca);
             }
         });
         
+        // 4. (Fallback) Para caminhões que não têm histórico (ex: recém-criados),
+        // mas têm um status, usamos o created_at.
+        this.data.caminhoes.forEach(caminhao => {
+            if (!latestStatusTimeMap.has(caminhao.id)) {
+                latestStatusTimeMap.set(caminhao.id, caminhao.created_at);
+            }
+        });
+
         return latestStatusTimeMap;
     }
 
@@ -703,7 +732,7 @@ export class ControleView {
         const truckDetails = filteredTrucks.map(truck => {
             const frenteNome = frentesMap.get(truck.frente_id) || 'N/A';
             
-            // Usa o mapa de 'último log' (calculado no loadData) para encontrar a hora que entrou no status
+            // *** CORREÇÃO AQUI: Usa o mapa CORRIGIDO para pegar o início do status ATUAL ***
             const startTime = this.latestStatusTimeMap.get(truck.id) || truck.created_at;
             
             // Reutiliza a função de cálculo de duração (tempo de início até agora)
@@ -713,7 +742,7 @@ export class ControleView {
                 cod: truck.cod_equipamento,
                 frente: frenteNome,
                 startTimeISO: startTime,
-                startTimeFormatted: formatDateTime(startTime),
+                startTimeFormatted: formatDateTime(startTime), // formatDateTime (de timeUtils) já converte para BRT
                 duration: duration,
                 status: truck.status // Para colorir o status 'parado' vs 'quebrado'
             };
@@ -842,7 +871,7 @@ export class ControleView {
         try {
             await updateFrenteComFazenda(frenteId, selectedFazendaId || null);
             dataCache.invalidateAllData();
-            showToast('Fazenda atualizada com sucesso!', 'success');
+            // showToast('Fazenda atualizada com sucesso!', 'success'); // Removido conforme solicitação
             closeModal();
             await this.loadData(true); 
         } catch (error) {
@@ -866,7 +895,7 @@ export class ControleView {
             dataCache.invalidateAllData();
             
             // 3. Feedback RÁPIDO para o usuário
-            showToast(`Status da frente atualizado para ${this.frenteStatusLabels[newStatus]}!`, 'success');
+            // showToast(`Status da frente atualizado para ${this.frenteStatusLabels[newStatus]}!`, 'success'); // Removido conforme solicitação
             closeModal();
             
             // 4. Recarrega os DADOS (a parte LENTA)
@@ -962,7 +991,7 @@ export class ControleView {
             dataCache.invalidateAllData();
 
             // *** MELHORIA: Mensagem de toast mais genérica ***
-            showToast('Caminhão realocado e novo ciclo iniciado!', 'success');
+            // showToast('Caminhão realocado e novo ciclo iniciado!', 'success'); // Removido conforme solicitação
             closeModal();
             await this.loadData(true); 
         } catch (error) {
@@ -1203,7 +1232,7 @@ export class ControleView {
             dataCache.invalidateAllData();
             
             // 4. Feedback RÁPIDO para o usuário
-            showToast(successMessage, 'success');
+            // showToast(successMessage, 'success'); // Removido conforme solicitação
             closeModal();
             
             // 5. Recarrega os DADOS (a parte LENTA)
@@ -1238,7 +1267,7 @@ export class ControleView {
                 // Invalida o Cache (NOVO)
                 dataCache.invalidateAllData();
 
-                showToast('Fazenda atualizada com sucesso!', 'success');
+                // showToast('Fazenda atualizada com sucesso!', 'success'); // Removido conforme solicitação
                 closeModal();
                 await this.loadData(true); // Força refresh após escrita
             } catch (error) {
