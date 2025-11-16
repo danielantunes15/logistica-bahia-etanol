@@ -7,6 +7,27 @@ import { openModal, closeModal } from '../components/modal.js';
 import { dataCache } from '../dataCache.js';
 import { CAMINHAO_STATUS_LABELS, CAMINHAO_STATUS_CYCLE, FRENTE_STATUS_LABELS, CAMINHAO_ROUTE_STATUS } from '../constants.js';
 
+// --- INÍCIO DA CORREÇÃO DE FUSO HORÁRIO (GMT-3) ---
+/**
+ * Converte um timestamp ISO (UTC) para a hora BRT (0-23)
+ * Esta é a correção definitiva, usando apenas matemática UTC-3 (BRT)
+ */
+function getBrtHour(isoTimestamp) {
+    if (!isoTimestamp) return 0;
+    
+    const d = new Date(isoTimestamp);
+    
+    // Pega a hora universal (UTC)
+    const utcHour = d.getUTCHours();
+    
+    // Nanuque/Bahia é BRT (UTC-3) e não adota horário de verão.
+    // (utcHour - 3 + 24) % 24 lida com horas negativas (ex: 01:00 UTC - 3 = -2 + 24 = 22h BRT)
+    const brtHour = (utcHour - 3 + 24) % 24; 
+    
+    return brtHour;
+}
+// --- FIM DA CORREÇÃO DE FUSO HORÁRIO ---
+
 const ESTACIONAMENTO_STATUS = ['disponivel', 'patio_vazio']; // Status que indicam que o caminhão está na fila/pátio
 // CORREÇÃO: A linha abaixo não é mais usada para o filtro de partida, mas é mantida caso outras lógicas dependam dela.
 const DEPARTURE_STATUS = CAMINHAO_ROUTE_STATUS; // Status de partida do pátio para uma frente
@@ -130,103 +151,74 @@ export class ControleView {
     }
 
     /**
-     * @NOVO E CORRIGIDO
-     * Processa o histórico para encontrar as PARTIDAS do pátio para as frentes.
-     * Resultado: this.movimentacaoData = { [frenteId]: { [horaSlot]: [{id, cod}] } }
+     * CORRIGIDO: Processa o histórico APENAS pela HORA de saída (00:00-23:00), ignorando o dia.
      */
     _processMovimentacaoData() {
         this.movimentacaoData = {};
         this.cycleHeaders = this._getCycleHeaders();
         const { caminhao_historico = [], frentes_servico = [], caminhoes = [] } = this.data;
 
-        // 1. Definir o ciclo de 24 horas atual (07:00 de D-1/D até 07:00 de D/D+1)
+        // 1. Definir a matriz com base nas HORAS (07:00 a 06:00), ignorando o dia.
         const now = new Date(); // Hora local (BRT)
         
-        // *** INÍCIO DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
         // Calcula o slot de hora atual (ex: 16:43 -> "16:00")
         const currentHourString = String(now.getHours()).padStart(2, '0') + ":00";
         this.currentHourSlot = currentHourString;
-        // *** FIM DA CORREÇÃO (DESTAQUE HORA ATUAL) ***
-
-        const cycleStart = new Date();
-        cycleStart.setHours(7, 0, 0, 0); // Define o início do ciclo para 07:00
-
-        // Se a hora atual for ANTES das 7h, o ciclo começou às 7h do dia anterior
-        if (now.getHours() < 7) {
-            cycleStart.setDate(cycleStart.getDate() - 1);
-        }
-
-        const cycleEnd = new Date(cycleStart);
-        cycleEnd.setDate(cycleStart.getDate() + 1); // O fim é 24h depois
-
-        const cycleStartISO = cycleStart.toISOString();
-        const cycleEndISO = cycleEnd.toISOString();
-
-
+        
         const caminhoesMap = new Map(caminhoes.map(c => [c.id, c]));
         
-        // *** INÍCIO DA CORREÇÃO (REQUISITO 5) ***
-        // Criar um Set de caminhões que estão descarregando
+        // Criar um Set de caminhões que estão descarregando (eles não devem aparecer na matriz de saídas)
         const descarregandoSet = new Set();
         caminhoes.forEach(c => {
             if (c.status === this.statusToMonitor) { // statusToMonitor = 'descarregando'
                 descarregandoSet.add(c.id);
             }
         });
-        // *** FIM DA CORREÇÃO (REQUISITO 5) ***
         
-        // *** CORREÇÃO: Mapa de unicidade global para o ciclo de 24h ***
-        const trucksAddedToCycle = new Map(); 
+        // ** NOVO: Mapa para garantir que um caminhão apareça APENAS uma vez (o primeiro log) **
+        const trucksAddedToMatrix = new Map(); 
 
-        // 2. Filtra logs que são partidas REAIS (indo_carregar) DENTRO do ciclo de 24h
+        // 2. Filtra logs que são partidas REAIS (indo_carregar)
         let filteredDepartures = caminhao_historico.filter(log => {
-            const logTime = log.timestamp_mudanca;
-            // Filtro 1: Log está dentro do ciclo de 24h
-            if (logTime < cycleStartISO || logTime >= cycleEndISO) {
-                return false;
-            }
-            
             const statusAnterior = log.status_anterior;
-            // Filtro 2: Saiu do pátio (Estacionamento)
+            // Filtro 1: Saiu do pátio (Estacionamento)
             const isPreDeparture = ESTACIONAMENTO_STATUS.includes(statusAnterior) || statusAnterior === null || statusAnterior === '';
-            // Filtro 3: Está especificamente INDO CARREGAR
+            // Filtro 2: Está especificamente INDO CARREGAR
             const isNewDeparture = log.status_novo === 'indo_carregar';
 
             return isPreDeparture && isNewDeparture;
         });
 
-        // 3. *** CORREÇÃO: Ordena as partidas da MAIS ANTIGA para a MAIS NOVA ***
-        // (Isso garante que vamos pegar a *primeira* partida do ciclo)
-        filteredDepartures.sort((a, b) => new Date(a.timestamp_mudanca) - new Date(b.timestamp_mudanca));
+        // 3. *** CORREÇÃO APLICADA: Ordena da MAIS NOVA para a MAIS ANTIGA ***
+        // (Isso garante que vamos pegar a *última* partida do caminhão)
+        filteredDepartures.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
 
-        // 4. Processa a lista ordenada, garantindo unicidade
+        // 4. Processa a lista, SLOTANDO APENAS PELA HORA
         filteredDepartures.forEach(log => {
             
-            // *** CORREÇÃO: Verificação de unicidade global ***
             const caminhaoId = log.caminhao_id;
 
-            // *** INÍCIO DA CORREÇÃO (REQUISITO 5) ***
-            // Se o caminhão está na lista de descarga, PULA. Ele não deve aparecer na matriz.
+            // Se o caminhão está na lista de descarga, PULA.
             if (descarregandoSet.has(caminhaoId)) {
                 return; 
             }
-            // *** FIM DA CORREÇÃO (REQUISITO 5) ***
-
-            if (trucksAddedToCycle.has(caminhaoId)) {
-                return; // Caminhão já teve sua *primeira* partida registrada neste ciclo.
-            }
-            // *** FIM DA CORREÇÃO ***
             
-            const timestamp = new Date(log.timestamp_mudanca);
+            // ** APLICA REGRA DE UNICIDADE: Se já adicionado, pule. (Agora pega o MAIS NOVO) **
+            if (trucksAddedToMatrix.has(caminhaoId)) {
+                return; 
+            }
+            
             const caminhao = caminhoesMap.get(caminhaoId);
             const frenteId = log.frente_id || caminhao?.frente_id; 
 
-            if (frenteId && caminhao && !isNaN(timestamp)) {
+            if (frenteId && caminhao && log.timestamp_mudanca) {
                 
-                // *** MARCA COMO ADICIONADO (este é o primeiro log de partida dele no ciclo) ***
-                trucksAddedToCycle.set(caminhaoId, true);
+                trucksAddedToMatrix.set(caminhaoId, true); // Marca como adicionado
 
-                const logHour = timestamp.getHours();
+                // *** CORREÇÃO DE FUSO: Obtém a hora BRT (0-23) para slotagem ***
+                const logHour = getBrtHour(log.timestamp_mudanca); // Pega a hora BRT (0 a 23)
+                // *** FIM DA CORREÇÃO DE FUSO ***
+                
                 // Ajusta a hora para o índice de 0 a 23 (onde 7h é o índice 0)
                 let slotIndex = (logHour - 7 + 24) % 24; 
                 
@@ -239,14 +231,12 @@ export class ControleView {
                     this.movimentacaoData[frenteId][slotKey] = [];
                 }
                 
-                // *** INÍCIO DA CORREÇÃO (STATUS DINÂMICO) ***
-                // Salva o ID, o Código e o STATUS ATUAL do caminhão
+                // Adiciona o caminhão no slot da hora correspondente (primeira ocorrência)
                 this.movimentacaoData[frenteId][slotKey].push({
                     id: caminhao.id, 
                     cod: caminhao.cod_equipamento,
                     status: caminhao.status || 'disponivel' // Armazena o status atual
                 });
-                // *** FIM DA CORREÇÃO (STATUS DINÂMICO) ***
             }
         });
         
@@ -883,7 +873,7 @@ export class ControleView {
             <hr style="margin: 20px 0; border-color: var(--border-color);">
 
             <h4>Opção 2: Deixar no Pátio Vazio</h4>
-            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manualmente via "Fila Estacionamento" ou "Fazer Ação".</p>
+            <p class="form-help">O caminhão será marcado como "Pátio Vazio" e estará pronto para ser designado manually via "Fila Estacionamento" ou "Fazer Ação".</p>
             <button id="btn-set-patio-vazio" class="btn-secondary" style="background-color: #805AD5;">
                 <i class="ph-fill ph-warehouse"></i> Marcar como Pátio Vazio
             </button>
