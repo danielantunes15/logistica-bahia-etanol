@@ -161,8 +161,9 @@ export class ControleView {
     }
 
     /**
-     * ★★★ CORREÇÃO APLICADA (LÓGICA DE PARTIDA) ★★★
-     * Processa a matriz para mostrar a ÚLTIMA partida, independentemente da data.
+     * ★★★ CORREÇÃO APLICADA (LÓGICA PÁTIO VAZIO) ★★★
+     * Processa a matriz para mostrar a ÚLTIMA partida, apenas se o caminhão
+     * NÃO ESTIVER com status 'disponivel' ou 'patio_vazio'.
      */
     _processMovimentacaoData() {
         this.movimentacaoData = {};
@@ -171,11 +172,6 @@ export class ControleView {
 
         // 1. Pega a hora atual (BRT)
         const now = new Date(); // Hora local (BRT)
-        
-        // --- FILTRO DE TEMPO REMOVIDO ---
-        // const cycleStart = new Date(); ...
-        // const cycleStartTime = ...
-        // --- FIM DA REMOÇÃO ---
         
         // Calcula o slot de hora atual (ex: 16:43 -> "16:00")
         const currentHourString = String(now.getHours()).padStart(2, '0') + ":00";
@@ -191,13 +187,8 @@ export class ControleView {
             const statusAnterior = log.status_anterior;
             const isPreDeparture = ESTACIONAMENTO_STATUS.includes(statusAnterior) || statusAnterior === null || statusAnterior === '';
             const isNewDeparture = log.status_novo === 'indo_carregar';
-
-            // --- FILTRO DE TEMPO REMOVIDO ---
-            // const logTime = new Date(log.timestamp_mudanca).getTime();
-            // const isInCycle = logTime >= cycleStartTime;
-            // return isPreDeparture && isNewDeparture && isInCycle;
             
-            return isPreDeparture && isNewDeparture; // <-- CORREÇÃO APLICADA
+            return isPreDeparture && isNewDeparture; // <-- CORREÇÃO (REMOVIDO FILTRO DE TEMPO)
         });
 
         // 3. Ordena da MAIS NOVA para a MAIS ANTIGA
@@ -214,8 +205,22 @@ export class ControleView {
             }
             
             const caminhao = caminhoesMap.get(caminhaoId);
-            // CORREÇÃO: Pega o frenteId do LOG (histórico) primeiro, senão o do caminhão (atual)
             const frenteId = log.frente_id || caminhao?.frente_id; 
+
+            // ★★★ INÍCIO DA CORREÇÃO (PÁTIO VAZIO) ★★★
+            // Verifica o status ATUAL do caminhão.
+            if (caminhao) {
+                const currentStatus = caminhao.status;
+                
+                // Se o status atual for 'Pátio Vazio' ou 'Disponível', 
+                // significa que o ciclo terminou. Não mostre na matriz.
+                if (currentStatus === 'patio_vazio' || currentStatus === 'disponivel') {
+                    // Marca como "processado" para ignorar logs mais antigos, mas não adiciona à matriz.
+                    trucksAddedToMatrix.set(caminhaoId, true); 
+                    return; // Pula para o próximo log
+                }
+            }
+            // ★★★ FIM DA CORREÇÃO (PÁTIO VAZIO) ★★★
 
             if (frenteId && caminhao && log.timestamp_mudanca) {
                 
@@ -252,7 +257,7 @@ export class ControleView {
                  .sort(([, a], [, b]) => a.nome.localeCompare(b.nome))
         );
     }
-    // ★★★ FIM DA CORREÇÃO ★★★
+    // ★★★ FIM DA FUNÇÃO MODIFICADA ★★★
 
     // --- INÍCIO DA MODIFICAÇÃO: Inclusão do Dashboard ---
 
