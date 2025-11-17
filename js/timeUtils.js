@@ -62,52 +62,50 @@ export function getBrtNowString() {
 export function getBrtIsoString(timeString) {
     
     // 1. Se timeString não for fornecido (ação rápida), usa a hora BRT ATUAL como padrão.
+    //    Se for fornecido (ação manual 07:16), usa esse valor.
     const timeToConvert = timeString || getBrtNowString();
     
     try {
         // 2. CORREÇÃO: Força a string de data/hora a ser interpretada como UTC-3 (BRT)
-        // Ao anexar "-03:00", o construtor 'new Date()' entende que "07:16" significa "07:16 BRT".
+        //    Ao anexar "-03:00", o construtor 'new Date()' entende que "07:16" significa "07:16 BRT".
+        //    E "20:09" (da ação rápida) significa "20:09 BRT".
         const brtDate = new Date(timeToConvert + "-03:00");
 
-        // 3. .toISOString() converte automaticamente a data BRT para o seu equivalente UTC (ex: 10:16 UTC)
+        // 3. .toISOString() converte automaticamente a data BRT para o seu equivalente UTC
+        //    (07:16 BRT -> 10:16 UTC)
+        //    (20:09 BRT -> 23:09 UTC)
         return brtDate.toISOString();
 
     } catch (e) {
          console.error("Erro ao converter BRT para ISO:", e, timeToConvert);
-         // Fallback de emergência
-         const fallbackDate = new Date();
-         return new Date(fallbackDate.getTime() + (3 * 60 * 60 * 1000)).toISOString();
+         // Fallback de emergência (pega a hora BRT e força a conversão)
+         const fallbackDate = new Date(getBrtNowString() + "-03:00");
+         return fallbackDate.toISOString();
     }
 }
 
 /**
- * @NOVO: Converte um timestamp ISO (UTC) de volta para a hora BRT (0-23)
- * Esta é a correção de leitura.
+ * ✅ CORRIGIDO: Converte um timestamp ISO (UTC) de volta para a hora BRT (0-23)
+ * Esta é a correção de leitura (O que faz a tabela mostrar o slot 07:00 ou 20:00).
  */
 export function getBrtHour(isoTimestamp) {
     if (!isoTimestamp) return 0;
     
     const d = new Date(isoTimestamp);
     
-    // Pega a hora universal (UTC)
+    // CORREÇÃO: Pega a hora UTC e converte para BRT (UTC-3)
     const utcHour = d.getUTCHours();
-    
-    // Nanuque/Bahia é BRT (UTC-3) e não adota horário de verão.
-    // (utcHour - 3 + 24) % 24 lida com horas negativas (ex: 01:00 UTC - 3 = -2 + 24 = 22h BRT)
-    const brtHour = (utcHour - 3 + 24) % 24; 
+    const brtHour = (utcHour + 21) % 24; // (utcHour - 3 + 24) % 24 simplificado
     
     return brtHour;
 }
 
-
 /**
  * Função alternativa, gera ISO diretamente a partir da hora local atual.
- * ☠️ ESTA FUNÇÃO ESTAVA CAUSANDO O BUG DE CÁLCULO DE DURAÇÃO.
  * CORRIGIDO: Agora ela chama getBrtIsoString() para forçar o BRT.
  */
 export function getBrtIsoStringAlt() {
     // CORRIGIDO: Retorna o ISO UTC correto para "agora" (em BRT)
-    // Chamando a função principal sem argumentos, ela usará getBrtNowString()
     return getBrtIsoString();
 }
 
@@ -377,4 +375,17 @@ export function debugTimeFunctions() {
 export function getEmergencyBrtIso() {
     const now = new Date();
     return now.toISOString();
+}
+
+/**
+ * ✅ NOVA FUNÇÃO: Garante que o timestamp esteja no formato BRT correto
+ */
+export function ensureBrtTimestamp(timestamp) {
+    if (!timestamp) return null;
+    // Se já estiver no formato correto, retorna como está
+    if (typeof timestamp === 'string' && timestamp.includes('-03:00')) {
+        return timestamp;
+    }
+    // Caso contrário, converte para BRT
+    return getBrtIsoString(timestamp);
 }
