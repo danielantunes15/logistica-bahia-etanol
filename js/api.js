@@ -252,6 +252,9 @@ export async function fetchAllData(daysBack = 90, startDateISO = null, endDateIS
             fetchTable('proprietarios'),
             fetchTable('terceiros', '*, empresa_id:proprietarios(id, nome)'),
 
+            // ★★★ CORREÇÃO AQUI ★★★
+            // Revertemos a query para *não* buscar a frente_id que não existe no log.
+            // A lógica de `controle.js` foi ajustada para usar a `frente_id` do caminhão.
             logFetcher('caminhao_historico', '*, caminhoes(cod_equipamento)'),
             logFetcher('equipamento_historico', '*, equipamentos(cod_equipamento, finalidade, proprietario_id, frente_id, frentes_servico(nome)), motivo_parada'),
             // NOVO: Adiciona a tabela de ocorrências
@@ -655,6 +658,17 @@ export async function requireAuth(requiredRole = 'usuario') {
 // --- FIM DAS FUNÇÕES DE AUTENTICAÇÃO ---
 
 export async function assignCaminhaoToFrente(caminhaoId, frenteId, statusInicial, horaSaida) {
+    
+    // ★★★ CORREÇÃO REVERTIDA ★★★
+    // Busca o status anterior ANTES de atualizar
+    const { data: caminhaoAtual, error: fetchError } = await supabase
+        .from('caminhoes')
+        .select('status')
+        .eq('id', caminhaoId)
+        .single();
+    if (fetchError) throw fetchError;
+    const statusAnterior = caminhaoAtual.status || 'disponivel'; // Fallback
+
      // 1. Atualiza o caminhão com o novo status e frente
     const { data: updatedCaminhao, error: updateError } = await supabase
         .from('caminhoes')
@@ -669,13 +683,15 @@ export async function assignCaminhaoToFrente(caminhaoId, frenteId, statusInicial
     if (updateError) throw updateError;
 
     // 2. Cria o primeiro registro no histórico com a hora de saída informada
+    // ★★★ CORREÇÃO REVERTIDA: Não inserimos mais frente_id aqui para evitar o 400 Bad Request ★★★
     const { error: historyError } = await supabase
         .from('caminhao_historico')
         .insert({
             caminhao_id: caminhaoId,
-            status_anterior: 'disponivel',
+            status_anterior: statusAnterior,
             status_novo: statusInicial,
             timestamp_mudanca: horaSaida // Usa a hora informada pelo usuário
+            // frente_id: frenteId // <-- REMOVIDO PARA CORRIGIR O ERRO 400
         });
 
     if (historyError) throw historyError;
@@ -684,34 +700,36 @@ export async function assignCaminhaoToFrente(caminhaoId, frenteId, statusInicial
 }
 
 export async function updateCaminhaoStatus(caminhaoId, novoStatus, frenteId = null, motivoParada = null, timestamp) {
+    
     const { data: caminhaoAtual, error: fetchError } = await supabase
         .from('caminhoes')
-        .select('status')
+        .select('status, frente_id') // <-- Pega o frente_id atual
         .eq('id', caminhaoId)
         .single();
 
     if (fetchError) throw fetchError;
     const statusAnterior = caminhaoAtual.status;
+    const frente_id_atual_para_log = caminhaoAtual.frente_id; // <-- Armazena o frente_id atual
 
-    // CORREÇÃO: Verifica se o timestamp é nulo/indefinido e usa a hora atual se for o caso.
     const logTimestamp = timestamp || new Date().toISOString();
 
+    // ★★★ CORREÇÃO REVERTIDA: Não inserimos mais frente_id aqui para evitar o 400 Bad Request ★★★
     const { error: historyError } = await supabase
         .from('caminhao_historico')
         .insert({
             caminhao_id: caminhaoId,
             status_anterior: statusAnterior,
             status_novo: novoStatus,
-            timestamp_mudanca: logTimestamp, // USANDO O TIMESTAMP CORRIGIDO
+            timestamp_mudanca: logTimestamp, 
             motivo_parada: motivoParada
+            // frente_id: frente_id_atual_para_log // <-- REMOVIDO PARA CORRIGIR O ERRO 400
         });
 
     if (historyError) throw historyError;
 
     // --- Lógica de Desassociação Automática ---
-    let frenteParaAtualizar = frenteId;
+    let frenteParaAtualizar = frenteId !== null ? frenteId : frente_id_atual_para_log;
 
-    // Se o novo status é 'disponivel' (fim de ciclo), 'quebrado' ou 'parado), desassocia da frente.
     if (novoStatus === 'disponivel' || novoStatus === 'quebrado' || novoStatus === 'parado') {
         frenteParaAtualizar = null;
     }

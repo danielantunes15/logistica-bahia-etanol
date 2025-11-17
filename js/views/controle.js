@@ -1,5 +1,4 @@
 // js/views/controle.js
-
 import { fetchAllData, updateCaminhaoStatus, updateFrenteComFazenda, assignCaminhaoToFrente, updateFrenteStatus, removeCaminhaoFromFila } from '../api.js';
 import { showToast, handleOperation, showLoading, hideLoading } from '../helpers.js';
 // *** CORREÇÃO: Importa a nova função getBrtHour ***
@@ -162,25 +161,21 @@ export class ControleView {
     }
 
     /**
-     * ★★★ AQUI ESTÁ A CORREÇÃO DE HOJE ★★★
-     * Retorna à lógica de "APENAS O ÚLTIMO" movimento e remove o filtro de "descarregando".
+     * ★★★ CORREÇÃO APLICADA (LÓGICA DE PARTIDA) ★★★
+     * Processa a matriz para mostrar a ÚLTIMA partida, independentemente da data.
      */
     _processMovimentacaoData() {
         this.movimentacaoData = {};
         this.cycleHeaders = this._getCycleHeaders();
         const { caminhao_historico = [], frentes_servico = [], caminhoes = [] } = this.data;
 
-        // 1. Definir o início do ciclo 24h
+        // 1. Pega a hora atual (BRT)
         const now = new Date(); // Hora local (BRT)
-        const cycleStart = new Date();
-        // Se for antes das 7h da manhã (ex: 5 AM), o ciclo começou às 7h de ONTEM.
-        if (now.getHours() < 7) { 
-            cycleStart.setDate(now.getDate() - 1);
-        }
-        cycleStart.setHours(7, 0, 0, 0); // Ex: 16/Nov 07:00:00 BRT
         
-        const cycleStartISO_UTC = cycleStart.toISOString(); 
-        const cycleStartTime = new Date(cycleStartISO_UTC).getTime();
+        // --- FILTRO DE TEMPO REMOVIDO ---
+        // const cycleStart = new Date(); ...
+        // const cycleStartTime = ...
+        // --- FIM DA REMOÇÃO ---
         
         // Calcula o slot de hora atual (ex: 16:43 -> "16:00")
         const currentHourString = String(now.getHours()).padStart(2, '0') + ":00";
@@ -188,44 +183,38 @@ export class ControleView {
         
         const caminhoesMap = new Map(caminhoes.map(c => [c.id, c]));
         
-        // *** REMOVIDO ***
-        // O filtro 'descarregandoSet' foi removido.
-        // const descarregandoSet = new Set(); ...
-        
-        // *** ADICIONADO DE VOLTA ***
         // Mapa para garantir que um caminhão apareça APENAS uma vez (o mais recente)
         const trucksAddedToMatrix = new Map(); 
 
-        // 2. Filtra logs que são partidas REAIS (indo_carregar) E DENTRO DO CICLO
+        // 2. Filtra logs que são partidas REAIS (indo_carregar)
         let filteredDepartures = caminhao_historico.filter(log => {
             const statusAnterior = log.status_anterior;
             const isPreDeparture = ESTACIONAMENTO_STATUS.includes(statusAnterior) || statusAnterior === null || statusAnterior === '';
             const isNewDeparture = log.status_novo === 'indo_carregar';
 
-            const logTime = new Date(log.timestamp_mudanca).getTime();
-            const isInCycle = logTime >= cycleStartTime;
-
-            return isPreDeparture && isNewDeparture && isInCycle;
+            // --- FILTRO DE TEMPO REMOVIDO ---
+            // const logTime = new Date(log.timestamp_mudanca).getTime();
+            // const isInCycle = logTime >= cycleStartTime;
+            // return isPreDeparture && isNewDeparture && isInCycle;
+            
+            return isPreDeparture && isNewDeparture; // <-- CORREÇÃO APLICADA
         });
 
-        // 3. *** CORREÇÃO: Ordena da MAIS NOVA para a MAIS ANTIGA ***
+        // 3. Ordena da MAIS NOVA para a MAIS ANTIGA
         filteredDepartures.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
 
         // 4. Processa a lista, pegando apenas o MAIS NOVO
         filteredDepartures.forEach(log => {
             
             const caminhaoId = log.caminhao_id;
-
-            // *** REMOVIDO ***
-            // if (descarregandoSet.has(caminhaoId)) { return; }
             
-            // *** ADICIONADO DE VOLTA ***
             // Se já adicionamos a partida mais recente deste caminhão, pulamos as mais antigas.
             if (trucksAddedToMatrix.has(caminhaoId)) {
                 return; 
             }
             
             const caminhao = caminhoesMap.get(caminhaoId);
+            // CORREÇÃO: Pega o frenteId do LOG (histórico) primeiro, senão o do caminhão (atual)
             const frenteId = log.frente_id || caminhao?.frente_id; 
 
             if (frenteId && caminhao && log.timestamp_mudanca) {
@@ -248,7 +237,6 @@ export class ControleView {
                     status: caminhao.status || 'disponivel' 
                 });
                 
-                // *** ADICIONADO DE VOLTA ***
                 // Marca o caminhão como "adicionado" para não duplicá-lo
                 trucksAddedToMatrix.set(caminhaoId, true); 
             }
@@ -1090,6 +1078,109 @@ export class ControleView {
         });
     }
 
+    // ★★★ INÍCIO DA CORREÇÃO 1 (FUNCIONALIDADE) ★★★
+    // Adiciona a função 'showFinalizeDowntimeModal' copiada de 'frota.js'
+    showFinalizeDowntimeModal(caminhaoId, startTime) {
+        const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
+        if (!caminhao) return;
+
+        // CORREÇÃO: Usa a função getBrtNowString
+        const nowString = getBrtNowString();
+        
+        // Calcula a duração inicial (para o display)
+        const initialDiffMillis = calculateTimeDifference(startTime, nowString);
+        const initialDuration = formatMillisecondsToHoursMinutes(initialDiffMillis);
+        
+        // Define a cor de alerta se a duração inicial for negativa (o que não deveria ocorrer com nowString, mas é uma proteção)
+        const durationColor = initialDiffMillis < 0 ? 'var(--accent-danger)' : 'var(--accent-primary)';
+
+
+        const modalContent = `
+            <p>Finalizando inatividade para: <strong>${caminhao.cod_equipamento}</strong></p>
+            <p style="font-size: 0.9rem; color: var(--text-secondary);">Início da Inatividade: ${formatDateTime(startTime)}</p>
+            
+            <form id="finalize-downtime-form-frota" class="action-modal-form">
+                <div class="form-group">
+                    <label>Hora de Retorno (Fim da Inatividade)</label>
+                    <input type="datetime-local" name="hora_fim" id="hora_fim_input_frota" class="form-input" value="${nowString}" required>
+                    <p class="form-help">Edite se a hora de retorno for diferente da hora atual.</p>
+                </div>
+                
+                <p style="text-align: center; font-size: 1.1rem; margin-top: 15px;">
+                    Duração Total: <strong id="downtime-duration-display-frota" style="color: ${durationColor};">${initialDuration}</strong>
+                </p>
+                
+                <button type="submit" class="btn-primary">Finalizar (Tornar Disponível)</button>
+            </form>
+            
+            <script>
+                // Mapeia as funções de utilidade de tempo para o script inline (Corrigido para Concatenação)
+                window.timeUtils = {
+                    calculateTimeDifference: (start, end) => {
+                         const startMs = new Date(start).getTime();
+                         const endMs = new Date(end).getTime();
+                         return endMs - startMs;
+                    },
+                    formatMillisecondsToHoursMinutes: (ms) => {
+                         if (ms < 0) ms = 0;
+                         const diffHours = Math.floor(ms / (1000 * 60 * 60));
+                         const diffMinutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+                         if (diffHours > 0) {
+                             return diffHours + 'h ' + diffMinutes + 'm'; 
+                         } else {
+                             return diffMinutes + 'm'; 
+                         }
+                    }
+                };
+
+                const startTimeIso = '${startTime}';
+                const horaFimInput = document.getElementById('hora_fim_input_frota');
+                const durationDisplay = document.getElementById('downtime-duration-display-frota');
+
+                function updateDuration() {
+                    const endTime = horaFimInput.value;
+                    if (!endTime) return;
+
+                    const diffMillis = window.timeUtils.calculateTimeDifference(startTimeIso, endTime);
+                    const durationText = window.timeUtils.formatMillisecondsToHoursMinutes(Math.abs(diffMillis));
+                    
+                    durationDisplay.textContent = durationText;
+
+                    if (diffMillis < 0) {
+                        durationDisplay.style.color = 'var(--accent-danger)';
+                        durationDisplay.textContent += ' (Inválida)';
+                        horaFimInput.classList.add('is-invalid');
+                    } else {
+                        durationDisplay.style.color = 'var(--accent-primary)';
+                        horaFimInput.classList.remove('is-invalid');
+                    }
+                }
+                
+                horaFimInput.addEventListener('input', updateDuration);
+                updateDuration(); // Garante o estado inicial
+            <\/script>
+        `;
+        openModal('Finalizar Inatividade - ' + this.statusLabels[caminhao.status], modalContent);
+
+        document.getElementById('finalize-downtime-form-frota').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const horaFim = e.target.hora_fim.value;
+            
+            // Validação final: o tempo de fim não pode ser anterior ao tempo de início.
+            if (calculateTimeDifference(startTime, horaFim) < 0) {
+                 showToast('A Hora de Retorno não pode ser anterior à Hora de Início.', 'error');
+                 document.getElementById('hora_fim_input_frota').classList.add('is-invalid');
+                 return;
+            }
+            
+            // ★★★ CORREÇÃO 2 (FUNCIONALIDADE) ★★★
+            // Ajusta a chamada para usar 'handleStatusUpdate' com os parâmetros corretos
+            this.handleStatusUpdate(caminhao.id, 'disponivel', null, 'Inatividade finalizada! Caminhão disponível.', null, getBrtIsoString(horaFim));
+        });
+    }
+    // ★★★ FIM DA CORREÇÃO 1 ★★★
+
+
     showStatusUpdateModal(caminhaoId) {
         const caminhao = this.data.caminhoes.find(c => c.id == caminhaoId);
         if (!caminhao) return;
@@ -1151,12 +1242,14 @@ export class ControleView {
                  this.handleStatusUpdate(caminhao.id, novoStatus, caminhao.frente_id, 'Status e motivo atualizados!', motivo);
              });
              
-             // Este botão não funcionará mais aqui, pois a função foi movida.
-             // A lógica de finalização agora está em frota.js
+             // ★★★ CORREÇÃO 3 (FUNCIONALIDADE) ★★★
+             // Altera o listener para chamar o novo modal de finalização
              document.getElementById('btn-finalizar-downtime').addEventListener('click', () => {
-                 showToast('Esta ação foi movida para a tela de Gerenciamento de Frota.', 'info');
-                 closeModal();
+                 closeModal(); // Fecha o modal de "Gerenciar Inatividade"
+                 // Abre o modal de "Finalizar Inatividade" (que acabamos de copiar)
+                 this.showFinalizeDowntimeModal(caminhao.id, startTime); 
              });
+             // ★★★ FIM DA CORREÇÃO 3 ★★★
              
              return;
         }
@@ -1196,7 +1289,7 @@ export class ControleView {
                         statusGroup.querySelector('input').removeAttribute('required');
                     }
                 });
-            </script>
+            <\/script>
         `;
         openModal('Alterar Status do Caminhão', modalContent);
 
