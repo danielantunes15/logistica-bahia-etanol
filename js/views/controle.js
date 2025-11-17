@@ -162,15 +162,25 @@ export class ControleView {
     }
 
     /**
-     * CORRIGIDO: Processa o histórico APENAS pela HORA de saída (00:00-23:00), ignorando o dia.
+     * ★★★ AQUI ESTÁ A CORREÇÃO DE HOJE ★★★
+     * Retorna à lógica de "APENAS O ÚLTIMO" movimento e remove o filtro de "descarregando".
      */
     _processMovimentacaoData() {
         this.movimentacaoData = {};
         this.cycleHeaders = this._getCycleHeaders();
         const { caminhao_historico = [], frentes_servico = [], caminhoes = [] } = this.data;
 
-        // 1. Definir a matriz com base nas HORAS (07:00 a 06:00), ignorando o dia.
+        // 1. Definir o início do ciclo 24h
         const now = new Date(); // Hora local (BRT)
+        const cycleStart = new Date();
+        // Se for antes das 7h da manhã (ex: 5 AM), o ciclo começou às 7h de ONTEM.
+        if (now.getHours() < 7) { 
+            cycleStart.setDate(now.getDate() - 1);
+        }
+        cycleStart.setHours(7, 0, 0, 0); // Ex: 16/Nov 07:00:00 BRT
+        
+        const cycleStartISO_UTC = cycleStart.toISOString(); 
+        const cycleStartTime = new Date(cycleStartISO_UTC).getTime();
         
         // Calcula o slot de hora atual (ex: 16:43 -> "16:00")
         const currentHourString = String(now.getHours()).padStart(2, '0') + ":00";
@@ -178,43 +188,39 @@ export class ControleView {
         
         const caminhoesMap = new Map(caminhoes.map(c => [c.id, c]));
         
-        // Criar um Set de caminhões que estão descarregando (eles não devem aparecer na matriz de saídas)
-        const descarregandoSet = new Set();
-        caminhoes.forEach(c => {
-            if (c.status === this.statusToMonitor) { // statusToMonitor = 'descarregando'
-                descarregandoSet.add(c.id);
-            }
-        });
+        // *** REMOVIDO ***
+        // O filtro 'descarregandoSet' foi removido.
+        // const descarregandoSet = new Set(); ...
         
-        // ** NOVO: Mapa para garantir que um caminhão apareça APENAS uma vez (o primeiro log) **
+        // *** ADICIONADO DE VOLTA ***
+        // Mapa para garantir que um caminhão apareça APENAS uma vez (o mais recente)
         const trucksAddedToMatrix = new Map(); 
 
-        // 2. Filtra logs que são partidas REAIS (indo_carregar)
+        // 2. Filtra logs que são partidas REAIS (indo_carregar) E DENTRO DO CICLO
         let filteredDepartures = caminhao_historico.filter(log => {
             const statusAnterior = log.status_anterior;
-            // Filtro 1: Saiu do pátio (Estacionamento)
             const isPreDeparture = ESTACIONAMENTO_STATUS.includes(statusAnterior) || statusAnterior === null || statusAnterior === '';
-            // Filtro 2: Está especificamente INDO CARREGAR
             const isNewDeparture = log.status_novo === 'indo_carregar';
 
-            return isPreDeparture && isNewDeparture;
+            const logTime = new Date(log.timestamp_mudanca).getTime();
+            const isInCycle = logTime >= cycleStartTime;
+
+            return isPreDeparture && isNewDeparture && isInCycle;
         });
 
-        // 3. *** CORREÇÃO APLICADA: Ordena da MAIS NOVA para a MAIS ANTIGA ***
-        // (Isso garante que vamos pegar a *última* partida do caminhão)
+        // 3. *** CORREÇÃO: Ordena da MAIS NOVA para a MAIS ANTIGA ***
         filteredDepartures.sort((a, b) => new Date(b.timestamp_mudanca) - new Date(a.timestamp_mudanca));
 
-        // 4. Processa a lista, SLOTANDO APENAS PELA HORA
+        // 4. Processa a lista, pegando apenas o MAIS NOVO
         filteredDepartures.forEach(log => {
             
             const caminhaoId = log.caminhao_id;
 
-            // Se o caminhão está na lista de descarga, PULA.
-            if (descarregandoSet.has(caminhaoId)) {
-                return; 
-            }
+            // *** REMOVIDO ***
+            // if (descarregandoSet.has(caminhaoId)) { return; }
             
-            // ** APLICA REGRA DE UNICIDADE: Se já adicionado, pule. (Agora pega o MAIS NOVO) **
+            // *** ADICIONADO DE VOLTA ***
+            // Se já adicionamos a partida mais recente deste caminhão, pulamos as mais antigas.
             if (trucksAddedToMatrix.has(caminhaoId)) {
                 return; 
             }
@@ -224,17 +230,9 @@ export class ControleView {
 
             if (frenteId && caminhao && log.timestamp_mudanca) {
                 
-                trucksAddedToMatrix.set(caminhaoId, true); // Marca como adicionado
-
-                // *** CORREÇÃO DE FUSO: Obtém a hora BRT (0-23) para slotagem ***
-                // Esta função agora vem de timeUtils.js
                 const logHour = getBrtHour(log.timestamp_mudanca); // Pega a hora BRT (0 a 23)
-                // *** FIM DA CORREÇÃO DE FUSO ***
-                
-                // Ajusta a hora para o índice de 0 a 23 (onde 7h é o índice 0)
                 let slotIndex = (logHour - 7 + 24) % 24; 
-                
-                const slotKey = this.cycleHeaders[slotIndex].display; // Ex: '07:00'
+                const slotKey = this.cycleHeaders[slotIndex].display;
                 
                 if (!this.movimentacaoData[frenteId]) {
                     this.movimentacaoData[frenteId] = {};
@@ -243,26 +241,30 @@ export class ControleView {
                     this.movimentacaoData[frenteId][slotKey] = [];
                 }
                 
-                // Adiciona o caminhão no slot da hora correspondente (primeira ocorrência)
+                // Adiciona o caminhão no slot
                 this.movimentacaoData[frenteId][slotKey].push({
                     id: caminhao.id, 
                     cod: caminhao.cod_equipamento,
-                    status: caminhao.status || 'disponivel' // Armazena o status atual
+                    status: caminhao.status || 'disponivel' 
                 });
+                
+                // *** ADICIONADO DE VOLTA ***
+                // Marca o caminhão como "adicionado" para não duplicá-lo
+                trucksAddedToMatrix.set(caminhaoId, true); 
             }
         });
         
-        // 5. Define as frentes para o render (apenas as que são de produção)
+        // 5. Define as frentes para o render
         this.frentesMap = new Map(this.data.frentes_servico.filter(f => 
             f.tipo_producao === 'MANUAL' || f.tipo_producao === 'MECANIZADA' || f.tipo_producao === 'NA' || !f.tipo_producao)
             .map(f => [f.id, f]));
         
-        // Ordena o mapa para que a renderização seja em ordem alfabética do nome da frente
         this.frentesMap = new Map(
             Array.from(this.frentesMap.entries())
                  .sort(([, a], [, b]) => a.nome.localeCompare(b.nome))
         );
     }
+    // ★★★ FIM DA CORREÇÃO ★★★
 
     // --- INÍCIO DA MODIFICAÇÃO: Inclusão do Dashboard ---
 
@@ -357,7 +359,7 @@ export class ControleView {
                 ${this.renderDescargaTable()}
                 <div class="info-footer">
                     <p style="font-size: 0.9rem; color: var(--text-secondary);">
-                        <i class="ph-fill ph-info"></i> Esta tabela mostra as partidas de caminhões do pátio agrupadas por slot de horário, sem filtro de data.
+                        <i class="ph-fill ph-info"></i> Esta tabela mostra a última partida do caminhão no ciclo atual (iniciado às 07:00).
                     </p>
                 </div>
 
