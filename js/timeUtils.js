@@ -101,6 +101,31 @@ export function getBrtHour(isoTimestamp) {
 }
 
 /**
+ * ✅ NOVA FUNÇÃO: Converte um timestamp ISO (UTC) para uma string de input 'datetime-local' (BRT).
+ * Usada para preencher modais de edição com o horário BRT correto.
+ */
+export function convertIsoToBrtInputString(isoString) {
+    if (!isoString) return getBrtNowString(); // Retorna o agora (BRT) se a data for nula
+    
+    const d = new Date(isoString);
+    if (isNaN(d)) return getBrtNowString(); // Fallback se a data for inválida
+
+    const options = {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false
+    };
+    
+    // Usa 'sv-SE' (Sueco) para obter o formato YYYY-MM-DD HH:MM
+    const parts = new Intl.DateTimeFormat('sv-SE', options).formatToParts(d);
+    const map = new Map(parts.map(p => [p.type, p.value]));
+
+    // Retorna no formato 'datetime-local' (YYYY-MM-DDTHH:MM)
+    return `${map.get('year')}-${map.get('month')}-${map.get('day')}T${map.get('hour')}:${map.get('minute')}`;
+}
+
+
+/**
  * Função alternativa, gera ISO diretamente a partir da hora local atual.
  * CORRIGIDO: Agora ela chama getBrtIsoString() para forçar o BRT.
  */
@@ -378,14 +403,15 @@ export function getEmergencyBrtIso() {
 }
 
 /**
- * ✅ NOVA FUNÇÃO: Garante que o timestamp esteja no formato BRT correto
+ * ✅ CORREÇÃO DA FUNÇÃO: Esta função estava causando o bug do fuso duplicado.
+ * Agora ela apenas retorna o timestamp original, pois a 'formatDateTime'
+ * já faz a conversão de UTC para BRT corretamente.
  */
 export function ensureBrtTimestamp(timestamp) {
     if (!timestamp) return null;
-    // Se já estiver no formato correto, retorna como está
-    if (typeof timestamp === 'string' && timestamp.includes('-03:00')) {
-        return timestamp;
-    }
-    // Caso contrário, converte para BRT
-    return getBrtIsoString(timestamp);
+    
+    // CORREÇÃO: Apenas retorna o timestamp. A lógica anterior estava errada.
+    // A função formatDateTime() é inteligente o suficiente para lidar
+    // com o timestamp UTC original do banco de dados.
+    return timestamp;
 }

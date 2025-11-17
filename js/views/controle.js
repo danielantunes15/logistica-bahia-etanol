@@ -492,7 +492,9 @@ export class ControleView {
                         <div class="descarga-cod">#${caminhao.cod_equipamento}</div>
                         <div class="descarga-frente-origem">${caminhao.frente_nome_origem}</div> 
                     </div>
-                    <div class="descarga-time">${formatDateTime(ensureBrtTimestamp(caminhao.entrada))}</div>
+                    
+                    <div class="descarga-time">${formatDateTime(caminhao.entrada)}</div>
+
                 </div>
             `).join('');
             // *** FIM DA CORREÇÃO (CLICKABLE CARD) ***
