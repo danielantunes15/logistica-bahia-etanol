@@ -61,31 +61,22 @@ export function getBrtNowString() {
  */
 export function getBrtIsoString(timeString) {
     
-    // CORREÇÃO: Se timeString não for fornecido (ex: uma ação rápida de mudança de status),
-    // usa a hora BRT ATUAL como padrão, em vez de depender do relógio do navegador.
+    // 1. Se timeString não for fornecido (ação rápida), usa a hora BRT ATUAL como padrão.
     const timeToConvert = timeString || getBrtNowString();
     
     try {
-        // 1. Divide a string "YYYY-MM-DDTHH:MM"
-        const parts = timeToConvert.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-        if (!parts) throw new Error('Formato de data inválido');
-        
-        const [ , year, month, day, hour, minute] = parts.map(Number);
-        
-        // 2. Cria a data como se fosse UTC (mas usando os números do BRT)
-        // Ex: 02:00h BRT -> Date.UTC(..., 2, ...)
-        const timestampAsUtc = Date.UTC(year, month - 1, day, hour, minute);
-        
-        // 3. Adiciona as 3 horas de offset para SALVAR o UTC correto (02:00 BRT -> 05:00 UTC)
-        const correctUtcTime = timestampAsUtc + (3 * 60 * 60 * 1000);
-        
-        // 4. Converte o timestamp UTC final para ISO string
-        return new Date(correctUtcTime).toISOString();
+        // 2. CORREÇÃO: Força a string de data/hora a ser interpretada como UTC-3 (BRT)
+        // Ao anexar "-03:00", o construtor 'new Date()' entende que "07:16" significa "07:16 BRT".
+        const brtDate = new Date(timeToConvert + "-03:00");
+
+        // 3. .toISOString() converte automaticamente a data BRT para o seu equivalente UTC (ex: 10:16 UTC)
+        return brtDate.toISOString();
 
     } catch (e) {
          console.error("Erro ao converter BRT para ISO:", e, timeToConvert);
-         // Fallback de emergência (usa o 'new Date()' que já era o fallback antigo)
-         return new Date().toISOString();
+         // Fallback de emergência
+         const fallbackDate = new Date();
+         return new Date(fallbackDate.getTime() + (3 * 60 * 60 * 1000)).toISOString();
     }
 }
 
@@ -111,10 +102,13 @@ export function getBrtHour(isoTimestamp) {
 
 /**
  * Função alternativa, gera ISO diretamente a partir da hora local atual.
+ * ☠️ ESTA FUNÇÃO ESTAVA CAUSANDO O BUG DE CÁLCULO DE DURAÇÃO.
+ * CORRIGIDO: Agora ela chama getBrtIsoString() para forçar o BRT.
  */
 export function getBrtIsoStringAlt() {
-    const now = new Date();
-    return now.toISOString();
+    // CORRIGIDO: Retorna o ISO UTC correto para "agora" (em BRT)
+    // Chamando a função principal sem argumentos, ela usará getBrtNowString()
+    return getBrtIsoString();
 }
 
 // NOVO: Calcula a diferença em milissegundos entre dois timestamps ISO ou T-strings
@@ -187,7 +181,10 @@ export function formatMillisecondsToHoursMinutes(diffMillis) {
  */
 export function calculateActiveDuration(startTime) {
     const start = new Date(startTime).getTime();
-    const nowBrtIso = getBrtIsoStringAlt(); // Usa a função alternativa que pega o instante atual.
+    
+    // CORREÇÃO: Usa a função corrigida getBrtIsoString() para pegar o "agora"
+    // em BRT, convertido para UTC.
+    const nowBrtIso = getBrtIsoString(); // <- Esta era a fonte do Bug 3
     const end = new Date(nowBrtIso).getTime();
 
     const diffMillis = end - start;
@@ -206,6 +203,7 @@ export function calculateDowntimeDuration(startTime, endTime) {
     if (endTime) {
         end = new Date(endTime).getTime();
     } else {
+        // CORREÇÃO: Usa a função corrigida getBrtIsoString() para pegar o "agora"
         const nowBrtIso = getBrtIsoString();
         end = new Date(nowBrtIso).getTime();
     }
@@ -335,6 +333,7 @@ export function calculateCycleDuration(history, cycleStatuses) {
         }
 
         if (cycleStartLog) {
+            // CORREÇÃO: Usa a função corrigida getBrtIsoString() para pegar o "agora"
             const now = new Date(getBrtIsoString()).getTime();
             const duration = now - new Date(cycleStartLog.timestamp_mudanca).getTime();
             cycleSessions.push({
