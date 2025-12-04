@@ -1,5 +1,6 @@
 // Este arquivo exporta a conexão com o Supabase para ser usada em outros arquivos.
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+// CORREÇÃO: Alterado de cdn.jsdelivr.net para esm.sh para corrigir o erro 'AuthClient'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // MUDANÇA: Carrega as chaves via objeto global window.env
 const SUPABASE_URL = window.env.SUPABASE_URL;
