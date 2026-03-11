@@ -112,8 +112,9 @@ export class GerenciamentoTerceirosView {
                     </div>
 
                     <div class="tab-content" id="tab-equipamentos-terceiros" style="display: none;">
-                        <div style="margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
                             <h3>Histórico de Máquinas e Equipamentos</h3>
+                            <button class="btn-danger" id="btn-desativar-maquinas"><i class="ph-fill ph-tractor"></i> Desativar Todas as Máquinas</button>
                         </div>
                         <table class="data-table-modern">
                             <thead>
@@ -124,13 +125,16 @@ export class GerenciamentoTerceirosView {
                     </div>
 
                     <div class="tab-content" id="tab-equipe-terceiros" style="display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                            <h3>Quadro de Colaboradores Terceirizados</h3>
-                            <input type="text" id="search-funcionario" class="form-input" placeholder="Buscar por nome ou empresa..." style="width: 300px; border-radius: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                            <div style="display: flex; gap: 15px; align-items: center;">
+                                <h3>Quadro de Colaboradores Terceirizados</h3>
+                                <input type="text" id="search-funcionario" class="form-input" placeholder="Buscar por nome ou empresa..." style="width: 250px; border-radius: 20px;">
+                            </div>
+                            <button class="btn-danger" id="btn-desativar-equipe"><i class="ph-fill ph-users-three"></i> Desativar Toda a Equipe</button>
                         </div>
                         <table class="data-table-modern">
                             <thead>
-                                <tr><th>Nome do Colaborador</th><th>Empresa Parceira</th><th>Atividade</th><th>Situação</th><th>Status Integração</th></tr>
+                                <tr><th>Nome do Colaborador</th><th>Empresa Parceira</th><th>Atividade</th><th>Situação</th><th>Status Integração</th><th style="text-align: center;">Ações</th></tr>
                             </thead>
                             <tbody id="lista-todos-funcionarios"></tbody>
                         </table>
@@ -168,10 +172,10 @@ export class GerenciamentoTerceirosView {
     renderBadge(valor) {
         const v = valor || '';
         let color = '#ED8936', bg = 'rgba(237, 137, 54, 0.2)'; 
-        if (v === 'Apto para Safra' || v === 'Integrado (Apto)' || v === 'ativo') { color = '#38A169'; bg = 'rgba(56, 161, 105, 0.2)'; }
-        else if (v === 'Bloqueado' || v === 'inativo') { color = '#E53E3E'; bg = 'rgba(229, 62, 62, 0.2)'; }
+        if (v.includes('Apto') || v === 'ativo') { color = '#38A169'; bg = 'rgba(56, 161, 105, 0.2)'; }
+        else if (v.includes('Bloqueado') || v === 'inativo') { color = '#E53E3E'; bg = 'rgba(229, 62, 62, 0.2)'; }
         else if (v.includes('excluído')) { color = '#718096'; bg = '#E2E8F0'; } 
-        return `<span style="background: ${bg}; color: ${color}; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase;">${v}</span>`;
+        return `<span style="background: ${bg}; color: ${color}; padding: 4px 10px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; text-align: center; display: inline-block;">${v}</span>`;
     }
 
     addEventListeners() {
@@ -192,21 +196,29 @@ export class GerenciamentoTerceirosView {
             const btn = e.target.closest('button');
             if (!btn) return;
 
-            // Aprovar Veículo/Máquina
+            // Workflow: Aprovar Veículo/Máquina
             if (btn.classList.contains('btn-aprovar-equipamento')) {
-                this.atualizarStatus(btn.dataset.id, btn.dataset.origem, 'Apto para Safra');
+                this.atualizarStatusUnico(btn.dataset.id, btn.dataset.origem, 'status_homologacao', 'Apto para Safra');
             }
-            // Confirmar Integração Funcionário
+            // Workflow: Confirmar Integração Funcionário
             if (btn.classList.contains('btn-integrar-funcionario')) {
-                this.atualizarStatus(btn.dataset.id, 'terceiros', 'Integrado (Apto)');
+                this.atualizarStatusUnico(btn.dataset.id, 'terceiros', 'status_homologacao', 'Integrado (Apto)');
             }
-            // Ativar Acesso Empresa
+            // Acessos: Ativar Empresa
             if (btn.classList.contains('btn-ativar-acesso')) {
                 this.gerarToken(btn.dataset.id);
             }
-            // Bloquear Acesso Empresa
+            // Acessos: Bloquear Empresa
             if (btn.classList.contains('btn-remover-acesso')) {
                 this.removerToken(btn.dataset.id);
+            }
+            // Equipe: Inativar Colaborador (Bloqueia e Inativa)
+            if (btn.classList.contains('btn-inativar-funcionario')) {
+                this.atualizarDuploStatus(btn.dataset.id, 'terceiros', 'inativo', 'Bloqueado');
+            }
+            // Equipe: Remover Colaborador (Exclui logicamente e Bloqueia)
+            if (btn.classList.contains('btn-remover-funcionario')) {
+                this.atualizarDuploStatus(btn.dataset.id, 'terceiros', 'excluído pelo parceiro', 'Bloqueado');
             }
         });
 
@@ -222,13 +234,40 @@ export class GerenciamentoTerceirosView {
             }
         });
 
-        // Botão desativar frota inteira
+        // Botão desativar frota inteira (Inativa situação e Bloqueia homologação)
         document.getElementById('btn-desativar-frota')?.addEventListener('click', async () => {
-            if (confirm('Atenção: Deseja marcar TODOS os caminhões como INATIVOS?')) {
+            if (confirm('Atenção: Deseja marcar TODOS os caminhões como INATIVOS e BLOQUEADOS?')) {
                 showLoading();
                 try {
-                    await supabase.from('caminhoes').update({ situacao: 'inativo' }).neq('situacao', 'inativo');
-                    showToast('Frota desativada com sucesso.', 'success');
+                    // Força a atualização de todos os registros na tabela
+                    await supabase.from('caminhoes').update({ situacao: 'inativo', status_homologacao: 'Bloqueado' }).not('id', 'is', null);
+                    showToast('Frota desativada e bloqueada com sucesso.', 'success');
+                    await this.loadDashboardData();
+                } catch (err) { console.error(err); } finally { hideLoading(); }
+            }
+        });
+
+        // Botão desativar máquinas inteira (Inativa situação e Bloqueia homologação)
+        document.getElementById('btn-desativar-maquinas')?.addEventListener('click', async () => {
+            if (confirm('Atenção: Deseja marcar TODAS as máquinas agrícolas como INATIVAS e BLOQUEADAS?')) {
+                showLoading();
+                try {
+                    // Força a atualização de todos os registros na tabela
+                    await supabase.from('equipamentos').update({ situacao: 'inativo', status_homologacao: 'Bloqueado' }).not('id', 'is', null);
+                    showToast('Máquinas desativadas e bloqueadas com sucesso.', 'success');
+                    await this.loadDashboardData();
+                } catch (err) { console.error(err); } finally { hideLoading(); }
+            }
+        });
+
+        // Botão desativar toda a equipe
+        document.getElementById('btn-desativar-equipe')?.addEventListener('click', async () => {
+            if (confirm('Atenção: Deseja marcar TODOS os colaboradores como INATIVOS e com integração BLOQUEADA?')) {
+                showLoading();
+                try {
+                    // Força a atualização de todos os registros na tabela
+                    await supabase.from('terceiros').update({ situacao: 'inativo', status_homologacao: 'Bloqueado' }).not('id', 'is', null);
+                    showToast('Equipe desativada e bloqueada com sucesso.', 'success');
                     await this.loadDashboardData();
                 } catch (err) { console.error(err); } finally { hideLoading(); }
             }
@@ -246,7 +285,6 @@ export class GerenciamentoTerceirosView {
     async loadDashboardData() {
         showLoading();
         try {
-            // Busca dados cruzados com a tabela de proprietários
             const [f, c, m] = await Promise.all([
                 supabase.from('terceiros').select('*, proprietarios:empresa_id(nome)').order('nome'),
                 supabase.from('caminhoes').select('*, proprietarios(nome)').order('cod_equipamento'),
@@ -280,9 +318,9 @@ export class GerenciamentoTerceirosView {
     }
 
     renderTables() {
-        // Frota de Caminhões (Código e Placa)
+        // Frota de Caminhões
         document.getElementById('lista-frota-caminhoes').innerHTML = this.caminhoes.map(cam => `
-            <tr style="${cam.situacao.includes('excluído') ? 'opacity: 0.6; background: #fafafa;' : ''}">
+            <tr style="${cam.situacao.includes('excluído') ? 'opacity: 0.5; background: #f9f9f9;' : ''}">
                 <td>${cam.proprietarios?.nome || '-'}</td>
                 <td>${cam.cod_equipamento}</td>
                 <td><strong>${cam.placa || '-'}</strong></td>
@@ -294,7 +332,7 @@ export class GerenciamentoTerceirosView {
 
         // Máquinas Agrícolas
         document.getElementById('lista-todos-equipamentos').innerHTML = this.maquinas.map(m => `
-            <tr style="${m.situacao.includes('excluído') ? 'opacity: 0.6; background: #fafafa;' : ''}">
+            <tr style="${m.situacao.includes('excluído') ? 'opacity: 0.5; background: #f9f9f9;' : ''}">
                 <td>${m.proprietarios?.nome || '-'}</td>
                 <td><strong>${m.cod_equipamento}</strong></td>
                 <td>${m.descricao || '-'}</td>
@@ -304,18 +342,30 @@ export class GerenciamentoTerceirosView {
             </tr>
         `).join('') || '<tr><td colspan="6" style="text-align:center;">Nenhuma máquina registrada.</td></tr>';
 
-        // Equipe de Terceiros
+        // Equipe de Terceiros com Botões de Ação
         document.getElementById('lista-todos-funcionarios').innerHTML = this.funcionarios.map(func => `
-            <tr style="${func.situacao.includes('excluído') ? 'opacity: 0.6; background: #fafafa;' : ''}">
+            <tr style="${func.situacao.includes('excluído') ? 'opacity: 0.5; background: #f9f9f9;' : ''}">
                 <td><strong>${func.nome}</strong></td>
                 <td>${func.proprietarios?.nome || '-'}</td>
                 <td>${func.descricao_atividade || '-'}</td>
                 <td>${this.renderBadge(func.situacao)}</td>
                 <td>${this.renderBadge(func.status_homologacao)}</td>
+                <td style="text-align: center;">
+                    ${func.situacao === 'ativo' ? `
+                    <div class="action-buttons-modern" style="justify-content: center;">
+                        <button class="action-btn btn-inativar-funcionario" data-id="${func.id}" title="Desativar Colaborador" style="color: #D69E2E; background: rgba(214, 158, 46, 0.1);">
+                            <i class="ph-fill ph-user-minus"></i>
+                        </button>
+                        <button class="action-btn delete-btn-modern btn-remover-funcionario" data-id="${func.id}" title="Remover (Excluir)">
+                            <i class="ph-fill ph-trash"></i>
+                        </button>
+                    </div>
+                    ` : '<span style="color: var(--text-secondary); font-size: 0.8rem;">Sem ações</span>'}
+                </td>
             </tr>
-        `).join('') || '<tr><td colspan="5" style="text-align:center;">Nenhum funcionário registrado.</td></tr>';
+        `).join('') || '<tr><td colspan="6" style="text-align:center;">Nenhum funcionário registrado.</td></tr>';
 
-        // WORKFLOW TRIAGEM (Apenas os Ativos que estão Pendentes)
+        // WORKFLOW TRIAGEM
         const pendEq = [];
         this.caminhoes.filter(c => c.status_homologacao === 'Pendente Vistoria' && c.situacao === 'ativo').forEach(c => pendEq.push({id: c.id, origem: 'caminhoes', empresa: c.proprietarios?.nome, placa: `${c.cod_equipamento} / ${c.placa}`, modelo: c.descricao, tipo: 'Caminhão'}));
         this.maquinas.filter(m => m.status_homologacao === 'Pendente Vistoria' && m.situacao === 'ativo').forEach(m => pendEq.push({id: m.id, origem: 'equipamentos', empresa: m.proprietarios?.nome, placa: m.cod_equipamento, modelo: m.descricao, tipo: 'Máquina'}));
@@ -341,16 +391,31 @@ export class GerenciamentoTerceirosView {
         `).join('') || '<tr><td colspan="4" style="text-align:center;">Nenhuma integração pendente.</td></tr>';
     }
 
-    async atualizarStatus(id, tabela, novoStatus) {
-        if (!confirm('Deseja confirmar esta aprovação operacional?')) return;
+    // Atualiza apenas 1 coluna
+    async atualizarStatusUnico(id, tabela, coluna, novoValor) {
+        if (!confirm('Deseja confirmar esta ação?')) return;
         showLoading();
         try {
-            await supabase.from(tabela).update({ status_homologacao: novoStatus }).eq('id', id);
-            showToast('Aprovado com sucesso!', 'success');
+            await supabase.from(tabela).update({ [coluna]: novoValor }).eq('id', id);
+            showToast('Ação concluída com sucesso!', 'success');
             await this.loadDashboardData();
         } catch (err) { 
             console.error(err);
-            showToast('Erro ao atualizar status.', 'error'); 
+            showToast('Erro ao atualizar.', 'error'); 
+        } finally { hideLoading(); }
+    }
+
+    // Atualiza situação e homologação do item individualmente (Ex: Desativar Funcionário)
+    async atualizarDuploStatus(id, tabela, situacao, homologacao) {
+        if (!confirm(`Deseja alterar a situação deste registro para "${situacao.toUpperCase()}" e bloquear seu acesso?`)) return;
+        showLoading();
+        try {
+            await supabase.from(tabela).update({ situacao: situacao, status_homologacao: homologacao }).eq('id', id);
+            showToast('Registro desativado com sucesso!', 'success');
+            await this.loadDashboardData();
+        } catch (err) { 
+            console.error(err);
+            showToast('Erro ao processar alteração.', 'error'); 
         } finally { hideLoading(); }
     }
 
