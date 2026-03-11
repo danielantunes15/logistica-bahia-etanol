@@ -33,7 +33,7 @@ export class BoletimDiarioView {
                         title="BOLETIM DIARIO" 
                         width="100%" 
                         height="100%" 
-                        src="https://app.powerbi.com/view?r=eyJrIjoiOTdlMmNlODItMjAyMC00MmRjLTk3NDItZDU0MjQxMjA1NTcwIiwidCI6ImIxNzcyMTIxLWU1MmEtNDE5MS04YWQ2LWIxNDkxNDFhYmRkOSJ9" 
+                        src="https://app.powerbi.com/view?r=eyJrIjoiODIyMmM5NGEtODNmNS00MWM3LWI3MGMtNDAxY2JmNGNmMDE4IiwidCI6ImIxNzcyMTIxLWU1MmEtNDE5MS04YWQ2LWIxNDkxNDFhYmRkOSJ9" 
                         frameborder="0" 
                         allowFullScreen="true"
                         style="border: 1px solid var(--border-color); border-radius: 8px;"

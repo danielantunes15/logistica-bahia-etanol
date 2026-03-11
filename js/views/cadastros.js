@@ -3,8 +3,8 @@ import { showToast, handleOperation, showLoading, hideLoading, validateCPFCNPJ, 
 import { mapManager } from '../maps.js';
 import { openModal, closeModal } from '../components/modal.js';
 import { fetchAllData, insertItem, deleteItem, fetchItemById, updateItem } from '../api.js';
-// NOVO: Importa dataCache
 import { dataCache } from '../dataCache.js';
+import { supabase } from '../supabase.js';
 
 export class CadastrosView {
     constructor(tipo) {
@@ -22,7 +22,6 @@ export class CadastrosView {
             this.initializeMap();
         }
         this.addEventListeners();
-        // NOVO: Adicionar listeners de validação após a renderização do formulário
         this.setupValidationListeners(document.getElementById(`form-${this.tipo}`));
     }
 
@@ -82,7 +81,7 @@ export class CadastrosView {
     async loadData(forceRefresh = false) {
         showLoading();
         try {
-            this.data = await dataCache.fetchMasterDataOnly(forceRefresh); // USANDO CACHE AQUI
+            this.data = await dataCache.fetchMasterDataOnly(forceRefresh); 
             this.renderTable();
         } catch (error) {
             console.error(`Erro ao carregar dados de ${this.tipo}:`, error);
@@ -111,64 +110,52 @@ export class CadastrosView {
                 { name: 'longitude', label: 'Longitude', type: 'text', required: false }
             ],
             caminhoes: [
-                { name: 'cod_equipamento', label: 'Código do Caminhão', type: 'text', required: true },
-                { name: 'descricao', label: 'Descrição do Caminhão', type: 'text', required: true },
-                { name: 'proprietario_id', label: 'Proprietário', type: 'select', source: 'proprietarios', displayField: 'nome', required: true },
+                // SEPARADO O CÓDIGO DA PLACA
+                { name: 'cod_equipamento', label: 'Código (Ex: CAM-01)', type: 'text', required: true },
+                { name: 'placa', label: 'Placa (Ex: ABC-1234)', type: 'text', required: true },
+                { name: 'descricao', label: 'Descrição/Modelo', type: 'text', required: true },
+                { name: 'proprietario_id', label: 'Empresa Parceira', type: 'select', source: 'proprietarios', displayField: 'nome', required: true },
                 { name: 'motoristas', label: 'Motoristas', type: 'select-multiple', source: 'terceiros', displayField: 'nome', required: false },
-                { name: 'situacao', label: 'Situação', type: 'select', options: ['ativo', 'parado', 'inativo'], required: true }
+                { name: 'situacao', label: 'Situação Operacional', type: 'select', options: ['ativo', 'inativo', 'excluído pelo parceiro'], required: true },
+                { name: 'status_homologacao', label: 'Status de Homologação', type: 'select', options: ['Apto para Safra', 'Pendente Vistoria', 'Bloqueado'], required: true },
+                { name: 'documento', label: 'Upload de CRLV (Opcional)', type: 'file', required: false }
             ],
             equipamentos: [
                 { name: 'cod_equipamento', label: 'Código do Equipamento', type: 'text', required: true },
                 { name: 'descricao', label: 'Descrição do Equipamento', type: 'text', required: true },
-                { name: 'proprietario_id', label: 'Proprietário', type: 'select', source: 'proprietarios', displayField: 'nome', required: true },
+                { name: 'proprietario_id', label: 'Empresa Parceira', type: 'select', source: 'proprietarios', displayField: 'nome', required: true },
                 { name: 'operadores', label: 'Operadores', type: 'select-multiple', source: 'terceiros', displayField: 'nome', required: false },
                 { name: 'finalidade', label: 'Finalidade', type: 'select', options: ['Carregadeira', 'Trator Reboque', 'Colhedora', 'Trator Transbordo'], required: true },
-                { name: 'frente_id', label: 'Frente de Serviço', type: 'select', source: 'frentes_servico', displayField: 'nome', required: true }
+                { name: 'frente_id', label: 'Frente de Serviço', type: 'select', source: 'frentes_servico', displayField: 'nome', required: true },
+                { name: 'situacao', label: 'Situação Operacional', type: 'select', options: ['ativo', 'inativo', 'excluído pelo parceiro'], required: true },
+                { name: 'status_homologacao', label: 'Status de Homologação', type: 'select', options: ['Apto para Safra', 'Pendente Vistoria', 'Bloqueado'], required: true },
+                { name: 'documento', label: 'Upload de Documento (Opcional)', type: 'file', required: false }
             ],
-            // --- MODIFICAÇÃO AQUI ---
             frentes_servico: [
                 { name: 'cod_equipamento', label: 'Código da Frente', type: 'text', required: true },
                 { name: 'nome', label: 'Nome da Frente', type: 'text', required: true },
-                // --- CAMPO ADICIONADO ---
-                { 
-                    name: 'tipo_producao', 
-                    label: 'Grupo de Produção (Boletim)', 
-                    type: 'select', 
-                    // Usamos 'NA' para representar o valor 'null' (Não Atribuído)
-                    options: ['NA', 'MANUAL', 'MECANIZADA'], 
-                    required: false 
-                }
-                // --- FIM DA ADIÇÃO ---
+                { name: 'tipo_producao', label: 'Grupo de Produção (Boletim)', type: 'select', options: ['NA', 'MANUAL', 'MECANIZADA'], required: false }
             ],
             fornecedores: [
                 { name: 'cod_equipamento', label: 'Código do Fornecedor', type: 'text', required: true },
                 { name: 'nome', label: 'Nome do Fornecedor', type: 'text', required: true },
-                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, // ADD VALIDAÇÃO
-                { name: 'telefone', label: 'Telefone', type: 'text', required: false, validation: 'phone' } // ADD VALIDAÇÃO
+                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, 
+                { name: 'telefone', label: 'Telefone', type: 'text', required: false, validation: 'phone' } 
             ],
             proprietarios: [
-                { name: 'cod_equipamento', label: 'Código do Proprietário', type: 'text', required: true },
-                { name: 'nome', label: 'Nome do Proprietário', type: 'text', required: true },
-                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, // ADD VALIDAÇÃO
-                { name: 'telefone', label: 'Telefone', type: 'text', required: false, validation: 'phone' } // ADD VALIDAÇÃO
+                { name: 'cod_equipamento', label: 'Código da Empresa', type: 'text', required: true },
+                { name: 'nome', label: 'Nome da Empresa/Proprietário', type: 'text', required: true },
+                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, 
+                { name: 'telefone', label: 'Telefone', type: 'text', required: false, validation: 'phone' } 
             ],
             terceiros: [
-                { name: 'nome', label: 'Nome', type: 'text', required: true },
-                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, // ADD VALIDAÇÃO
-                { 
-                    name: 'descricao_atividade', 
-                    label: 'Atividade', 
-                    type: 'select', 
-                    options: [
-                        'Motorista', 
-                        'Operador de Colhedora', 
-                        'Operador de Trator Reboque', 
-                        'Operador de Trator Transbordo', 
-                        'Operador de Carregadeira'
-                    ], 
-                    required: true 
-                },
-                { name: 'empresa_id', label: 'Empresa (Proprietário)', type: 'select', source: 'proprietarios', displayField: 'nome', required: true }
+                { name: 'nome', label: 'Nome do Colaborador', type: 'text', required: true },
+                { name: 'cpf_cnpj', label: 'CPF/CNPJ', type: 'text', required: true, validation: 'cpfcnpj' }, 
+                { name: 'descricao_atividade', label: 'Cargo / Atividade', type: 'select', options: ['Motorista canavieiro', 'Operador de trator reboque', 'Operador de carregadeira', 'Operador de trator transbordo', 'Operador de colhedora', 'Fiscal de equipe', 'Motorista pipa'], required: true },
+                { name: 'empresa_id', label: 'Empresa Parceira', type: 'select', source: 'proprietarios', displayField: 'nome', required: true },
+                { name: 'situacao', label: 'Situação Operacional', type: 'select', options: ['ativo', 'inativo', 'excluído pelo parceiro'], required: true },
+                { name: 'status_homologacao', label: 'Status de Integração', type: 'select', options: ['Integrado (Apto)', 'Falta Integração', 'Bloqueado'], required: true },
+                { name: 'documento', label: 'Upload de CNH/Certificado (Opcional)', type: 'file', required: false }
             ]
         };
         return baseFields[this.tipo];
@@ -178,7 +165,7 @@ export class CadastrosView {
         const names = {
             'fazendas': 'Fazendas', 'caminhoes': 'Caminhões', 'equipamentos': 'Equipamentos',
             'frentes_servico': 'Frentes de Serviço', 'fornecedores': 'Fornecedores',
-            'proprietarios': 'Proprietários', 'terceiros': 'Terceiros'
+            'proprietarios': 'Proprietários (Empresas)', 'terceiros': 'Terceiros (Funcionários)'
         };
         return names[this.tipo] || this.tipo;
     }
@@ -192,19 +179,21 @@ export class CadastrosView {
         const isEdit = item !== null;
         const inputsHTML = this.formFields.map(field => {
             const requiredAttr = field.required ? 'required' : '';
-            // --- MODIFICAÇÃO AQUI: Garante que 'null' vire 'NA' para o select
             let value = '';
+            
             if (isEdit) {
                 if (field.name === 'tipo_producao') {
-                    value = item[field.name] || 'NA'; // Se for null ou undefined, usa 'NA'
-                } else {
+                    value = item[field.name] || 'NA'; 
+                } else if (field.name !== 'documento') { 
                     value = item[field.name] || (field.type === 'select-multiple' ? [] : '');
                 }
+            } else {
+                if(field.name === 'situacao') value = 'ativo';
+                if(field.name === 'status_homologacao' && this.tipo === 'terceiros') value = 'Integrado (Apto)';
+                if(field.name === 'status_homologacao' && this.tipo !== 'terceiros') value = 'Apto para Safra';
             }
-            // --- FIM DA MODIFICAÇÃO ---
             
             const id = isEdit ? `edit-${field.name}` : field.name;
-    
             let inputHTML = `<div class="form-group"><label for="${id}">${field.label}</label>`;
     
             if (field.type === 'select' || field.type === 'select-multiple') {
@@ -214,24 +203,36 @@ export class CadastrosView {
                 
                 if (field.source && this.data[field.source]) {
                     this.data[field.source].forEach(optionItem => {
-                        const isSelected = isEdit && (
-                            value == optionItem.id || 
-                            (Array.isArray(item[field.name]) && item[field.name].includes(optionItem.id))
-                        );
+                        const isSelected = (isEdit && (value == optionItem.id || (Array.isArray(item[field.name]) && item[field.name].includes(optionItem.id))));
                         inputHTML += `<option value="${optionItem.id}" ${isSelected ? 'selected' : ''}>${optionItem[field.displayField]}</option>`;
                     });
                 } else if (field.options) {
                     field.options.forEach(option => {
-                        // --- MODIFICAÇÃO AQUI: Compara o 'value' (ex: 'NA' ou 'MANUAL')
-                        const isSelected = isEdit && value === option;
+                        const isSelected = value === option;
                         inputHTML += `<option value="${option}" ${isSelected ? 'selected' : ''}>${this.formatOption(option)}</option>`;
                     });
                 }
                 inputHTML += `</select>`;
+            } else if (field.type === 'file') {
+                inputHTML += `<input type="file" name="${field.name}" id="${id}" class="form-input" accept=".pdf,image/*" ${requiredAttr}>`;
+                if (isEdit && item.documento_url) {
+                    inputHTML += `
+                        <div style="margin-top: 10px; padding: 12px; background: rgba(0,0,0,0.02); border-radius: 6px; border: 1px dashed var(--border-color);">
+                            <small style="display:block; margin-bottom: 8px;">
+                                <a href="${item.documento_url}" target="_blank" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">
+                                    <i class="ph-fill ph-file-pdf"></i> Ver Documento Anexado
+                                </a>
+                            </small>
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--accent-danger); cursor: pointer; margin-top: 8px;">
+                                <input type="checkbox" name="remover_documento" value="true" style="accent-color: var(--accent-danger); width: 16px; height: 16px;">
+                                <strong>Excluir este anexo</strong>
+                            </label>
+                        </div>
+                    `;
+                }
             } else {
-                // --- MODIFICAÇÃO: O 'value' para inputs de texto já está correto
                 const textValue = isEdit ? (item[field.name] || '') : '';
-                inputHTML += `<input type="${field.type}" name="${field.name}" id="${id}" class="form-input" value="${textValue}" ${requiredAttr} data-validation="${field.validation || ''}">`; // ADD data-validation
+                inputHTML += `<input type="${field.type}" name="${field.name}" id="${id}" class="form-input" value="${textValue}" ${requiredAttr} data-validation="${field.validation || ''}">`; 
             }
             if (field.validation) {
                  inputHTML += `<div class="validation-message" id="error-${id}" style="display: none;"></div>`;
@@ -241,28 +242,20 @@ export class CadastrosView {
         }).join('');
     
         const submitText = isEdit ? 'Salvar Alterações' : `Cadastrar ${this.getTipoDisplayName().slice(0, -1)}`;
-        return `<form id="${isEdit ? 'form-edit-' + this.tipo : 'form-' + this.tipo}" class="form-modern">${inputsHTML}<button type="submit" class="form-submit"><i class="ph-fill ph-floppy-disk"></i> ${submitText}</button></form>`;
+        return `<form id="${isEdit ? 'form-edit-' + this.tipo : 'form-' + this.tipo}" class="form-modern" enctype="multipart/form-data">${inputsHTML}<button type="submit" class="form-submit"><i class="ph-fill ph-floppy-disk"></i> ${submitText}</button></form>`;
     }
 
-    // --- MODIFICAÇÃO APLICADA AQUI ---
     formatOption(option) {
-        // --- NOVO: Adiciona casos especiais para 'tipo_producao' ---
         if (option === 'NA') return 'Não Atribuído';
         if (option === 'MANUAL') return 'CANA MANUAL';
         if (option === 'MECANIZADA') return 'CANA MECANIZADA';
-        // --- FIM DA ADIÇÃO ---
 
-        if (!option || typeof option !== 'string') {
-            return 'N/A';
-        }
+        if (!option || typeof option !== 'string') return 'N/A';
         return option.charAt(0).toUpperCase() + option.slice(1).replace('_', ' ');
     }
-    // -----------------------------
     
-    // NOVO: Função para configurar listeners de validação
     setupValidationListeners(form) {
         if (!form) return;
-
         form.querySelectorAll('[data-validation]').forEach(input => {
             const validationType = input.dataset.validation;
             if (validationType) {
@@ -273,7 +266,6 @@ export class CadastrosView {
         });
     }
     
-    // NOVO: Função para validar um campo e exibir o feedback
     validateField(input, validationType) {
         const value = input.value;
         const errorMessageElement = document.getElementById(`error-${input.id}`);
@@ -289,10 +281,10 @@ export class CadastrosView {
         if (value) {
             if (validationType === 'cpfcnpj') {
                 isValid = validateCPFCNPJ(value);
-                errorMessage = 'CPF/CNPJ inválido (deve ter 11 ou 14 dígitos).';
+                errorMessage = 'CPF/CNPJ inválido.';
             } else if (validationType === 'phone') {
                 isValid = validatePhone(value);
-                errorMessage = 'Telefone inválido (deve ter 10 ou 11 dígitos).';
+                errorMessage = 'Telefone inválido.';
             }
         }
         
@@ -306,10 +298,8 @@ export class CadastrosView {
                 errorMessageElement.style.display = 'block';
             }
         }
-        
         return isValid;
     }
-
 
     renderTable() {
         const tableContainer = document.getElementById('table-container');
@@ -329,32 +319,55 @@ export class CadastrosView {
     getTableHeaders() {
         const headersConfig = {
             'fazendas': ['Código', 'Nome', 'Fornecedor', 'Coordenadas', 'Ações'],
-            'caminhoes': ['Código', 'Descrição', 'Proprietário', 'Situação', 'Ações'],
-            'equipamentos': ['Código', 'Descrição', 'Proprietário', 'Finalidade', 'Frente', 'Ações'],
-            // --- MODIFICAÇÃO AQUI ---
+            // ADICIONADO COLUNA PLACA AQUI PARA CAMINHÕES
+            'caminhoes': ['Código', 'Placa', 'Modelo', 'Empresa', 'Situação', 'Homologação', 'Ações'],
+            'equipamentos': ['Código', 'Modelo', 'Empresa', 'Situação', 'Homologação', 'Ações'],
             'frentes_servico': ['Código', 'Nome', 'Grupo de Produção', 'Ações'],
             'fornecedores': ['Código', 'Nome', 'CPF/CNPJ', 'Telefone', 'Ações'],
             'proprietarios': ['Código', 'Nome', 'CPF/CNPJ', 'Telefone', 'Ações'],
-            'terceiros': ['Nome', 'CPF/CNPJ', 'Atividade', 'Empresa', 'Ações']
+            'terceiros': ['Nome', 'Atividade', 'Empresa', 'Situação', 'Homologação', 'Ações']
         };
         return (headersConfig[this.tipo] || ['Nome', 'Ações']).map(h => `<th>${h}</th>`).join('');
     }
 
     generateTableRow(item) {
         const cells = this.getTableCells(item);
-        return `<tr>${cells}<td><div class="action-buttons-modern"><button class="action-btn edit-btn-modern" data-id="${item.id}"><i class="ph-fill ph-pencil-simple"></i></button><button class="action-btn delete-btn-modern" data-id="${item.id}"><i class="ph-fill ph-trash"></i></button></div></td></tr>`;
+        
+        let docButton = '';
+        if (item.documento_url) {
+            docButton = `
+                <a href="${item.documento_url}" target="_blank" class="action-btn" title="Ver Documento" style="color: #3182CE; background: rgba(49, 130, 206, 0.1); margin-right: 5px; display: inline-flex; align-items: center; justify-content: center; text-decoration: none;">
+                    <i class="ph-fill ph-file-text"></i>
+                </a>
+            `;
+        }
+
+        return `<tr>${cells}<td><div class="action-buttons-modern" style="display: flex;">${docButton}<button class="action-btn edit-btn-modern" data-id="${item.id}" title="Editar"><i class="ph-fill ph-pencil-simple"></i></button><button class="action-btn delete-btn-modern" data-id="${item.id}" title="Excluir"><i class="ph-fill ph-trash"></i></button></div></td></tr>`;
     }
 
     getTableCells(item) {
+        const renderBadge = (valor, tipo) => {
+            const v = valor || '';
+            let color = '#ED8936', bg = 'rgba(237, 137, 54, 0.2)'; 
+            
+            if (v.includes('Apto') || v === 'ativo') { color = 'var(--accent-primary)'; bg = 'rgba(56, 161, 105, 0.2)'; }
+            else if (v.includes('Bloqueado') || v.includes('inativo')) { color = 'var(--accent-danger)'; bg = 'rgba(229, 62, 62, 0.2)'; }
+            else if (v.includes('excluído')) { color = '#718096'; bg = '#E2E8F0'; } 
+            
+            return `<span style="background: ${bg}; color: ${color}; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; text-transform: uppercase;">${v}</span>`;
+        };
+
+        const propNome = (item.proprietarios || item.empresa_id)?.nome || 'N/A'; 
+
         const cellsConfig = {
             'fazendas': [item.cod_equipamento, item.nome, item.fornecedores?.nome || 'N/A', item.latitude && item.longitude ? `${parseFloat(item.latitude).toFixed(4)}, ${parseFloat(item.longitude).toFixed(4)}` : 'N/A'],
-            'caminhoes': [item.cod_equipamento, item.descricao || 'N/A', item.proprietarios?.nome || 'N/A', this.formatOption(item.situacao)],
-            'equipamentos': [item.cod_equipamento, item.descricao || 'N/A', item.proprietarios?.nome || 'N/A', item.finalidade || 'N/A', item.frentes_servico?.nome || 'N/A'],
-            // --- MODIFICAÇÃO AQUI ---
-            'frentes_servico': [item.cod_equipamento, item.nome, this.formatOption(item.tipo_producao)], // Usa formatOption para 'NA', 'MANUAL', etc.
+            // EXIBE A PLACA NA TABELA DE CAMINHÕES
+            'caminhoes': [item.cod_equipamento, item.placa || '-', item.descricao || 'N/A', propNome, renderBadge(item.situacao, 'sit'), renderBadge(item.status_homologacao, 'hom')],
+            'equipamentos': [item.cod_equipamento, item.descricao || 'N/A', propNome, renderBadge(item.situacao, 'sit'), renderBadge(item.status_homologacao, 'hom')],
+            'frentes_servico': [item.cod_equipamento, item.nome, this.formatOption(item.tipo_producao)], 
             'fornecedores': [item.cod_equipamento, item.nome, item.cpf_cnpj || 'N/A', item.telefone || 'N/A'],
             'proprietarios': [item.cod_equipamento, item.nome, item.cpf_cnpj || 'N/A', item.telefone || 'N/A'],
-            'terceiros': [item.nome, item.cpf_cnpj || 'N/A', item.descricao_atividade || 'N/A', item.empresa_id?.nome || 'N/A']
+            'terceiros': [item.nome, item.descricao_atividade || 'N/A', propNome, renderBadge(item.situacao, 'sit'), renderBadge(item.status_homologacao, 'hom')]
         };
         return (cellsConfig[this.tipo] || [item.nome]).map(c => `<td>${c}</td>`).join('');
     }
@@ -371,93 +384,89 @@ export class CadastrosView {
         });
     }
 
-    // --- NOVA FUNÇÃO GENÉRICA DE SAVE ---
     async handleFormSubmit(e, isEdit = false, id = null) {
         e.preventDefault();
         const form = e.target;
         const formData = new FormData(form);
         const data = Object.fromEntries(formData.entries());
         
-        // 1. Validação de campos específicos (CPF/CNPJ e Telefone)
         let formIsValid = true;
         form.querySelectorAll('[data-validation]').forEach(input => {
-            if (input.hasAttribute('required') && !input.value) {
-                formIsValid = false;
-            }
-            if (!this.validateField(input, input.dataset.validation)) {
-                formIsValid = false;
-            }
+            if (input.hasAttribute('required') && !input.value) formIsValid = false;
+            if (!this.validateField(input, input.dataset.validation)) formIsValid = false;
         });
         
         if (!formIsValid) {
-             showToast('Corrija os campos em vermelho antes de prosseguir.', 'error');
-             return;
+             showToast('Corrija os campos em vermelho.', 'error'); return;
         }
 
-        // --- MODIFICAÇÃO AQUI: Converte 'NA' de volta para 'null' ao salvar ---
-        if (this.tipo === 'frentes_servico' && data.tipo_producao === 'NA') {
-            data.tipo_producao = null;
+        for (const key in data) {
+            if (data[key] === '') data[key] = null;
         }
-        // --- FIM DA MODIFICAÇÃO ---
 
-        // 2. Tratamento de campos de múltiplas opções
+        if (this.tipo === 'frentes_servico' && data.tipo_producao === 'NA') data.tipo_producao = null;
+
+        if (data.remover_documento === 'true') data.documento_url = null; 
+        delete data.remover_documento; 
+
+        const fileData = data.documento;
+        delete data.documento; 
+
+        if (fileData && fileData.size > 0) {
+            try {
+                showLoading();
+                const fileExt = fileData.name.split('.').pop();
+                const fileName = `${this.tipo}_${Date.now()}.${fileExt}`; 
+                
+                const { error: uploadError } = await supabase.storage.from('documentos_terceiros').upload(fileName, fileData);
+                if (uploadError) throw uploadError;
+
+                const { data: urlData } = supabase.storage.from('documentos_terceiros').getPublicUrl(fileName);
+                data.documento_url = urlData.publicUrl; 
+            } catch (err) {
+                console.error("Erro no upload do documento:", err);
+                showToast('Erro ao fazer upload. O item será salvo sem anexo.', 'error');
+            }
+        }
+
         if (this.tipo === 'caminhoes') {
             data.motoristas = formData.getAll('motoristas');
-            if (isEdit) {
-                data.motoristas = data.motoristas.map(id => parseInt(id)); 
-            }
+            if (isEdit) data.motoristas = data.motoristas.map(id => parseInt(id)); 
         }
         if (this.tipo === 'equipamentos') {
             data.operadores = formData.getAll('operadores');
-            if (isEdit) {
-                 data.operadores = data.operadores.map(id => parseInt(id));
-            }
+            if (isEdit) data.operadores = data.operadores.map(id => parseInt(id));
         }
         
         showLoading();
         try {
             let error;
             if (isEdit && id) {
-                // Modo Edição
                 ({ error } = await updateItem(this.tipo, id, data));
-                handleOperation(error, 'Item atualizado com sucesso!');
+                handleOperation(error, 'Item atualizado!');
                 if (!error) closeModal();
             } else {
-                // Modo Cadastro
                 ({ error } = await insertItem(this.tipo, data));
                 handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} cadastrado!`);
                 if (!error) form.reset();
             }
             
             dataCache.invalidateAllData();
-
-            if (!error) {
-                await this.loadData(true); // Força refresh após escrita
-            }
-        } catch (err) {
-            handleOperation(err);
-        } finally {
-            hideLoading();
-        }
+            if (!error) await this.loadData(true); 
+        } catch (err) { handleOperation(err); } 
+        finally { hideLoading(); }
     }
-    // --- FIM NOVA FUNÇÃO GENÉRICA DE SAVE ---
 
     async handleEdit(id) {
         showLoading();
-        // Inclui as tabelas de junção para pré-seleção dos terceiros
         const selectQuery = this.tipo === 'caminhoes' ? '*, caminhao_terceiros(terceiro_id)' : this.tipo === 'equipamentos' ? '*, equipamento_terceiros(terceiro_id)' : '*';
         const { data: item, error } = await fetchItemById(this.tipo, id, selectQuery);
         hideLoading();
     
         if (error) return handleOperation(error);
         
-        // Mapeia os dados da tabela de junção
-        if (this.tipo === 'caminhoes' && item.caminhao_terceiros) {
-            item.motoristas = item.caminhao_terceiros.map(ct => ct.terceiro_id);
-        }
-        if (this.tipo === 'equipamentos' && item.equipamento_terceiros) {
-            item.operadores = item.equipamento_terceiros.map(et => et.terceiro_id);
-        }
+        if (this.tipo === 'caminhoes' && item.caminhao_terceiros) item.motoristas = item.caminhao_terceiros.map(ct => ct.terceiro_id);
+        if (this.tipo === 'equipamentos' && item.equipamento_terceiros) item.operadores = item.equipamento_terceiros.map(et => et.terceiro_id);
     
         const formHTML = this.generateFormHTML(item);
         openModal(`Editar ${this.getTipoDisplayName().slice(0, -1)}`, formHTML);
@@ -468,7 +477,7 @@ export class CadastrosView {
     }
 
     async handleDelete(id) {
-        const content = `<p>Deseja realmente excluir este item?</p><div class="modal-actions"><button id="cancel-delete-btn" class="btn-secondary">Cancelar</button><button id="confirm-delete-btn" class="btn-primary">Confirmar</button></div>`;
+        const content = `<p>Deseja realmente excluir este item do banco de dados?</p><div class="modal-actions"><button id="cancel-delete-btn" class="btn-secondary">Cancelar</button><button id="confirm-delete-btn" class="btn-primary">Confirmar</button></div>`;
         openModal('Confirmar Exclusão', content);
         document.getElementById('confirm-delete-btn').onclick = () => this.handleRealDelete(id);
         document.getElementById('cancel-delete-btn').onclick = closeModal;
@@ -479,18 +488,13 @@ export class CadastrosView {
         try {
             const { error } = await deleteItem(this.tipo, id);
             if (error && error.message.includes('foreign key constraint')) {
-                showToast('Não é possível excluir. Este item está em uso por outro registro.', 'error');
+                showToast('Não é possível excluir. Este item está em uso.', 'error');
             } else {
                 dataCache.invalidateAllData();
-                
                 handleOperation(error, `${this.getTipoDisplayName().slice(0, -1)} excluído!`);
-                if (!error) await this.loadData(true); // Força refresh após escrita
+                if (!error) await this.loadData(true);
             }
-        } catch (err) {
-            handleOperation(err);
-        } finally {
-            hideLoading();
-            closeModal();
-        }
+        } catch (err) { handleOperation(err); } 
+        finally { hideLoading(); closeModal(); }
     }
 }

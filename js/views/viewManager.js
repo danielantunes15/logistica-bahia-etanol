@@ -6,28 +6,21 @@ import { CadastrosView } from './cadastros.js';
 import { FrotaView } from './frota.js';
 import { EquipamentosView } from './equipamentos.js'; 
 import { FilaEstacionamentoView } from './filaEstacionamento.js'; 
-// --- INÍCIO DA MODIFICAÇÃO ---
-// Importa a nova 'FazendasView' do arquivo 'fazenda.js' (que foi modificado)
 import { FazendasView } from './fazenda.js'; 
-// --- FIM DA MODIFICAÇÃO ---
-import { LoginView } from './login.js'; // NOVO: Tela de Login
-import { GerencialView } from './gerencial.js'; // NOVO: Tela Gerencial
-// NOVO: Importa BoletimDiarioView
+import { LoginView } from './login.js'; 
+import { GerencialView } from './gerencial.js'; 
 import { BoletimDiarioView } from './boletimDiario.js'; 
-// NOVO: Importa OcorrenciasView
 import { OcorrenciasView } from './ocorrencias.js'; 
-// NOVO: Importa TempoView
 import { TempoView } from './tempo.js'; 
-// NOVO: Importa BoletimProducaoView (ADICIONADO)
 import { BoletimProducaoView } from './boletimProducao.js';
-// NOVO: Importa PatioCarregadoView
-import { PatioCarregadoView } from './patioCarregado.js'; // <<-- LINHA ADICIONADA
+import { PatioCarregadoView } from './patioCarregado.js'; 
+import { GerenciamentoTerceirosView } from './gerenciamentoTerceiros.js';
 
 export class ViewManager {
-    constructor(appManager) { // Recebe o App Manager
+    constructor(appManager) { 
         this.views = new Map();
         this.currentView = null;
-        this.appManager = appManager; // Armazena a referência
+        this.appManager = appManager; 
         this.init();
     }
 
@@ -36,36 +29,26 @@ export class ViewManager {
         window.addEventListener('viewChanged', (e) => {
             this.showView(e.detail.view);
         });
-        // Removido showView('dashboard'), o AppManager agora controla a view inicial (Login)
     }
 
     registerViews() {
         this.views.set('login', new LoginView(this.appManager)); 
         this.views.set('dashboard', new DashboardView());
-        // NOVO: Registra Boletim Diário
         this.views.set('boletim-diario', new BoletimDiarioView()); 
         this.views.set('controle', new ControleView());
         this.views.set('frota', new FrotaView());
         this.views.set('equipamentos', new EquipamentosView()); 
         this.views.set('fila-estacionamento', new FilaEstacionamentoView()); 
         
-        // --- INÍCIO DA MODIFICAÇÃO ---
-        // this.views.set('fila-descarga', new DescargaView()); // Linha antiga removida
-        this.views.set('fazendas', new FazendasView()); // Nova view registrada
-        // --- FIM DA MODIFICAÇÃO ---
+        this.views.set('fazendas', new FazendasView()); 
+        this.views.set('fila-patio-carregado', new PatioCarregadoView()); 
         
-        // NOVO: Registra a view Pátio Carregado
-        this.views.set('fila-patio-carregado', new PatioCarregadoView()); // <<-- LINHA ADICIONADA
         this.views.set('relatorios', new RelatoriosView());
-        this.views.set('gerencial', new GerencialView()); // NOVO: Registra Gerencial
+        this.views.set('gerencial', new GerencialView()); 
+        this.views.set('gerenciamento-terceiros', new GerenciamentoTerceirosView());
         
-        // NOVO: Registra a view de Ocorrências
         this.views.set('ocorrencias', new OcorrenciasView());
-        
-        // NOVO: Registra a view de Tempo
         this.views.set('tempo', new TempoView());
-        
-        // NOVO: Registra a view de Boletim de Produção (ADICIONADO)
         this.views.set('boletim-producao', new BoletimProducaoView());
 
         this.views.set('cadastro-fazendas', new CadastrosView('fazendas'));
