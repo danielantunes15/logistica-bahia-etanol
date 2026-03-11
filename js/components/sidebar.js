@@ -14,16 +14,34 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
     const { 
         downtimeCaminhoes = 0, 
         downtimeEquipamentos = 0, 
-        descargaCount = 0 // Este contador agora é órfão, mas o deixamos caso outra view o use
+        descargaCount = 0 
     } = counts;
 
-    // Decide se o botão Gerencial deve ser visível (Apenas Admin)
     const isAdmin = userRole === 'admin';
-    const gerencialButton = isAdmin ? `
-        <button class="nav-button" data-view="gerencial">
-            <i class="ph-fill ph-gear"></i>
-            <span>Gerencial</span>
+
+    // Menu exclusivo para Parceiros (Apenas Admin)
+    const parceirosMenu = isAdmin ? `
+        <button class="nav-button" data-view="gerenciamento-terceiros" style="border-left: 3px solid transparent; transition: all 0.2s;">
+            <i class="ph-fill ph-handshake" style="color: var(--primary-color);"></i>
+            <span style="font-weight: 500;">Parceiros</span>
         </button>
+    ` : '';
+
+    // Menu Gerencial (Apenas Admin)
+    const gerencialGroup = isAdmin ? `
+        <div class="nav-group" id="gerencial-group">
+            <button class="nav-button-group">
+                <i class="ph-fill ph-gear"></i>
+                <span>Gerencial</span>
+                <i class="ph ph-caret-down caret"></i>
+            </button>
+            <div class="submenu">
+                <button class="nav-button" data-view="gerencial">
+                    <i class="ph-fill ph-chart-polar"></i>
+                    <span>Painel Gerencial</span>
+                </button>
+            </div>
+        </div>
     ` : '';
     
     // Conteúdo da seção Cadastros
@@ -67,7 +85,7 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
         </div>
     `;
     
-    // NOVO: Bloco de Perfil minimalista no final
+    // Bloco de Perfil minimalista no final
     const profileFooterBlock = `
         <div class="profile-menu-container">
             <button class="nav-button-group nav-profile-button" id="btn-profile-menu-toggle">
@@ -93,10 +111,6 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
             </div>
         </div>
     `;
-
-    // REMOVIDO: Bloco de IFRAME CLIMATEMPO
-    const weatherEmbed = ''; 
-
 
     sidebar.innerHTML = `
         <div class="sidebar-header">
@@ -161,12 +175,12 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
                 <span>Relatórios</span>
             </button>
             
-            ${gerencialButton}
+            ${parceirosMenu}
+            
+            ${gerencialGroup}
             
             ${cadastrosGroup}
         </nav>
-        
-        ${weatherEmbed}
         
         ${profileFooterBlock}
     `;
@@ -174,7 +188,6 @@ export async function loadSidebar(userRole, userNameDisplay = 'Usuário', counts
     addSidebarEventListeners();
 }
 
-// Refactoring event listeners to handle the new profile menu structure.
 function addSidebarEventListeners() {
     // Listener para os botões de navegação
     document.querySelectorAll('.nav-button').forEach(button => {
@@ -198,8 +211,19 @@ function addSidebarEventListeners() {
             });
         }
     }
+
+    // Toggle para o submenu Gerencial
+    const gerencialGroupEl = document.getElementById('gerencial-group');
+    if (gerencialGroupEl) {
+        const navButtonGroupGerencial = gerencialGroupEl.querySelector('.nav-button-group');
+        if (navButtonGroupGerencial) {
+            navButtonGroupGerencial.addEventListener('click', () => {
+                gerencialGroupEl.classList.toggle('open');
+            });
+        }
+    }
     
-    // NOVO: Toggle para o submenu Meu Perfil
+    // Toggle para o submenu Meu Perfil
     const profileMenuContainer = document.querySelector('.profile-menu-container');
     const profileMenuToggle = document.getElementById('btn-profile-menu-toggle');
     const profileSubmenu = document.getElementById('profile-submenu');
@@ -210,7 +234,7 @@ function addSidebarEventListeners() {
         });
     }
     
-    // NOVO: Ações dentro do submenu de perfil
+    // Ações dentro do submenu de perfil
     if (profileSubmenu) {
         profileSubmenu.addEventListener('click', (e) => {
             const actionButton = e.target.closest('.nav-button');
